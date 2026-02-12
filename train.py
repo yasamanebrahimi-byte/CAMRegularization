@@ -26,6 +26,7 @@ class CFG:
 
 def main():
     cfg = CFG()
+    print("device:", cfg.device, "| cuda:", torch.cuda.is_available(), "| gpu:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else None)
     set_seed(cfg.seed)
 
     train_dl, test_dl = cifar100_loaders(
