@@ -12,7 +12,7 @@ from utils import set_seed, save_ckpt
 class CFG:
     data_dir = "./data"
     out_dir = "./runs_cifar100_resnet18"
-    epochs = 2
+    epochs = 30
     batch_size = 128
     num_workers = 4
     lr = 0.1
