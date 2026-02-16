@@ -29,24 +29,40 @@ def save_ckpt(path,model,optimizer,epoch,best_metric,extra=None):
     if extra: payload.update(extra)
     torch.save(payload,path)
 
+    
 class EMA:
-    def __init__(self,model,decay=0.999):
+    def __init__(self, model, decay=0.999):
         self.decay=float(decay)
-        self.shadow={k:v.detach().clone() for k,v in model.state_dict().items()}
+        self.shadow={k: v.detach().clone() for k,v in model.state_dict().items()}
         self.backup=None
+
     @torch.no_grad()
-    def update(self,model):
+    def update(self, model):
         d=self.decay
         msd=model.state_dict()
         for k,v in msd.items():
-            self.shadow[k].mul_(d).add_(v.detach(),alpha=1.0-d)
-    def apply_to(self,model):
-        self.backup={k:v.detach().clone() for k,v in model.state_dict().items()}
-        model.load_state_dict(self.shadow,strict=True)
-    def restore(self,model):
+            if k not in self.shadow:
+                self.shadow[k]=v.detach().clone()
+                continue
+            # Only EMA-update floating point tensors; copy integers/bools directly
+            if torch.is_floating_point(v):
+                sv=self.shadow[k]
+                if sv.dtype!=v.dtype or sv.device!=v.device:
+                    self.shadow[k]=v.detach().clone()
+                    sv=self.shadow[k]
+                sv.mul_(d).add_(v.detach(), alpha=1.0-d)
+            else:
+                self.shadow[k].copy_(v.detach())
+
+    def apply_to(self, model):
+        self.backup={k: v.detach().clone() for k,v in model.state_dict().items()}
+        model.load_state_dict(self.shadow, strict=True)
+
+    def restore(self, model):
         if self.backup is not None:
-            model.load_state_dict(self.backup,strict=True)
+            model.load_state_dict(self.backup, strict=True)
             self.backup=None
+
 
 def cosine_warmup_lr(optimizer,epochs,warmup_epochs,min_lr=0.0):
     warmup_epochs=max(0,int(warmup_epochs))
