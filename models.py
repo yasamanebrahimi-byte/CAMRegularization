@@ -2,7 +2,7 @@ import torch.nn as nn
 from torchvision.models import *
 
 
-def resnet18_cifar100():
+def resnet18_cifar100(dropout):
     model = resnet18(weights=None)
 
     # Adapt for CIFAR (32x32)
@@ -12,6 +12,13 @@ def resnet18_cifar100():
     model.maxpool = nn.Identity()
 
     # Replace classifier since cifar100 has 100 classes
-    model.fc = nn.Linear(model.fc.in_features, 100)
+    # Apply dropout before the final layer if dropout > 0
+    if dropout > 0.0:
+        model.fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(model.fc.in_features, 100)
+        )
+    else:
+        model.fc = nn.Linear(model.fc.in_features, 100)
 
     return model

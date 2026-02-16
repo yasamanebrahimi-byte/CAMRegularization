@@ -1,4 +1,5 @@
 import os
+import json
 import argparse
 import time
 import torch
@@ -27,6 +28,7 @@ def build_parser():
     p.add_argument("--run_name",    type=str,   default="")
     p.add_argument("--val_split",   type=float, default=0.0)
     p.add_argument("--dropout",     type=float, default=0.0)
+    return p
 
 def build_optimizer(args, model):
     return optim.SGD(
