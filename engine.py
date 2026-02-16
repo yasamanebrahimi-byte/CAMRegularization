@@ -44,7 +44,7 @@ def _loss_with_mixing(logits,y,mixinfo,criterion,ls=0.0):
     # standard CE mixing
     return lam*F.cross_entropy(logits,y)+(1.0-lam)*F.cross_entropy(logits,y2)
 
-def train_one_epoch(model,loader,optimizer,criterion,scaler,device,log_every=100,mixup_alpha=0.0,cutmix_alpha=0.0,grad_clip=0.0,label_smoothing=0.0,ema=None):
+def train_one_epoch(model,loader,optimizer,criterion,scaler,device,log_every=100,mixup_alpha=0.0,cutmix_alpha=0.0,grad_clip=0.0,label_smoothing=0.0):
     model.train()
     loss_sum,acc1_sum,acc5_sum=0.0,0.0,0.0
     t0=time.time()
@@ -78,8 +78,6 @@ def train_one_epoch(model,loader,optimizer,criterion,scaler,device,log_every=100
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(),float(grad_clip))
             scaler.step(optimizer); scaler.update()
-
-        if ema is not None: ema.update(model)
 
         acc1,acc5=accuracy_topk(logits.detach(),y,ks=(1,5))
         loss_sum+=loss.item(); acc1_sum+=acc1; acc5_sum+=acc5
