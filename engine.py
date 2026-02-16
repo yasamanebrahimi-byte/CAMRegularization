@@ -1,6 +1,6 @@
 import time
 import torch
-from utils import accuracy_top1
+from utils import accuracy_top1, accuracy_top5
 
 # Train the model for one epoch.
 # - model: nn.Module to train
@@ -12,7 +12,7 @@ from utils import accuracy_top1
 # - log_every: how many batches between printed logs
 def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_every):
     model.train()
-    running_loss, running_acc = 0.0, 0.0
+    running_loss, running_acc1, running_acc5 = 0.0, 0.0, 0.0
     t0 = time.time()
 
     for i, (x, y) in enumerate(loader, start=1):
@@ -35,10 +35,12 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
             scaler.step(optimizer)
             scaler.update()
 
-        # Compute top-1 accuracy for the batch (helper returns fraction)
-        acc = accuracy_top1(logits.detach(), y)
+        # Compute top-1 and top-5 accuracy for the batch
+        acc1 = accuracy_top1(logits.detach(), y)
+        acc5 = accuracy_top5(logits.detach(), y)
         running_loss += loss.item()
-        running_acc += acc
+        running_acc1 += acc1
+        running_acc5 += acc5
 
         # Periodic logging of running averages and throughput
         if i % log_every == 0 or i == len(loader):
@@ -46,18 +48,19 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
             print(
                 f"[train] {i}/{len(loader)} "
                 f"loss {running_loss/i:.4f} "
-                f"acc {running_acc/i*100:.2f}% "
+                f"acc1 {running_acc1/i*100:.2f}% "
+                f"acc5 {running_acc5/i*100:.2f}% "
                 f"{i/dt:.2f} it/s"
             )
 
-    # Return average loss and accuracy over the loader
-    return running_loss / len(loader), running_acc / len(loader)
+    # Return average loss, top-1 and top-5 accuracy over the loader
+    return running_loss / len(loader), running_acc1 / len(loader), running_acc5 / len(loader)
 
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
     model.eval()
-    loss_sum, acc_sum = 0.0, 0.0
+    loss_sum, acc1_sum, acc5_sum = 0.0, 0.0, 0.0
 
     for x, y in loader:
         x, y = x.to(device), y.to(device)
@@ -65,6 +68,7 @@ def evaluate(model, loader, criterion, device):
         loss = criterion(logits, y)
 
         loss_sum += loss.item()
-        acc_sum += accuracy_top1(logits, y)
+        acc1_sum += accuracy_top1(logits, y)
+        acc5_sum += accuracy_top5(logits, y)
 
-    return loss_sum / len(loader), acc_sum / len(loader)
+    return loss_sum / len(loader), acc1_sum / len(loader), acc5_sum / len(loader)

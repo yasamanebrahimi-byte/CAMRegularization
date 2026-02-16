@@ -20,7 +20,7 @@ def tune_hyperparameters():
     # Fixed parameters (same for all runs)
     fixed_params = {
         "batch_size": 128,
-        "num_workers": 4,
+        "num_workers": 2,
         "momentum": 0.9,
         "seed": 42,
         "log_every": 100,

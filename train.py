@@ -17,7 +17,7 @@ def build_parser():
     p.add_argument("--out_dir",     type=str,   default="./runs_cifar100_resnet18")
     p.add_argument("--epochs",      type=int,   default=30)
     p.add_argument("--batch_size",  type=int,   default=128)
-    p.add_argument("--num_workers", type=int,   default=4)
+    p.add_argument("--num_workers", type=int,   default=2)
     p.add_argument("--lr",          type=float, default=0.1)
     p.add_argument("--momentum",    type=float, default=0.9)
     p.add_argument("--weight_decay",type=float, default=5e-4)
