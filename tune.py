@@ -11,11 +11,11 @@ def tune_hyperparameters():
     
     # Define hyperparameter grids
     param_grid = {
-        "epochs": [30, 50],
+        "epochs": [50],
         "lr": [0.05, 0.1, 0.25],
         "weight_decay": [1e-4, 5e-4],
         "dropout": [0.0],
-        "val_split": [0.0, 0.1],
+        "val_split": [0.0],
     }
     
     # Fixed parameters (same for all runs)
