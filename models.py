@@ -2,7 +2,7 @@ import torch.nn as nn
 from torchvision.models import *
 
 
-def resnet18_cifar100(dropout):
+def resnet18_cifar100(dropout=0.0):
     model = resnet18(weights=None)
 
     # Adapt for CIFAR (32x32)

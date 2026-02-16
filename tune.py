@@ -69,7 +69,12 @@ def tune_hyperparameters():
                 status = "success"
             else:
                 print(f"Failed with exit code {result.returncode}")
-                print(f"  Error: {result.stderr[:200]}")
+                # Print full stderr for debugging
+                if result.stderr:
+                    error_lines = result.stderr.split('\n')
+                    for line in error_lines[-10:]:  # Show last 10 lines of error
+                        if line.strip():
+                            print(f"    {line}")
                 status = "failed"
             
             # Store result information
@@ -78,6 +83,7 @@ def tune_hyperparameters():
                 "params": all_params,
                 "status": status,
                 "exit_code": result.returncode,
+                "stderr": result.stderr[-500:] if result.stderr else "",  # Store last 500 chars of stderr
             }
             
             # Try to load metrics if available
