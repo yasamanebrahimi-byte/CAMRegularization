@@ -2,6 +2,7 @@ import subprocess
 import itertools
 import os
 import json
+import re
 from pathlib import Path
 
 
@@ -86,6 +87,16 @@ def tune_hyperparameters():
                 "stderr": result.stderr[-500:] if result.stderr else "",  # Store last 500 chars of stderr
             }
             
+            # Extract final test accuracy from stdout
+            if "Final test:" in result.stdout:
+                for line in result.stdout.split('\n'):
+                    if "Final test:" in line:
+                        # Parse: "Final test: loss X.XXXX acc1 X.XX%"
+                        match = re.search(r'acc1\s+([\d.]+)%', line)
+                        if match:
+                            result_info["final_test_acc1"] = float(match.group(1)) / 100.0
+                        break
+            
             # Try to load metrics if available
             metrics_path = Path(f"./runs_cifar100_resnet18/{run_name}/metrics.csv")
             if metrics_path.exists():
@@ -142,6 +153,20 @@ def print_summary(results):
     print(f"Successful: {len(successful)}")
     print(f"Failed: {len(failed)}")
     print(f"Other: {len(other)}")
+    
+    # Find and display best test accuracy
+    best_test_acc = None
+    best_test_run = None
+    for r in successful:
+        if "final_test_acc1" in r:
+            if best_test_acc is None or r["final_test_acc1"] > best_test_acc:
+                best_test_acc = r["final_test_acc1"]
+                best_test_run = r
+    
+    if best_test_acc is not None:
+        print(f"\nBest test accuracy: {best_test_acc*100:.2f}% ({best_test_run['run_name']})")
+        params = best_test_run["params"]
+        print(f"   lr={params['lr']}, epochs={params['epochs']}, wd={params['weight_decay']}, val_split={params['val_split']}")
     
     # Show best runs by eval_acc1
     if successful:

@@ -52,7 +52,8 @@ def append_csv(path,row,header=None):
     exists = os.path.exists(path)
     with open(path, "a") as f:
         if (not exists) and header: f.write(",".join(header) + "\n")
-        f.write(",".join(str(x) for x in row)+"\n")
+        if row:  # Only write row if it's not empty
+            f.write(",".join(str(x) for x in row)+"\n")
 
 def main():
     args = build_parser().parse_args()
