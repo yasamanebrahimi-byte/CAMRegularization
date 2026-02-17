@@ -64,9 +64,23 @@ def tune_hyperparameters():
             # Run training
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             
+            # Extract final test accuracy from stdout first
+            final_test_acc1 = None
+            if "Final test:" in result.stdout:
+                for line in result.stdout.split('\n'):
+                    if "Final test:" in line:
+                        # Parse: "Final test: loss X.XXXX acc1 X.XX%"
+                        match = re.search(r'acc1\s+([\d.]+)%', line)
+                        if match:
+                            final_test_acc1 = float(match.group(1)) / 100.0
+                        break
+            
             # Check if run was successful
             if result.returncode == 0:
-                print(f"Completed successfully")
+                if final_test_acc1 is not None:
+                    print(f"Completed successfully - Test Acc: {final_test_acc1*100:.2f}%")
+                else:
+                    print(f"Completed successfully")
                 status = "success"
             else:
                 print(f"Failed with exit code {result.returncode}")
@@ -87,15 +101,8 @@ def tune_hyperparameters():
                 "stderr": result.stderr[-500:] if result.stderr else "",  # Store last 500 chars of stderr
             }
             
-            # Extract final test accuracy from stdout
-            if "Final test:" in result.stdout:
-                for line in result.stdout.split('\n'):
-                    if "Final test:" in line:
-                        # Parse: "Final test: loss X.XXXX acc1 X.XX%"
-                        match = re.search(r'acc1\s+([\d.]+)%', line)
-                        if match:
-                            result_info["final_test_acc1"] = float(match.group(1)) / 100.0
-                        break
+            if final_test_acc1 is not None:
+                result_info["final_test_acc1"] = final_test_acc1
             
             # Try to load metrics if available
             metrics_path = Path(f"./runs_cifar100_resnet18/{run_name}/metrics.csv")
