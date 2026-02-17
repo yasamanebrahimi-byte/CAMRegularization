@@ -26,19 +26,29 @@ def build_parser():
     p.add_argument("--seed",        type=int,   default=42)
     p.add_argument("--log_every",   type=int,   default=100)
     p.add_argument("--amp", action="store_true", default=False)
-    # new configurables
+    
     p.add_argument("--run_name",    type=str,   default="")
     p.add_argument("--val_split",   type=float, default=0.0)
     p.add_argument("--dropout",     type=float, default=0.0)
+    # new configurables
+    p.add_argument("--min_lr",      type=float, default=0.0)
+    p.add_argument("--gamma",       type=float, default=0.1)
+    p.add_argument("--milestones",  type=str,   default="100,150")
+    p.add_argument("--label_smoothing", type=float, default=0.0)
+    p.add_argument("--scheduler",       type=str,   choices=["multistep","cosine"], default="cosine")
+    p.add_argument("--warmup_epochs",   type=int,   default=0)
+    p.add_argument("--nesterov",        action="store_true",    default=False)
     return p
 
 def build_optimizer(args, model):
     return optim.SGD(
         model.parameters(),
-        lr=args.lr,
-        momentum=args.momentum,
-        weight_decay=args.weight_decay,
+        lr = args.lr,
+        momentum = args.momentum,
+        weight_decay = args.weight_decay,
+        nesterov = args.nesterov
     )
+
 
 def make_run_dir(out_dir, run_name):
     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -129,12 +139,22 @@ def main():
 
     model = resnet18_cifar100(dropout = args.dropout).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
 
-    scheduler = optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[15, 25], gamma=0.1
-    )
+    # scheduler
+    if args.scheduler == "multistep":
+        ms=[int(x) for x in args.milestones.split(",") if x.strip()]
+        main_sched = optim.lr_scheduler.MultiStepLR(optimizer,milestones=ms,gamma=args.gamma)
+    else:
+        main_sched = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=max(1,args.epochs-args.warmup_epochs),eta_min=args.min_lr)
+
+    if args.warmup_epochs > 0:
+        warmup_sched = optim.lr_scheduler.LinearLR(optimizer,start_factor=1e-3,total_iters=args.warmup_epochs)
+        scheduler = optim.lr_scheduler.SequentialLR(optimizer,schedulers=[warmup_sched,main_sched],milestones=[args.warmup_epochs])
+    else:
+        scheduler = main_sched
+
 
     scaler = torch.amp.GradScaler(enabled=(args.amp and device == "cuda"))
 
