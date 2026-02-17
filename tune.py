@@ -1,6 +1,5 @@
 import subprocess
 import itertools
-import os
 import json
 import re
 from pathlib import Path
@@ -12,17 +11,17 @@ def tune_hyperparameters():
     """Run grid search over hyperparameter combinations."""
     # Define hyperparameter grids
     param_grid = {
-        "epochs": [150, 200],
+        "epochs": [100],
         "lr": [0.05, 0.1, 0.2],
-        "weight_decay": [5e-4, 1e-3, 2e-3],
-        "momentum": [0.9, 0.95],
+        "weight_decay": [5e-4, 2e-3],
+        "momentum": [0.95],
         "nesterov": [False, True],
-        "label_smoothing": [0.0, 0.05, 0.1],
+        "label_smoothing": [0.0, 0.1],
         "scheduler": ["cosine","multistep"],
-        "warmup_epochs": [0, 2, 5],
+        "warmup_epochs": [0, 5],
         "min_lr": [0.0],
         "gamma": [0.1],
-        "milestones": ["100,150"],  # only used when scheduler=multistep
+        #"milestones": ["100,150"],  # only used when scheduler=multistep
         "dropout": [0.0],
         "val_split": [0.1],
     }
@@ -41,6 +40,16 @@ def tune_hyperparameters():
     keys = param_grid.keys()
     values = param_grid.values()
     param_combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    filtered = []
+    for c in param_combinations:
+        # Example pruning rules:
+        # (A) Only test warmup with cosine (optional but common)
+        if c["scheduler"] == "multistep" and c["warmup_epochs"] > 0:
+            continue
+        # (B) If cosine, gamma/milestones don't matter (doesn't reduce count unless you vary them)
+        filtered.append(c)
+
+    param_combinations = filtered
 
     print(f"Running {len(param_combinations)} training configurations...")
     print(f"Results will be saved to {tuning_dir}\n")
@@ -121,21 +130,7 @@ def tune_hyperparameters():
             }
             
             if final_test_acc1 is not None:
-                result_info["final_test_acc1"] = final_test_acc1
-            
-            # Try to load metrics if available
-            metrics_path = Path(f"./runs_cifar100_resnet18/{run_name}/metrics.csv")
-            if metrics_path.exists():
-                with open(metrics_path, "r") as f:
-                    lines = f.readlines()
-                    if len(lines) > 1:
-                        # Get last line (final epoch results)
-                        last_line = lines[-1].strip()
-                        header = lines[0].strip().split(",")
-                        values = last_line.split(",")
-                        metrics = dict(zip(header, values))
-                        result_info["final_metrics"] = metrics
-            
+                result_info["final_test_acc1"] = final_test_acc1            
             results.append(result_info)
             
         except subprocess.TimeoutExpired:
@@ -207,27 +202,49 @@ def print_summary(results):
                 best_test_run = r
     
     if best_test_acc is not None:
-        print(f"\nBest test accuracy: {best_test_acc*100:.2f}% ({best_test_run['run_name']})")
+        print(f"\nBest test accuracy (for reference): {best_test_acc*100:.2f}% ({best_test_run['run_name']})")
         params = best_test_run["params"]
         print(f"   lr={params['lr']}, epochs={params['epochs']}, wd={params['weight_decay']}, val_split={params['val_split']}")
     
-    # Show best runs by eval_acc1
+    # Show best runs by best validation accuracy (max over epochs)
     if successful:
-        print("\nTop 5 runs by final eval_acc1:")
-        ranked = []
+        ranked=[]
         for r in successful:
-            if "final_metrics" in r and "eval_acc1" in r["final_metrics"]:
-                try:
-                    acc = float(r["final_metrics"]["eval_acc1"])
-                    ranked.append((r, acc))
-                except (ValueError, TypeError):
-                    pass
-        
+            metrics_path = Path(f"./runs_cifar100_resnet18/{r['run_name']}/metrics.csv")
+            best_val = best_val_from_metrics(metrics_path)
+            if best_val is not None:
+                ranked.append((r, best_val))
+
         ranked.sort(key=lambda x: x[1], reverse=True)
-        for i, (r, acc) in enumerate(ranked[:5], 1):
-            params = r["params"]
-            print(f"  {i}. {r['run_name']}: {acc:.6f}")
-            print(f"     lr={params['lr']}, epochs={params['epochs']}, wd={params['weight_decay']}, dropout={params['dropout']}")
+
+        print("\nTop 10 runs by BEST val_acc1 (max over epochs):")
+        for i, (r, best_val) in enumerate(ranked[:10], 1):
+            p = r["params"]
+            print(f"  {i}. {r['run_name']}: best_val_acc1={best_val:.6f}")
+            print(f"     lr={p['lr']}, ep={p['epochs']}, wd={p['weight_decay']}, mom={p['momentum']}, nest={p['nesterov']}, ls={p['label_smoothing']}, sch={p['scheduler']}, wu={p['warmup_epochs']}, ms={p.get('milestones','')}")
+
+        # Save full ranking table
+        if ranked:
+            rows=[]
+            for r, best_val in ranked:
+                rows.append({
+                    "run_name": r["run_name"],
+                    "best_val_acc1": best_val,
+                    "lr": r["params"]["lr"],
+                    "epochs": r["params"]["epochs"],
+                    "weight_decay": r["params"]["weight_decay"],
+                    "momentum": r["params"]["momentum"],
+                    "nesterov": r["params"]["nesterov"],
+                    "label_smoothing": r["params"]["label_smoothing"],
+                    "scheduler": r["params"]["scheduler"],
+                    "warmup_epochs": r["params"]["warmup_epochs"],
+                    "milestones": r["params"].get("milestones", ""),
+                })
+            df_rank = pd.DataFrame(rows)
+            out_csv = Path("./runs_cifar100_resnet18/tuning_results/ranked_by_val.csv")
+            df_rank.to_csv(out_csv, index=False)
+            print(f"\nSaved ranking to {out_csv}")
+
 
 
 def plot_tuning_results(results, tuning_dir):
