@@ -5,6 +5,8 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from dataloader import cifar100_loaders
 from models import resnet18_cifar100
@@ -54,6 +56,60 @@ def append_csv(path,row,header=None):
         if (not exists) and header: f.write(",".join(header) + "\n")
         if row:  # Only write row if it's not empty
             f.write(",".join(str(x) for x in row)+"\n")
+
+def plot_metrics(metrics_csv, run_dir):
+    """Plot training and evaluation metrics from CSV file."""
+    try:
+        df = pd.read_csv(metrics_csv)
+        
+        # Create figure with subplots
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle('Training Metrics', fontsize=16, fontweight='bold')
+        
+        # Plot 1: Training Loss
+        axes[0, 0].plot(df['epoch'], df['train_loss'], 'b-', linewidth=2, label='Train Loss')
+        axes[0, 0].set_xlabel('Epoch')
+        axes[0, 0].set_ylabel('Loss')
+        axes[0, 0].set_title('Training Loss')
+        axes[0, 0].grid(True, alpha=0.3)
+        axes[0, 0].legend()
+        
+        # Plot 2: Evaluation Loss
+        axes[0, 1].plot(df['epoch'], df['eval_loss'], 'r-', linewidth=2, label='Eval Loss')
+        axes[0, 1].set_xlabel('Epoch')
+        axes[0, 1].set_ylabel('Loss')
+        axes[0, 1].set_title('Evaluation Loss')
+        axes[0, 1].grid(True, alpha=0.3)
+        axes[0, 1].legend()
+        
+        # Plot 3: Training Accuracy (top-1)
+        axes[1, 0].plot(df['epoch'], df['train_acc1'] * 100, 'b-', linewidth=2, label='Train Acc1')
+        axes[1, 0].plot(df['epoch'], df['train_acc5'] * 100, 'b--', linewidth=1.5, label='Train Acc5')
+        axes[1, 0].set_xlabel('Epoch')
+        axes[1, 0].set_ylabel('Accuracy (%)')
+        axes[1, 0].set_title('Training Accuracy')
+        axes[1, 0].grid(True, alpha=0.3)
+        axes[1, 0].legend()
+        
+        # Plot 4: Evaluation Accuracy (top-1)
+        axes[1, 1].plot(df['epoch'], df['eval_acc1'] * 100, 'r-', linewidth=2, label='Eval Acc1')
+        axes[1, 1].plot(df['epoch'], df['eval_acc5'] * 100, 'r--', linewidth=1.5, label='Eval Acc5')
+        axes[1, 1].set_xlabel('Epoch')
+        axes[1, 1].set_ylabel('Accuracy (%)')
+        axes[1, 1].set_title('Evaluation Accuracy')
+        axes[1, 1].grid(True, alpha=0.3)
+        axes[1, 1].legend()
+        
+        plt.tight_layout()
+        
+        # Save the figure
+        plot_path = os.path.join(run_dir, 'metrics_plot.png')
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        print(f"Metrics plot saved to {plot_path}")
+        plt.close()
+        
+    except Exception as e:
+        print(f"Error plotting metrics: {e}")
 
 def main():
     args = build_parser().parse_args()
@@ -126,6 +182,9 @@ def main():
     te_loss, te_a1, te_a5 = evaluate(model, test_dl, criterion, device)
     print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
     print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
+    
+    # Generate plots
+    plot_metrics(metrics_csv, run_dir)
 
 
 if __name__ == "__main__":
