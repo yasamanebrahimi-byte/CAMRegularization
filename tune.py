@@ -48,18 +48,33 @@ def tune_hyperparameters():
     results=[]
     for idx, params in enumerate(param_combinations, 1):
         all_params = {**fixed_params, **params}
+
+        # Make multistep milestones match the epoch budget (ignore for cosine)
+        if all_params["scheduler"] == "multistep":
+            ep = all_params["epochs"]
+            if ep == 150:
+                all_params["milestones"] = "90,120"
+            elif ep == 200:
+                all_params["milestones"] = "100,150"
+            else:
+                all_params["milestones"] = f"{int(0.5*ep)},{int(0.75*ep)}"
+
         run_name = (
-            f"tune_ep{params['epochs']}_bs{fixed_params['batch_size']}_lr{params['lr']}"
-            f"_wd{params['weight_decay']:.0e}_m{params['momentum']}_nest{int(params['nesterov'])}"
-            f"_ls{params['label_smoothing']}_sch{params['scheduler']}_wu{params['warmup_epochs']}"
+            f"tune_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
+            f"_wd{all_params['weight_decay']:.0e}_m{all_params['momentum']}_nest{int(all_params['nesterov'])}"
+            f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
+            f"_ms{all_params['milestones'] if all_params['scheduler']=='multistep' else 'na'}"
         )
 
         cmd=["python","train.py","--run_name",run_name]
         for key, value in all_params.items():
-            if key=="amp" and value: cmd.append("--amp")
+            if key=="amp" and value:
+                cmd.append("--amp")
             elif key!="amp":
-                if key=="nesterov" and value: cmd.append("--nesterov")
-                else: cmd.extend([f"--{key}", str(value)])
+                if key=="nesterov":
+                    if value: cmd.append("--nesterov")
+                else:
+                    cmd.extend([f"--{key}", str(value)])
         
         print(f"[{idx}/{len(param_combinations)}] Running: {run_name}")
         print(f"  Command: {' '.join(cmd)}")
@@ -149,6 +164,22 @@ def tune_hyperparameters():
     print(f"\nTuning complete! Results saved to {results_file}")
     print_summary(results)
     plot_tuning_results(results, tuning_dir)
+
+
+def best_val_from_metrics(metrics_path: Path):
+    """Return best validation acc1 from a run's metrics.csv, or None if unavailable."""
+    try:
+        df = pd.read_csv(metrics_path)
+        if "eval_split" not in df.columns or "eval_acc1" not in df.columns: 
+            return None
+        df_val = df[df["eval_split"] == "val"]
+        if df_val.empty: 
+            return None
+        # eval_acc1 should already be numeric; coerce just in case
+        best = pd.to_numeric(df_val["eval_acc1"], errors="coerce").max()
+        return None if pd.isna(best) else float(best)
+    except Exception:
+        return None
 
 
 def print_summary(results):
