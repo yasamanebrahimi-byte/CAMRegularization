@@ -9,6 +9,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import pandas as pd
 
 from utils import best_val_from_metrics, plot_tuning_results
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # -----------------------------
@@ -154,8 +157,8 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     tuning_dir = ensure_dir(cfg.runs_root / cfg.tuning_dirname)
 
     combos = prune_combinations(cartesian_product(PARAM_GRID))
-    print(f"Running {len(combos)} training configurations...")
-    print(f"Results will be saved to {tuning_dir}\n")
+    logger.info(f"Running {len(combos)} training configurations...")
+    logger.info(f"Results will be saved to {tuning_dir}\n")
 
     results: List[Dict[str, Any]] = []
 
@@ -166,17 +169,17 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
         run_name = format_run_name(all_params, FIXED_PARAMS)
         cmd = build_train_cmd(cfg.train_entry, run_name, all_params)
 
-        print(f"[{idx}/{len(combos)}] Running: {run_name}")
-        print(f"  Command: {' '.join(cmd)}")
+        logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
+        logger.info(f"  Command: {' '.join(cmd)}")
 
         result_info = run_single_training_run(cfg, run_name, all_params, cmd)
         results.append(result_info)
-        print()
+        logger.info("")
 
     results_file = tuning_dir / "tuning_results.json"
     results_file.write_text(json.dumps(results, indent=2))
 
-    print(f"\nTuning complete! Results saved to {results_file}")
+    logger.info(f"\nTuning complete! Results saved to {results_file}")
     print_summary(cfg, results)
     plot_tuning_results(results, tuning_dir)
 
@@ -191,15 +194,15 @@ def run_single_training_run(
         if proc.returncode == 0:
             status = "success"
             if final_test_acc1 is not None:
-                print(f"Completed successfully - Test Acc: {final_test_acc1 * 100:.2f}%")
+                logger.info(f"Completed successfully - Test Acc: {final_test_acc1 * 100:.2f}%")
             else:
-                print("Completed successfully")
+                logger.info("Completed successfully")
         else:
             status = "failed"
-            print(f"Failed with exit code {proc.returncode}")
+            logger.error(f"Failed with exit code {proc.returncode}")
             if proc.stderr:
                 for line in [l for l in proc.stderr.splitlines() if l.strip()][-10:]:
-                    print(f"    {line}")
+                    logger.error(f"    {line}")
 
         info: Dict[str, Any] = {
             "run_name": run_name,
@@ -213,34 +216,34 @@ def run_single_training_run(
         return info
 
     except subprocess.TimeoutExpired:
-        print("Timeout (exceeded 1 hour)")
+        logger.warning("Timeout (exceeded 1 hour)")
         return {"run_name": run_name, "params": params, "status": "timeout"}
 
     except Exception as e:
-        print(f"Exception: {e}")
+        logger.error(f"Exception: {e}")
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
 
 
 def print_summary(cfg: TuningConfig, results: List[Dict[str, Any]]) -> None:
-    print("\n" + "=" * 70)
-    print("TUNING SUMMARY")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("TUNING SUMMARY")
+    logger.info("=" * 70)
 
     successful = [r for r in results if r.get("status") == "success"]
     failed = [r for r in results if r.get("status") == "failed"]
     other = [r for r in results if r.get("status") not in {"success", "failed"}]
 
-    print(f"Total runs: {len(results)}")
-    print(f"Successful: {len(successful)}")
-    print(f"Failed: {len(failed)}")
-    print(f"Other: {len(other)}")
+    logger.info(f"Total runs: {len(results)}")
+    logger.info(f"Successful: {len(successful)}")
+    logger.info(f"Failed: {len(failed)}")
+    logger.info(f"Other: {len(other)}")
 
     best_test = max((r for r in successful if "final_test_acc1" in r), default=None, key=lambda r: r["final_test_acc1"])
     if best_test:
         acc = best_test["final_test_acc1"]
         p = best_test["params"]
-        print(f"\nBest test accuracy (for reference): {acc * 100:.2f}% ({best_test['run_name']})")
-        print(f"   lr={p['lr']}, epochs={p['epochs']}, wd={p['weight_decay']}, val_split={p['val_split']}")
+        logger.info(f"\nBest test accuracy (for reference): {acc * 100:.2f}% ({best_test['run_name']})")
+        logger.info(f"   lr={p['lr']}, epochs={p['epochs']}, wd={p['weight_decay']}, val_split={p['val_split']}")
 
     ranked: List[Tuple[Dict[str, Any], float]] = []
     for r in successful:
@@ -252,11 +255,11 @@ def print_summary(cfg: TuningConfig, results: List[Dict[str, Any]]) -> None:
     ranked.sort(key=lambda x: x[1], reverse=True)
 
     if ranked:
-        print("\nTop 10 runs by BEST val_acc1 (max over epochs):")
+        logger.info("\nTop 10 runs by BEST val_acc1 (max over epochs):")
         for i, (r, best_val) in enumerate(ranked[:10], 1):
             p = r["params"]
-            print(f"  {i}. {r['run_name']}: best_val_acc1={best_val:.6f}")
-            print(
+            logger.info(f"  {i}. {r['run_name']}: best_val_acc1={best_val:.6f}")
+            logger.info(
                 "     "
                 f"lr={p['lr']}, ep={p['epochs']}, wd={p['weight_decay']}, mom={p['momentum']}, "
                 f"nest={p['nesterov']}, ls={p['label_smoothing']}, sch={p['scheduler']}, "
@@ -284,7 +287,7 @@ def print_summary(cfg: TuningConfig, results: List[Dict[str, Any]]) -> None:
 
         out_csv = cfg.runs_root / cfg.tuning_dirname / "ranked_by_val.csv"
         pd.DataFrame(rows).to_csv(out_csv, index=False)
-        print(f"\nSaved ranking to {out_csv}")
+        logger.info(f"\nSaved ranking to {out_csv}")
 
 
 if __name__ == "__main__":

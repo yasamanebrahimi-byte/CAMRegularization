@@ -4,6 +4,9 @@ import torch
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def set_seed(seed):
@@ -75,11 +78,11 @@ def plot_metrics(metrics_csv, run_dir):
         # Save the figure
         plot_path = os.path.join(run_dir, 'metrics_plot.png')
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-        print(f"Metrics plot saved to {plot_path}")
+        logger.info(f"Metrics plot saved to {plot_path}")
         plt.close()
         
     except Exception as e:
-        print(f"Error plotting metrics: {e}")
+        logger.error(f"Error plotting metrics: {e}")
 
 def best_val_from_metrics(metrics_path: Path):
     """Return best validation acc1 from a run's metrics.csv, or None if unavailable."""
@@ -102,7 +105,7 @@ def plot_tuning_results(results, tuning_dir):
         successful = [r for r in results if r["status"] == "success"]
         
         if not successful:
-            print("No successful runs to plot")
+            logger.info("No successful runs to plot")
             return
         
         # Extract data for plotting
@@ -119,7 +122,7 @@ def plot_tuning_results(results, tuning_dir):
                 wd_values.append(r["params"]["weight_decay"])
         
         if not test_accs:
-            print("No test accuracy data to plot")
+            logger.info("No test accuracy data to plot")
             return
         
         # Create figure with subplots
@@ -155,8 +158,8 @@ def plot_tuning_results(results, tuning_dir):
         # Save the figure
         plot_path = tuning_dir / 'tuning_results_plot.png'
         plt.savefig(str(plot_path), dpi=150, bbox_inches='tight')
-        print(f"Tuning results plot saved to {plot_path}")
+        logger.info(f"Tuning results plot saved to {plot_path}")
         plt.close()
         
     except Exception as e:
-        print(f"Error plotting tuning results: {e}")
+        logger.error(f"Error plotting tuning results: {e}")

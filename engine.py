@@ -1,6 +1,9 @@
 import time
 import torch
 from utils import accuracy_top1, accuracy_top5
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Train the model for one epoch.
 # - model: nn.Module to train
@@ -45,7 +48,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
         # Periodic logging of running averages and throughput
         if i % log_every == 0 or i == len(loader):
             dt = time.time() - t0
-            print(
+            logger.info(
                 f"[train] {i}/{len(loader)} "
                 f"loss {running_loss/i:.4f} "
                 f"acc1 {running_acc1/i*100:.2f}% "

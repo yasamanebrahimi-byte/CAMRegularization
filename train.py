@@ -8,6 +8,9 @@ from models import *
 from engine import *
 from utils import *
 from IOutils import *
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 def build_optimizer(args, model):
     return optim.SGD(
@@ -21,7 +24,7 @@ def build_optimizer(args, model):
 def main():
     args = build_parser().parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("device:",device,"| cuda:",torch.cuda.is_available(),"| gpu:",torch.cuda.get_device_name(0) if torch.cuda.is_available() else None)
+    logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
     set_seed(args.seed)
     
     # saving results
@@ -63,7 +66,7 @@ def main():
 
     for epoch in range(args.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
-        print(f"\nEpoch {epoch+1}/{args.epochs} | lr {lr_now:.6f}")
+        logger.info(f"\nEpoch {epoch+1}/{args.epochs} | lr {lr_now:.6f}")
 
         tr_loss, tr_a1, tr_a5 = train_one_epoch(
             model, train_dl, criterion, optimizer,
@@ -80,15 +83,15 @@ def main():
             split = "test"
             metric = ev_a1
 
-        print(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% acc5 {tr_a5*100:.2f}%")
-        print(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% acc5 {ev_a5*100:.2f}%")
+        logger.info(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% acc5 {tr_a5*100:.2f}%")
+        logger.info(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% acc5 {ev_a5*100:.2f}%")
 
         append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_a5:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_a5:.6f}",split])
 
         if metric > best:
             best = metric
             save_ckpt(best_path, model, optimizer, epoch+1, best, extra={"config":vars(args)})
-            print(f"saved best: {best*100:.2f}%")
+            logger.info(f"saved best: {best*100:.2f}%")
 
         scheduler.step()
 
@@ -97,8 +100,8 @@ def main():
     model.load_state_dict(ckpt["model"], strict=True)
     model.to(device)
     te_loss, te_a1, te_a5 = evaluate(model, test_dl, criterion, device)
-    print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
+    logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
+    logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
     
     # Generate plots
     plot_metrics(metrics_csv, run_dir)
