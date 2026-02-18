@@ -39,7 +39,6 @@ def cifar100_loaders(data_dir, batch_size, num_workers, val_split=0.0, seed=42):
     )
 
     # Handle validation split if specified
-    val_dl = None
     if val_split > 0.0:
         train_size = int(len(train_ds) * (1 - val_split))
         val_size = len(train_ds) - train_size
@@ -59,11 +58,10 @@ def cifar100_loaders(data_dir, batch_size, num_workers, val_split=0.0, seed=42):
     )
 
     # Validation DataLoader (if validation split is used)
-    if val_dl is None and val_ds is not None:
-        val_dl = DataLoader(
-            val_ds, batch_size=256, shuffle=False,
-            num_workers=num_workers, pin_memory=True
-        )
+    val_dl = DataLoader(
+        val_ds, batch_size=256, shuffle=False,
+        num_workers=num_workers, pin_memory=True
+    ) if val_ds is not None else None
 
     # For evaluation we often use a larger fixed batch size and no shuffling.
     test_dl = DataLoader(

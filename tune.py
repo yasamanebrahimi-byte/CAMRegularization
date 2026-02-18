@@ -6,9 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
+"""Run grid search over hyperparameter combinations."""
 def tune_hyperparameters():
-    """Run grid search over hyperparameter combinations."""
     # Define hyperparameter grids
     param_grid = {
         "epochs": [100],
@@ -21,7 +20,7 @@ def tune_hyperparameters():
         "warmup_epochs": [0, 5],
         "min_lr": [0.0],
         "gamma": [0.1],
-        #"milestones": ["100,150"],  # only used when scheduler=multistep
+        "milestones": ["100,150"],  # only used when scheduler=multistep
         "dropout": [0.0],
         "val_split": [0.1],
     }
