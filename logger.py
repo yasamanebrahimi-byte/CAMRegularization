@@ -77,3 +77,7 @@ def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None)
         _attach_file_handler(logger, _GLOBAL_LOG_PATH, mode="a")
 
     return logger
+
+class SimpleLogger:
+    def info(self, msg):
+        print(msg)

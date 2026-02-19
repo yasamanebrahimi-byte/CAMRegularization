@@ -2,6 +2,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -112,3 +113,67 @@ def plot_tuning_results(results, tuning_dir):
         
     except Exception as e:
         logger.error(f"Error plotting tuning results: {e}")
+
+
+def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
+    """Print and save summary of tuning results."""
+    logger.info("\n" + "=" * 70)
+    logger.info("TUNING SUMMARY")
+    logger.info("=" * 70)
+
+    successful = [r for r in results if r.get("status") == "success"]
+    failed = [r for r in results if r.get("status") == "failed"]
+    other = [r for r in results if r.get("status") not in {"success", "failed"}]
+
+    logger.info(f"Total runs: {len(results)}")
+    logger.info(f"Successful: {len(successful)}")
+    logger.info(f"Failed: {len(failed)}")
+    logger.info(f"Other: {len(other)}")
+
+    best_test = max((r for r in successful if "final_test_acc1" in r), default=None, key=lambda r: r["final_test_acc1"])
+    if best_test:
+        acc = best_test["final_test_acc1"]
+        p = best_test["params"]
+        logger.info(f"\nBest test accuracy (for reference): {acc * 100:.2f}% ({best_test['run_name']})")
+        logger.info(f"   lr={p['lr']}, epochs={p['epochs']}, wd={p['weight_decay']}, val_split={p['val_split']}")
+
+    ranked: List[Tuple[Dict[str, Any], float]] = []
+    for r in successful:
+        if "best_val_acc" in r:
+            ranked.append((r, r["best_val_acc"]))
+
+    ranked.sort(key=lambda x: x[1], reverse=True)
+
+    if ranked:
+        logger.info("\nTop 10 runs by BEST val_acc1 (max over epochs):")
+        for i, (r, best_val) in enumerate(ranked[:10], 1):
+            p = r["params"]
+            logger.info(f"  {i}. {r['run_name']}: best_val_acc1={best_val:.6f}")
+            logger.info(
+                "     "
+                f"lr={p['lr']}, ep={p['epochs']}, wd={p['weight_decay']}, mom={p['momentum']}, "
+                f"nest={p['nesterov']}, ls={p['label_smoothing']}, sch={p['scheduler']}, "
+                f"wu={p['warmup_epochs']}, ms={p.get('milestones','')}"
+            )
+
+        rows = []
+        for r, best_val in ranked:
+            p = r["params"]
+            rows.append(
+                {
+                    "run_name": r["run_name"],
+                    "best_val_acc1": best_val,
+                    "lr": p["lr"],
+                    "epochs": p["epochs"],
+                    "weight_decay": p["weight_decay"],
+                    "momentum": p["momentum"],
+                    "nesterov": p["nesterov"],
+                    "label_smoothing": p["label_smoothing"],
+                    "scheduler": p["scheduler"],
+                    "warmup_epochs": p["warmup_epochs"],
+                    "milestones": p.get("milestones", ""),
+                }
+            )
+        out_csv = tuning_dir / "ranked_by_val.csv"
+        pd.DataFrame(rows).to_csv(out_csv, index=False)
+        logger.info(f"\nSaved ranking to {out_csv}")

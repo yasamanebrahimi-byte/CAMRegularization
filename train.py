@@ -9,7 +9,7 @@ from engine import *
 from utils import *
 from IOutils import *
 from graphics import plot_metrics
-from logger import get_logger
+from logger import get_logger, SimpleLogger
 import time
 from pathlib import Path
 
@@ -22,32 +22,28 @@ def build_optimizer(args, model):
         nesterov = args.nesterov
     )
 
-def main():
-    args = build_parser().parse_args()
-    # set seed early
+"""
+Train a model with the given args and optionally save checkpoints/metrics.
+
+Args:
+    args: Configuration object with training hyperparameters
+    run_dir: Optional directory to save checkpoints/metrics. If None, neither are saved.
+    logger: Optional logger instance. If None, prints to console.
+
+Returns:
+    dict with keys: final_test_acc1, best_val_acc, final_test_loss
+"""
+def train_with_config(args, run_dir=None, logger=None):
+    logger = logger or SimpleLogger()
     set_seed(args.seed)
-
-    # saving results (creates run dir) and setup per-run logging
-    run_dir = make_run_dir(args.out_dir, args.run_name)
-    write_json(os.path.join(run_dir, "config.json"), vars(args))
-
-    # create centralized log directory and a unique log file for this run
-    log_root = Path.cwd() / "log"
-    log_root.mkdir(parents=True, exist_ok=True)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    run_name_for_log = Path(run_dir).name.replace(",", "-")
-    log_path = log_root / f"{run_name_for_log}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
-    
     train_dl, val_dl, test_dl = cifar100_loaders(
         args.data_dir, args.batch_size, args.num_workers,
         val_split=args.val_split, seed=args.seed
     )
 
     model = resnet18_cifar100(dropout = args.dropout).to(device)
-
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
 
@@ -67,10 +63,13 @@ def main():
     scaler = torch.amp.GradScaler(enabled=(args.amp and device == "cuda"))
 
     best = 0.0
-    best_path = os.path.join(run_dir, "best.pt")
-    metrics_csv = os.path.join(run_dir, "metrics.csv")
-    header = ["epoch", "lr", "train_loss", "train_acc1", "train_acc5", "eval_loss", "eval_acc1", "eval_acc5", "eval_split"]
-    append_csv(metrics_csv,[],header=header)  # write header once
+    best_path = None
+    metrics_csv = None
+    if run_dir is not None:
+        best_path = os.path.join(run_dir, "best.pt")
+        metrics_csv = os.path.join(run_dir, "metrics.csv")
+        header = ["epoch", "lr", "train_loss", "train_acc1", "train_acc5", "eval_loss", "eval_acc1", "eval_acc5", "eval_split"]
+        append_csv(metrics_csv,[],header=header)  # write header once
 
     for epoch in range(args.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
@@ -94,25 +93,58 @@ def main():
         logger.info(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% acc5 {tr_a5*100:.2f}%")
         logger.info(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% acc5 {ev_a5*100:.2f}%")
 
-        append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_a5:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_a5:.6f}",split])
+        if metrics_csv is not None:
+            append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_a5:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_a5:.6f}",split])
 
         if metric > best:
             best = metric
-            save_ckpt(best_path, model, optimizer, epoch+1, best, extra={"config":vars(args)})
+            if best_path is not None:
+                save_ckpt(best_path, model, optimizer, epoch+1, best, extra={"config":vars(args)})
             logger.info(f"saved best: {best*100:.2f}%")
 
         scheduler.step()
 
     # final test with best
-    ckpt = torch.load(best_path, map_location="cpu")
-    model.load_state_dict(ckpt["model"], strict=True)
+    final_test_acc1 = None
+    final_test_loss = None
+    if best_path is not None:
+        ckpt = torch.load(best_path, map_location="cpu")
+        model.load_state_dict(ckpt["model"], strict=True)
     model.to(device)
     te_loss, te_a1, te_a5 = evaluate(model, test_dl, criterion, device)
+    final_test_acc1 = te_a1
+    final_test_loss = te_loss
     logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
     logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
     
-    # Generate plots
-    plot_metrics(metrics_csv, run_dir)
+    # Generate plots if we saved metrics
+    if metrics_csv is not None and run_dir is not None:
+        plot_metrics(metrics_csv, run_dir)
+    
+    return {
+        "final_test_acc1": final_test_acc1,
+        "best_val_acc": best,
+        "final_test_loss": final_test_loss
+    }
+
+
+def main():
+    args = build_parser().parse_args()
+
+    # saving results (creates run dir) and setup per-run logging
+    run_dir = make_run_dir(args.out_dir, args.run_name)
+    write_json(os.path.join(run_dir, "config.json"), vars(args))
+
+    # create centralized log directory and a unique log file for this run
+    log_root = Path.cwd() / "log"
+    log_root.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    run_name_for_log = Path(run_dir).name.replace(",", "-")
+    log_path = log_root / f"{run_name_for_log}_{timestamp}.log"
+    logger = get_logger(__name__, log_file=log_path)
+    
+    # Train and return metrics
+    train_with_config(args, run_dir=run_dir, logger=logger)
 
 if __name__ == "__main__":
     main()

@@ -1,15 +1,18 @@
 import itertools
 import json
-import subprocess
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
+import argparse
 
 import pandas as pd
 
 from utils import *
-from graphics import plot_tuning_results
+from IOutils import *
+from graphics import plot_tuning_results, print_summary
 from logger import get_logger
+from train import train_with_config
 import time
 
 # Will be set by tune_hyperparameters at startup so all functions use same file
@@ -24,8 +27,6 @@ logger = None
 class TuningConfig:
     runs_root: Path = Path("./runs_cifar100_resnet18")
     tuning_dirname: str = "tuning_results"
-    train_entry: str = "train.py"
-    timeout_sec: int = 3600  # 1 hour
 
 
 PARAM_GRID: Dict[str, List[Any]] = {
@@ -102,33 +103,19 @@ def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any]) ->
     )
 
 
-def build_train_cmd(train_entry: str, run_name: str, params: Dict[str, Any]) -> List[str]:
+def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
     """
-    Build CLI args in a consistent way:
-    - boolean flags (amp/nesterov) become --flag when True
-    - everything else becomes --key value
+    Convert a params dict to an argparse.Namespace object that train_with_config expects.
     """
-    cmd = ["python", train_entry, "--run_name", run_name]
-
-    bool_flags = {"amp", "nesterov"}
+    # Set defaults from build_parser(), then override with provided params
+    parser = build_parser()
+    args = parser.parse_args([])  # Parse empty args to get defaults
+    
+    # Override with provided params
     for key, value in params.items():
-        if key in bool_flags:
-            if bool(value):
-                cmd.append(f"--{key}")
-            continue
-        cmd.extend([f"--{key}", str(value)])
-
-    return cmd
-
-
-def tail(text: Optional[str], n: int = 500) -> str:
-    if not text:
-        return ""
-    return text[-n:]
-
-
-def metrics_csv_path(cfg: TuningConfig, run_name: str) -> Path:
-    return cfg.runs_root / run_name / "metrics.csv"
+        setattr(args, key, value)
+    
+    return args
 
 
 # -----------------------------
@@ -156,22 +143,16 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
         all_params = with_scheduler_dependent_params(all_params)
 
         run_name = format_run_name(all_params, FIXED_PARAMS)
-        cmd = build_train_cmd(cfg.train_entry, run_name, all_params)
 
         logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
-        logger.info(f"  Command: {' '.join(cmd)}")
 
-        result_info = run_single_training_run(cfg, run_name, all_params, cmd)
+        result_info = run_single_training_run(cfg, run_name, all_params)
         
-        # Read final test accuracy from metrics and log completion status
-        if result_info["status"] == "success":
-            csv_path = metrics_csv_path(cfg, run_name)
-            final_test_acc1 = final_test_from_metrics(csv_path)
-            if final_test_acc1 is not None:
-                result_info["final_test_acc1"] = final_test_acc1
-                logger.info(f"Completed successfully - Test Acc: {final_test_acc1 * 100:.2f}%")
-            else:
-                logger.info("Completed successfully")
+        # Log completion status
+        if result_info["status"] == "success" and "final_test_acc1" in result_info:
+            logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")
+        else:
+            logger.info("Completed successfully" if result_info["status"] == "success" else "Failed")
         
         results.append(result_info)
         logger.info("")
@@ -180,104 +161,40 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     results_file.write_text(json.dumps(results, indent=2))
 
     logger.info(f"\nTuning complete! Results saved to {results_file}")
-    print_summary(cfg, results)
+    print_summary(tuning_dir, results)
     plot_tuning_results(results, tuning_dir)
 
 
 def run_single_training_run(
-    cfg: TuningConfig, run_name: str, params: Dict[str, Any], cmd: List[str]
+    cfg: TuningConfig, run_name: str, params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Run a single training subprocess and return basic execution info."""
+    """Run a single training and return results."""
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=cfg.timeout_sec)
-        status = "success" if proc.returncode == 0 else "failed"
+        # Build args from params
+        args = build_args_from_params(params)
+        args.run_name = run_name
         
-        if status == "failed":
-            logger.error(f"Failed with exit code {proc.returncode}")
-            if proc.stderr:
-                for line in [l for l in proc.stderr.splitlines() if l.strip()][-10:]:
-                    logger.error(f"    {line}")
-
+        # Create run directory
+        run_dir = make_run_dir(args.out_dir, args.run_name)
+        write_json(os.path.join(run_dir, "config.json"), vars(args))
+        
+        # Train and get metrics
+        metrics = train_with_config(args, run_dir=run_dir, logger=logger)
+        
         return {
             "run_name": run_name,
             "params": params,
-            "status": status,
-            "exit_code": proc.returncode,
-            "stderr": tail(proc.stderr, 500),
+            "status": "success",
+            "final_test_acc1": metrics["final_test_acc1"],
+            "best_val_acc": metrics["best_val_acc"],
+            "final_test_loss": metrics["final_test_loss"],
         }
 
-    except subprocess.TimeoutExpired:
-        logger.warning("Timeout (exceeded 1 hour)")
-        return {"run_name": run_name, "params": params, "status": "timeout"}
-
     except Exception as e:
-        logger.error(f"Exception: {e}")
+        logger.error(f"Training failed with error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
-
-
-def print_summary(cfg: TuningConfig, results: List[Dict[str, Any]]) -> None:
-    logger.info("\n" + "=" * 70)
-    logger.info("TUNING SUMMARY")
-    logger.info("=" * 70)
-
-    successful = [r for r in results if r.get("status") == "success"]
-    failed = [r for r in results if r.get("status") == "failed"]
-    other = [r for r in results if r.get("status") not in {"success", "failed"}]
-
-    logger.info(f"Total runs: {len(results)}")
-    logger.info(f"Successful: {len(successful)}")
-    logger.info(f"Failed: {len(failed)}")
-    logger.info(f"Other: {len(other)}")
-
-    best_test = max((r for r in successful if "final_test_acc1" in r), default=None, key=lambda r: r["final_test_acc1"])
-    if best_test:
-        acc = best_test["final_test_acc1"]
-        p = best_test["params"]
-        logger.info(f"\nBest test accuracy (for reference): {acc * 100:.2f}% ({best_test['run_name']})")
-        logger.info(f"   lr={p['lr']}, epochs={p['epochs']}, wd={p['weight_decay']}, val_split={p['val_split']}")
-
-    ranked: List[Tuple[Dict[str, Any], float]] = []
-    for r in successful:
-        mpath = metrics_csv_path(cfg, r["run_name"])
-        best_val = best_val_from_metrics(mpath)
-        if best_val is not None:
-            ranked.append((r, best_val))
-
-    ranked.sort(key=lambda x: x[1], reverse=True)
-
-    if ranked:
-        logger.info("\nTop 10 runs by BEST val_acc1 (max over epochs):")
-        for i, (r, best_val) in enumerate(ranked[:10], 1):
-            p = r["params"]
-            logger.info(f"  {i}. {r['run_name']}: best_val_acc1={best_val:.6f}")
-            logger.info(
-                "     "
-                f"lr={p['lr']}, ep={p['epochs']}, wd={p['weight_decay']}, mom={p['momentum']}, "
-                f"nest={p['nesterov']}, ls={p['label_smoothing']}, sch={p['scheduler']}, "
-                f"wu={p['warmup_epochs']}, ms={p.get('milestones','')}"
-            )
-
-        rows = []
-        for r, best_val in ranked:
-            p = r["params"]
-            rows.append(
-                {
-                    "run_name": r["run_name"],
-                    "best_val_acc1": best_val,
-                    "lr": p["lr"],
-                    "epochs": p["epochs"],
-                    "weight_decay": p["weight_decay"],
-                    "momentum": p["momentum"],
-                    "nesterov": p["nesterov"],
-                    "label_smoothing": p["label_smoothing"],
-                    "scheduler": p["scheduler"],
-                    "warmup_epochs": p["warmup_epochs"],
-                    "milestones": p.get("milestones", ""),
-                }
-            )
-        out_csv = cfg.runs_root / cfg.tuning_dirname / "ranked_by_val.csv"
-        pd.DataFrame(rows).to_csv(out_csv, index=False)
-        logger.info(f"\nSaved ranking to {out_csv}")
 
 
 if __name__ == "__main__":
