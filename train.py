@@ -8,6 +8,7 @@ from models import *
 from engine import *
 from utils import *
 from IOutils import *
+from graphics import plot_metrics
 from logger import get_logger
 import time
 from pathlib import Path

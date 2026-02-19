@@ -7,7 +7,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
-from utils import best_val_from_metrics, plot_tuning_results, final_test_from_metrics
+from utils import best_val_from_metrics, final_test_from_metrics
+from graphics import plot_tuning_results
 from logger import get_logger
 import time
 
