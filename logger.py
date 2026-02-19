@@ -39,18 +39,12 @@ def set_global_log_file(path: Path, mode: str = "a") -> None:
     """
     global _GLOBAL_LOG_PATH
     _GLOBAL_LOG_PATH = Path(path)
-    # Attach file handler to the root logger
+    # Attach file handler to the root logger only (no console handler on root)
     root = logging.getLogger()
-    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
-        # ensure console handler exists on root
-        console_formatter = logging.Formatter("%(message)s")
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(logging.INFO)
-        ch.setFormatter(console_formatter)
-        root.addHandler(ch)
+    root.setLevel(logging.DEBUG)
     _attach_file_handler(root, _GLOBAL_LOG_PATH, mode=mode)
 
-    # Also attach to all existing named loggers
+    # Also attach to all existing named loggers and ensure they don't propagate unnecessarily
     for name, obj in list(logging.Logger.manager.loggerDict.items()):
         if isinstance(obj, logging.Logger):
             _attach_file_handler(obj, _GLOBAL_LOG_PATH, mode=mode)
