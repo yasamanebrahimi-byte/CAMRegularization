@@ -1,6 +1,5 @@
 import itertools
 import json
-import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
-from utils import best_val_from_metrics, plot_tuning_results
+from utils import best_val_from_metrics, plot_tuning_results, final_test_from_metrics
 from logger import get_logger
 import time
 
@@ -56,9 +55,6 @@ FIXED_PARAMS: Dict[str, Any] = {
 # -----------------------------
 # Helpers
 # -----------------------------
-
-FINAL_TEST_RE = re.compile(r"Final test:.*?acc1\s+([\d.]+)%", re.IGNORECASE)
-
 
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
@@ -130,17 +126,6 @@ def build_train_cmd(train_entry: str, run_name: str, params: Dict[str, Any]) -> 
     return cmd
 
 
-def parse_final_test_acc1(stdout: str) -> Optional[float]:
-    """
-    Return acc1 as fraction (0.0-1.0) if present.
-    Looks for: 'Final test: ... acc1 XX.XX%'
-    """
-    m = FINAL_TEST_RE.search(stdout or "")
-    if not m:
-        return None
-    return float(m.group(1)) / 100.0
-
-
 def tail(text: Optional[str], n: int = 500) -> str:
     if not text:
         return ""
@@ -182,6 +167,17 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
         logger.info(f"  Command: {' '.join(cmd)}")
 
         result_info = run_single_training_run(cfg, run_name, all_params, cmd)
+        
+        # Read final test accuracy from metrics and log completion status
+        if result_info["status"] == "success":
+            csv_path = metrics_csv_path(cfg, run_name)
+            final_test_acc1 = final_test_from_metrics(csv_path)
+            if final_test_acc1 is not None:
+                result_info["final_test_acc1"] = final_test_acc1
+                logger.info(f"Completed successfully - Test Acc: {final_test_acc1 * 100:.2f}%")
+            else:
+                logger.info("Completed successfully")
+        
         results.append(result_info)
         logger.info("")
 
@@ -196,33 +192,24 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
 def run_single_training_run(
     cfg: TuningConfig, run_name: str, params: Dict[str, Any], cmd: List[str]
 ) -> Dict[str, Any]:
+    """Run a single training subprocess and return basic execution info."""
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=cfg.timeout_sec)
-        final_test_acc1 = parse_final_test_acc1(proc.stdout)
-
-        if proc.returncode == 0:
-            status = "success"
-            if final_test_acc1 is not None:
-                logger.info(f"Completed successfully - Test Acc: {final_test_acc1 * 100:.2f}%")
-            else:
-                logger.info("Completed successfully")
-        else:
-            status = "failed"
+        status = "success" if proc.returncode == 0 else "failed"
+        
+        if status == "failed":
             logger.error(f"Failed with exit code {proc.returncode}")
             if proc.stderr:
                 for line in [l for l in proc.stderr.splitlines() if l.strip()][-10:]:
                     logger.error(f"    {line}")
 
-        info: Dict[str, Any] = {
+        return {
             "run_name": run_name,
             "params": params,
             "status": status,
             "exit_code": proc.returncode,
             "stderr": tail(proc.stderr, 500),
         }
-        if final_test_acc1 is not None:
-            info["final_test_acc1"] = final_test_acc1
-        return info
 
     except subprocess.TimeoutExpired:
         logger.warning("Timeout (exceeded 1 hour)")

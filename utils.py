@@ -98,6 +98,19 @@ def best_val_from_metrics(metrics_path: Path):
         return None if pd.isna(best) else float(best)
     except Exception:
         return None
+    
+def final_test_from_metrics(metrics_path: Path):
+    """Return final test acc1 from a run's metrics.csv (last row eval_acc1), or None if unavailable."""
+    try:
+        df = pd.read_csv(metrics_path)
+        if "eval_acc1" not in df.columns or df.empty:
+            return None
+        # Get the last row's eval_acc1 (final evaluation accuracy)
+        acc = pd.to_numeric(df.iloc[-1]["eval_acc1"], errors="coerce")
+        return None if pd.isna(acc) else float(acc)
+    except Exception:
+        return None
+
 
 def plot_tuning_results(results, tuning_dir):
     """Plot tuning results comparing different configurations."""
