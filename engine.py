@@ -5,14 +5,16 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-# Train the model for one epoch.
-# - model: nn.Module to train
-# - loader: DataLoader yielding (input, target)
-# - criterion: loss function
-# - optimizer: optimizer for parameter updates
-# - scaler: GradScaler or None (for mixed precision)
-# - device: torch device string or torch.device
-# - log_every: how many batches between printed logs
+"""
+Train the model for one epoch.
+- model: nn.Module to train
+- loader: DataLoader yielding (input, target)
+- criterion: loss function
+- optimizer: optimizer for parameter updates
+- scaler: GradScaler or None (for mixed precision)
+- device: torch device string or torch.device
+- log_every: how many batches between printed logs
+"""
 def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_every):
     model.train()
     running_loss, running_acc1, running_acc5 = 0.0, 0.0, 0.0
@@ -21,7 +23,6 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
     for i, (x, y) in enumerate(loader, start=1):
         # Move batch to device (non_blocking for pinned memory)
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
-
         optimizer.zero_grad(set_to_none=True)
 
         # Use automatic mixed precision on CUDA when scaler is provided.
@@ -55,23 +56,33 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
                 f"acc5 {running_acc5/i*100:.2f}% "
                 f"{i/dt:.2f} it/s"
             )
-
     # Return average loss, top-1 and top-5 accuracy over the loader
     return running_loss / len(loader), running_acc1 / len(loader), running_acc5 / len(loader)
 
 
+"""
+Evaluate the model on a dataset (no gradient computation).
+- model: nn.Module to evaluate
+- loader: DataLoader yielding (inputs, targets) batches (e.g., val/test loader)
+- criterion: loss function used to compute average loss (e.g., nn.CrossEntropyLoss)
+- device: torch.device or device string (e.g., "cuda", "cpu")
+
+Behavior:
+- Runs under torch.no_grad() and sets model.eval() for inference (disables dropout, uses BN running stats).
+- Computes mean loss per batch, plus mean top-1 and top-5 accuracy per batch.
+
+Returns:
+- (avg_loss, avg_acc1, avg_acc5): floats averaged over the number of batches in loader.
+"""
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
     model.eval()
     loss_sum, acc1_sum, acc5_sum = 0.0, 0.0, 0.0
-
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         logits = model(x)
         loss = criterion(logits, y)
-
         loss_sum += loss.item()
         acc1_sum += accuracy_top1(logits, y)
         acc5_sum += accuracy_top5(logits, y)
-
     return loss_sum / len(loader), acc1_sum / len(loader), acc5_sum / len(loader)

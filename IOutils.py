@@ -8,7 +8,7 @@ def build_parser():
     p = argparse.ArgumentParser("CIFAR-100 ResNet-18")
     p.add_argument("--data_dir",    type=str,   default="./data")
     p.add_argument("--out_dir",     type=str,   default="./runs_cifar100_resnet18")
-    p.add_argument("--epochs",      type=int,   default=30)
+    p.add_argument("--epochs",      type=int,   default=50)
     p.add_argument("--batch_size",  type=int,   default=128)
     p.add_argument("--num_workers", type=int,   default=2)
     p.add_argument("--lr",          type=float, default=0.1)
