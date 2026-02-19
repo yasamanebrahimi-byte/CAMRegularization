@@ -5,9 +5,13 @@ import os
 import torch
 
 def build_parser():
-    p = argparse.ArgumentParser("CIFAR-100 ResNet-18")
+    p = argparse.ArgumentParser("PyTorch Model Training")
+    # Dataset and model selection
+    p.add_argument("--dataset",     type=str,   default="cifar100",  help="Dataset name (e.g., 'cifar100', 'cifar10')")
+    p.add_argument("--model",       type=str,   default="resnet18",   help="Model name (e.g., 'resnet18', 'resnet50', 'vgg16')")
     p.add_argument("--data_dir",    type=str,   default="./data")
-    p.add_argument("--out_dir",     type=str,   default="./runs_cifar100_resnet18")
+    p.add_argument("--out_dir",     type=str,   default="./runs")
+    # Training hyperparameters
     p.add_argument("--epochs",      type=int,   default=50)
     p.add_argument("--batch_size",  type=int,   default=128)
     p.add_argument("--num_workers", type=int,   default=2)

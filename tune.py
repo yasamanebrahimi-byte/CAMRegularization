@@ -18,6 +18,10 @@ import time
 # Will be set by tune_hyperparameters at startup so all functions use same file
 logger = None
 
+# Default configuration - can be overridden when calling tune_hyperparameters()
+DEFAULT_DATASET = "cifar100"
+DEFAULT_MODEL = "resnet18"
+
 
 # -----------------------------
 # Config
@@ -25,8 +29,10 @@ logger = None
 
 @dataclass(frozen=True)
 class TuningConfig:
-    runs_root: Path = Path("./runs_cifar100_resnet18")
+    runs_root: Path = Path("./runs")  # Generic runs directory
     tuning_dirname: str = "tuning_results"
+    dataset: str = DEFAULT_DATASET
+    model: str = DEFAULT_MODEL
 
 
 PARAM_GRID: Dict[str, List[Any]] = {
@@ -46,6 +52,7 @@ PARAM_GRID: Dict[str, List[Any]] = {
 }
 
 FIXED_PARAMS: Dict[str, Any] = {
+    "data_dir": "./data",
     "batch_size": 128,
     "num_workers": 2,
     "seed": 42,
@@ -92,11 +99,11 @@ def with_scheduler_dependent_params(params: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any]) -> str:
+def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], dataset: str, model: str) -> str:
     wd = float(all_params["weight_decay"])
     ms = all_params["milestones"] if all_params["scheduler"] == "multistep" else "na"
     return (
-        f"tune_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
+        f"tune_{model}_{dataset}_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
         f"_wd{wd:.0e}_m{all_params['momentum']}_nest{int(bool(all_params['nesterov']))}"
         f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
         f"_ms{ms}"
@@ -124,16 +131,16 @@ def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
 
 def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     # create tuning dir and setup a single log file for this tuning run
-    tuning_dir = ensure_dir(cfg.runs_root / cfg.tuning_dirname)
+    tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.tuning_dirname)
     global logger
     log_root = Path.cwd() / "log"
     log_root.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_file = log_root / f"tune_{timestamp}.log"
+    log_file = log_root / f"tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_file)
 
     combos = prune_combinations(cartesian_product(PARAM_GRID))
-    logger.info(f"Running {len(combos)} training configurations...")
+    logger.info(f"Running {len(combos)} training configurations for {cfg.model} on {cfg.dataset}...")
     logger.info(f"Results will be saved to {tuning_dir}\n")
 
     results: List[Dict[str, Any]] = []
@@ -141,8 +148,12 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     for idx, grid_params in enumerate(combos, 1):
         all_params = {**FIXED_PARAMS, **grid_params}
         all_params = with_scheduler_dependent_params(all_params)
+        
+        # Add dataset and model to all_params
+        all_params["dataset"] = cfg.dataset
+        all_params["model"] = cfg.model
 
-        run_name = format_run_name(all_params, FIXED_PARAMS)
+        run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
 
         logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
 
@@ -174,6 +185,13 @@ def run_single_training_run(
         args = build_args_from_params(params)
         args.run_name = run_name
         
+        # Ensure dataset and model are set in args
+        args.dataset = params.get("dataset", cfg.dataset)
+        args.model = params.get("model", cfg.model)
+        
+        # Set out_dir to the model/dataset subdirectory under cfg.runs_root
+        args.out_dir = str(cfg.runs_root / args.model / args.dataset)
+        
         # Create run directory
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
@@ -197,5 +215,21 @@ def run_single_training_run(
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
 
 
+
+
 if __name__ == "__main__":
-    tune_hyperparameters()
+    parser = argparse.ArgumentParser("Hyperparameter Tuning")
+    parser.add_argument("--dataset", type=str, default=DEFAULT_DATASET, 
+                        help=f"Dataset name (default: {DEFAULT_DATASET})")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
+                        help=f"Model name (default: {DEFAULT_MODEL})")
+    parser.add_argument("--runs_root", type=str, default="./runs",
+                        help="Root directory for runs")
+    args = parser.parse_args()
+    
+    cfg = TuningConfig(
+        runs_root=Path(args.runs_root),
+        dataset=args.dataset,
+        model=args.model
+    )
+    tune_hyperparameters(cfg)

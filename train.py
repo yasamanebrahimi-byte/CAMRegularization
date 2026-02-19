@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from dataloader import *
-from models import *
+from model_registry import get_model
+from dataset_registry import get_dataset_loaders
 from engine import *
 from utils import *
 from IOutils import *
@@ -38,12 +38,18 @@ def train_with_config(args, run_dir=None, logger=None):
     set_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
-    train_dl, val_dl, test_dl = cifar100_loaders(
-        args.data_dir, args.batch_size, args.num_workers,
+    
+    # Load dataset using registry
+    train_dl, val_dl, test_dl = get_dataset_loaders(
+        args.dataset, args.data_dir, args.batch_size, args.num_workers,
         val_split=args.val_split, seed=args.seed
     )
-
-    model = resnet18_cifar100(dropout = args.dropout).to(device)
+    
+    # Get number of classes from dataset registry and create model
+    from dataset_registry import get_num_classes
+    num_classes = get_num_classes(args.dataset)
+    model = get_model(args.model, num_classes=num_classes, dropout=args.dropout).to(device)
+    logger.info(f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes}")
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
 
