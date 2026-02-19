@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
-from utils import best_val_from_metrics, final_test_from_metrics
+from utils import *
 from graphics import plot_tuning_results
 from logger import get_logger
 import time
@@ -56,12 +56,6 @@ FIXED_PARAMS: Dict[str, Any] = {
 # -----------------------------
 # Helpers
 # -----------------------------
-
-def ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def cartesian_product(grid: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
     keys = list(grid.keys())
     combos = []
@@ -281,7 +275,6 @@ def print_summary(cfg: TuningConfig, results: List[Dict[str, Any]]) -> None:
                     "milestones": p.get("milestones", ""),
                 }
             )
-
         out_csv = cfg.runs_root / cfg.tuning_dirname / "ranked_by_val.csv"
         pd.DataFrame(rows).to_csv(out_csv, index=False)
         logger.info(f"\nSaved ranking to {out_csv}")

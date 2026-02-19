@@ -64,7 +64,6 @@ def main():
     else:
         scheduler = main_sched
 
-
     scaler = torch.amp.GradScaler(enabled=(args.amp and device == "cuda"))
 
     best = 0.0
@@ -114,7 +113,6 @@ def main():
     
     # Generate plots
     plot_metrics(metrics_csv, run_dir)
-
 
 if __name__ == "__main__":
     main()

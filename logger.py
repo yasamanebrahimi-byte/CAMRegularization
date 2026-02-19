@@ -2,16 +2,12 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
-
 
 # Global chosen log file path for this process (shared across modules)
 _GLOBAL_LOG_PATH: Optional[Path] = None
 
-
 def _ensure_log_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-
 
 def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") -> None:
     """Remove existing FileHandler(s) on logger and attach a new one for `path`."""
@@ -31,12 +27,12 @@ def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") ->
     logger.addHandler(fh)
 
 
+"""
+Set a global log file path and attach it to all existing loggers.
+Subsequent calls to get_logger that provide no explicit log_file will
+also attach handlers pointing to this path.
+"""
 def set_global_log_file(path: Path, mode: str = "a") -> None:
-    """Set a global log file path and attach it to all existing loggers.
-
-    Subsequent calls to get_logger that provide no explicit log_file will
-    also attach handlers pointing to this path.
-    """
     global _GLOBAL_LOG_PATH
     _GLOBAL_LOG_PATH = Path(path)
     # Attach file handler to the root logger only (no console handler on root)
@@ -58,16 +54,14 @@ def _ensure_console_handler(logger: logging.Logger) -> None:
         ch.setFormatter(console_formatter)
         logger.addHandler(ch)
 
-
+"""
+Return a logger configured with a console handler and a shared file handler.
+- If `log_file` is provided, it becomes the global log file for this process
+    and will be attached to all existing loggers.
+- If a global log file has already been set, it will be attached to the
+    returned logger as well.
+"""
 def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None) -> logging.Logger:
-    """Return a logger configured with a console handler and (optionally)
-    a shared file handler.
-
-    - If `log_file` is provided, it becomes the global log file for this process
-      and will be attached to all existing loggers.
-    - If a global log file has already been set, it will be attached to the
-      returned logger as well.
-    """
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 

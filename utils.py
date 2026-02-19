@@ -42,6 +42,10 @@ def best_val_from_metrics(metrics_path: Path):
     except Exception:
         return None
     
+def ensure_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
 def final_test_from_metrics(metrics_path: Path):
     """Return final test acc1 from a run's metrics.csv (last row eval_acc1), or None if unavailable."""
     try:

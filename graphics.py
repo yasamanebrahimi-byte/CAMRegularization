@@ -6,18 +6,16 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-
+"""Configure common subplot properties."""
 def _setup_subplot(ax, xlabel, ylabel, title):
-    """Configure common subplot properties."""
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
     ax.legend()
 
-
+"""Plot training and evaluation metrics from CSV file."""
 def plot_metrics(metrics_csv, run_dir):
-    """Plot training and evaluation metrics from CSV file."""
     try:
         df = pd.read_csv(metrics_csv)
         
@@ -54,9 +52,8 @@ def plot_metrics(metrics_csv, run_dir):
     except Exception as e:
         logger.error(f"Error plotting metrics: {e}")
 
-
+"""Plot tuning results comparing different configurations."""
 def plot_tuning_results(results, tuning_dir):
-    """Plot tuning results comparing different configurations."""
     try:
         successful = [r for r in results if r["status"] == "success"]
         
