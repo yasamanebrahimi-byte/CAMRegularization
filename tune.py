@@ -10,8 +10,10 @@ import pandas as pd
 
 from utils import best_val_from_metrics, plot_tuning_results
 from logger import get_logger
+import time
 
-logger = get_logger(__name__)
+# Will be set by tune_hyperparameters at startup so all functions use same file
+logger = None
 
 
 # -----------------------------
@@ -154,7 +156,14 @@ def metrics_csv_path(cfg: TuningConfig, run_name: str) -> Path:
 # -----------------------------
 
 def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
+    # create tuning dir and setup a single log file for this tuning run
     tuning_dir = ensure_dir(cfg.runs_root / cfg.tuning_dirname)
+    global logger
+    log_root = Path.cwd() / "log"
+    log_root.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    log_file = log_root / f"tune_{timestamp}.log"
+    logger = get_logger(__name__, log_file=log_file)
 
     combos = prune_combinations(cartesian_product(PARAM_GRID))
     logger.info(f"Running {len(combos)} training configurations...")

@@ -9,8 +9,8 @@ from engine import *
 from utils import *
 from IOutils import *
 from logger import get_logger
-
-logger = get_logger(__name__)
+import time
+from pathlib import Path
 
 def build_optimizer(args, model):
     return optim.SGD(
@@ -23,15 +23,23 @@ def build_optimizer(args, model):
 
 def main():
     args = build_parser().parse_args()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
+    # set seed early
     set_seed(args.seed)
-    
-    # saving results
+
+    # saving results (creates run dir) and setup per-run logging
     run_dir = make_run_dir(args.out_dir, args.run_name)
     write_json(os.path.join(run_dir, "config.json"), vars(args))
 
-
+    # create centralized log directory and a unique log file for this run
+    log_root = Path.cwd() / "log"
+    log_root.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    run_name_for_log = Path(run_dir).name.replace(",", "-")
+    log_path = log_root / f"{run_name_for_log}_{timestamp}.log"
+    logger = get_logger(__name__, log_file=log_path)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
+    
     train_dl, val_dl, test_dl = cifar100_loaders(
         args.data_dir, args.batch_size, args.num_workers,
         val_split=args.val_split, seed=args.seed
