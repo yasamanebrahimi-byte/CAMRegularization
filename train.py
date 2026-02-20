@@ -38,7 +38,7 @@ def train_with_config(args, run_dir=None, logger=None):
     # Get number of classes from dataset registry and create model
     from dataset_registry import get_num_classes
     num_classes = get_num_classes(args.dataset)
-    model = get_model(args.model, num_classes=num_classes, dropout=args.dropout).to(device)
+    model = get_model(args.model, num_classes=num_classes).to(device)
     cam_runner = None
     masking_cfg = None
 

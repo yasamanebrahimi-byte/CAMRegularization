@@ -10,22 +10,13 @@ from typing import Callable, Dict, Any
 ModelBuilder = Callable[[int], nn.Module]
 
 
-def _resnet18_builder(num_classes: int, input_size: int = 32, dropout: float = 0.0, **kwargs) -> nn.Module:
+def _resnet18_builder(num_classes: int, input_size: int = 32, **kwargs) -> nn.Module:
     """Build ResNet18 adapted for small image sizes (like CIFAR)."""
-    model = resnet18(weights=None)
-    
+    model = resnet18(weights=None) 
     # Adapt for small image inputs (e.g., 32x32)
     model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
     model.maxpool = nn.Identity()
-    
-    # Replace classifier for the target number of classes
-    if dropout > 0.0:
-        model.fc = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.Linear(model.fc.in_features, num_classes)
-        )
-    else:
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
     
     return model
 
@@ -47,7 +38,7 @@ def get_model(model_name: str, num_classes: int, **kwargs) -> nn.Module:
     Args:
         model_name: Name of the model (e.g., 'resnet18', 'vgg16')
         num_classes: Number of output classes
-        **kwargs: Additional arguments passed to the model builder (e.g., dropout)
+        **kwargs: Additional arguments passed to the model builder
     
     Returns:
         Instantiated PyTorch model

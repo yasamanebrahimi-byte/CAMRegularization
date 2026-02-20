@@ -45,7 +45,6 @@ PARAM_GRID: Dict[str, List[Any]] = {
     "min_lr": [0.0],
     "gamma": [0.1],
     "milestones": ["100,150"],
-    "dropout": [0.0],
     "val_split": [0.1],
 }
 

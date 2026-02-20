@@ -23,7 +23,6 @@ def build_parser():
     p.add_argument("--log_every",   type=int,   default=100)
     p.add_argument("--run_name",    type=str,   default="")
     p.add_argument("--val_split",   type=float, default=0.0)
-    p.add_argument("--dropout",     type=float, default=0.0)
     p.add_argument("--min_lr",      type=float, default=0.0)
     p.add_argument("--gamma",       type=float, default=0.1)
     p.add_argument("--milestones",  type=str,   default="100,150")
