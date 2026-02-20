@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 import time
 import os
 import torch
@@ -61,3 +62,7 @@ def save_ckpt(path, model, optimizer, epoch, best_acc, extra=None):
     if extra is not None:
         state.update(extra)
     torch.save(state, path)
+
+def ensure_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path

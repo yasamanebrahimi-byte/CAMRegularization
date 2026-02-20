@@ -3,10 +3,8 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List
 import argparse
-
-import pandas as pd
 
 from utils import *
 from IOutils import *
