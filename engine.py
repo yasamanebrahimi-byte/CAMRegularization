@@ -2,7 +2,7 @@ import time
 import torch
 from utils import accuracy_top1, accuracy_top5
 from logger import get_logger
-from cam_masking import apply_random_cutout, apply_cam_cutout  # NEW
+from cam_masking import apply_random_cutout, apply_cam_cutout  
 
 logger = get_logger(__name__)
 
@@ -14,8 +14,6 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
 
     for i, (x, y) in enumerate(loader, start=1):
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
-
-        # --- NEW: masking (after warm-up) ---
         if masking_cfg is not None:
             ms = masking_cfg
             do_mask = (epoch >= ms["warmup_epochs"]) and (ms["strategy"] != "none")
@@ -23,18 +21,13 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
                 if ms["strategy"] == "random":
                     x = apply_random_cutout(x, area_frac=ms["area"], block=ms["block"], fill=0.0)
                 else:
-                    # CAM masking needs a cam_runner
                     if cam_runner is None:
                         raise RuntimeError("CAM masking requested but cam_runner is None.")
-                    # compute CAM WITHOUT polluting param grads:
-                    # temporarily set model to eval for stability (optional)
                     was_training = model.training
                     model.eval()
-                    # ensure x requires grad for CAM computation
                     x_cam = x.detach().requires_grad_(True)
-                    cam = cam_runner.cam(x_cam, y)  # [B,1,H,W]
+                    cam = cam_runner.cam(x_cam, y) 
                     model.train(was_training)
-
                     mode = "high" if ms["strategy"] == "cam_high" else "low"
                     x = apply_cam_cutout(x, cam.detach(), area_frac=ms["area"], block=ms["block"], fill=0.0, mode=mode)
 
@@ -50,7 +43,6 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-
         acc1 = accuracy_top1(logits.detach(), y)
         acc5 = accuracy_top5(logits.detach(), y)
         running_loss += loss.item()
