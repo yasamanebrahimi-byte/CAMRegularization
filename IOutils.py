@@ -32,6 +32,13 @@ def build_parser():
     p.add_argument("--warmup_epochs",   type=int,   default=0)
     p.add_argument("--nesterov",        action="store_true",    default=False)
     p.add_argument("--amp",             action="store_true",    default=False)
+    # --- CAM-guided cutout ---
+    p.add_argument("--masking",     type=str,   choices=["none","random","cam_high","cam_low"], default="none")
+    p.add_argument("--mask_warmup_epochs",  type=int,   default=0)
+    p.add_argument("--mask_prob",   type=float, default=1.0)
+    p.add_argument("--mask_area",   type=float, default=0.2)
+    p.add_argument("--mask_block",  type=int,   default=8)
+    p.add_argument("--cam_layer",   type=str,   default="layer4")
     return p
 
 def make_run_dir(out_dir, run_name):

@@ -12,6 +12,7 @@ from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
 import time
 from pathlib import Path
+from cam_masking import GradCAM
 
 def build_optimizer(args, model):
     return optim.SGD(
@@ -22,17 +23,6 @@ def build_optimizer(args, model):
         nesterov = args.nesterov
     )
 
-"""
-Train a model with the given args and optionally save checkpoints/metrics.
-
-Args:
-    args: Configuration object with training hyperparameters
-    run_dir: Optional directory to save checkpoints/metrics. If None, neither are saved.
-    logger: Optional logger instance. If None, prints to console.
-
-Returns:
-    dict with keys: final_test_acc1, best_val_acc, final_test_loss
-"""
 def train_with_config(args, run_dir=None, logger=None):
     logger = logger or SimpleLogger()
     set_seed(args.seed)
@@ -49,6 +39,29 @@ def train_with_config(args, run_dir=None, logger=None):
     from dataset_registry import get_num_classes
     num_classes = get_num_classes(args.dataset)
     model = get_model(args.model, num_classes=num_classes, dropout=args.dropout).to(device)
+    cam_runner = None
+    masking_cfg = None
+
+    if args.masking != "none":
+        # Choose target module for ResNet
+        if args.cam_layer == "layer4":
+            target_module = model.layer4
+        elif args.cam_layer == "layer3":
+            target_module = model.layer3
+        else:
+            raise ValueError(f"Unsupported cam_layer: {args.cam_layer}")
+
+        cam_runner = GradCAM(model, target_module)
+
+        masking_cfg = {
+            "strategy": args.masking,             # none/random/cam_high/cam_low
+            "warmup_epochs": args.mask_warmup_epochs,
+            "prob": args.mask_prob,
+            "area": args.mask_area,
+            "block": args.mask_block,
+        }
+        logger.info(f"Masking enabled: {masking_cfg}")
+
     logger.info(f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes}")
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
@@ -84,7 +97,8 @@ def train_with_config(args, run_dir=None, logger=None):
         tr_loss, tr_a1, tr_a5 = train_one_epoch(
             model, train_dl, criterion, optimizer,
             scaler if scaler.is_enabled() else None,
-            device, log_every=args.log_every
+            device, log_every=args.log_every,
+            epoch=epoch, masking_cfg=masking_cfg, cam_runner=cam_runner
         )
 
         if val_dl is not None:
