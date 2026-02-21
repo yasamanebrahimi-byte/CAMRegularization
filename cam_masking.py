@@ -79,7 +79,7 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high"):
     block_area = block * block
     n_blocks = max(1, mask_area // max(1, block_area))
 
-    flat = cam.view(B, -1)  # [B, H*W]
+    flat = cam.reshape(B, -1)  # [B, H*W]
     for b in range(B):
         for _ in range(n_blocks):
             if mode == "high":
@@ -91,6 +91,9 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high"):
             left = max(0, min(W - block, cx - block // 2))
             out[b, :, top:top+block, left:left+block] = fill
 
-            # optional: prevent picking the same spot again
-            flat[b, top*W + left : min(flat.size(1), top*W + left + block)] = -1 if mode=="high" else 2
+            flat2d = flat[b].view(H, W)
+            if mode == "high":
+                flat2d[top:top+block, left:left+block] = -1.0
+            else:
+                flat2d[top:top+block, left:left+block] = 2.0
     return out
