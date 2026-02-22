@@ -48,15 +48,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
         running_loss += loss.item()
         running_acc1 += acc1
         running_acc5 += acc5
-        if i % log_every == 0 or i == len(loader):
-            dt = time.time() - t0
-            logger.info(
-                f"[train] {i}/{len(loader)} "
-                f"loss {running_loss/i:.4f} "
-                f"acc1 {running_acc1/i*100:.2f}% "
-                f"acc5 {running_acc5/i*100:.2f}% "
-                f"{i/dt:.2f} it/s"
-            )
+        # Per-batch progress logging removed to keep console/log concise
     return running_loss / len(loader), running_acc1 / len(loader), running_acc5 / len(loader)
 
 @torch.no_grad()

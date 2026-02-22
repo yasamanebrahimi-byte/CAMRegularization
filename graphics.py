@@ -39,7 +39,7 @@ def plot_metrics(metrics_csv, run_dir):
         else:
             ax.axis("off")
         plt.tight_layout()
-        plot_path = os.path.join(run_dir, "metrics_plot.png")
+        plot_path = os.path.join(run_dir, f"metrics_plot.png")
         plt.savefig(plot_path, dpi=150, bbox_inches="tight")
         logger.info(f"Metrics plot saved to {plot_path}")
         plt.close()
