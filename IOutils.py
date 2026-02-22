@@ -44,7 +44,7 @@ def build_parser():
     p.add_argument("--mask_prob",   type=float, default=1.0)
     p.add_argument("--mask_area",   type=float, default=0.2)
     p.add_argument("--mask_block",  type=int,   default=8)
-    p.add_argument("--cam_layer",   type=str,   default="layer4")
+    p.add_argument("--cam_layer",   type=str,   default="layer2")
     return p
 
 def make_run_dir(out_dir, run_name):

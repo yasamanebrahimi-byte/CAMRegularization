@@ -48,6 +48,8 @@ def train_with_config(args, run_dir=None, logger=None):
             target_module = model.layer4
         elif args.cam_layer == "layer3":
             target_module = model.layer3
+        elif args.cam_layer == "layer2":
+            target_module = model.layer2
         else:
             raise ValueError(f"Unsupported cam_layer: {args.cam_layer}")
 
