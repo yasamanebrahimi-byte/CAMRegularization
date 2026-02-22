@@ -67,11 +67,12 @@ def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
             out[b, :, top:top+block, left:left+block] = fill
     return out
 
-def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=0.0, mode="high"):
+def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
+                     topk_frac=0.2):
     """
-    mode="high": mask hottest region (regularization)
-    mode="low":  mask coldest region (denoising / remove irrelevant)
-    x: [B,3,H,W], cam: [B,1,H,W] in [0,1]
+    mode="high": mask hottest region(s)
+    mode="low":  mask coldest region(s)
+    topk_frac: fraction of pixels to consider as candidates (e.g., 0.1–0.3)
     """
     B, C, H, W = x.shape
     out = x.clone()
@@ -80,20 +81,30 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=0.0, mode="high"):
     n_blocks = max(1, mask_area // max(1, block_area))
 
     flat = cam.reshape(B, -1)  # [B, H*W]
+    k = max(1, int(topk_frac * H * W))
+
     for b in range(B):
         for _ in range(n_blocks):
+            # recompute candidates each time because we "invalidate" used regions
+            vals = flat[b]
             if mode == "high":
-                idx = flat[b].argmax().item()
+                cand = torch.topk(vals, k=k, largest=True).indices
             else:
-                idx = flat[b].argmin().item()
-            cy, cx = divmod(idx, W)
+                cand = torch.topk(vals, k=k, largest=False).indices
+
+            # pick one candidate center at random (prevents always masking same spot)
+            pick = cand[torch.randint(0, cand.numel(), (1,), device=x.device)].item()
+            cy, cx = divmod(pick, W)
+
             top = max(0, min(H - block, cy - block // 2))
             left = max(0, min(W - block, cx - block // 2))
             out[b, :, top:top+block, left:left+block] = fill
 
+            # invalidate this region so next block doesn't re-hit it
             flat2d = flat[b].view(H, W)
             if mode == "high":
                 flat2d[top:top+block, left:left+block] = -1.0
             else:
                 flat2d[top:top+block, left:left+block] = 2.0
+
     return out
