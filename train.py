@@ -82,10 +82,8 @@ def train_with_config(args, run_dir=None, logger=None):
     scaler = torch.amp.GradScaler(enabled=(args.amp and device == "cuda"))
 
     best = 0.0
-    best_path = None
     metrics_csv = None
     if run_dir is not None:
-        best_path = os.path.join(run_dir, "best.pt")
         metrics_csv = os.path.join(run_dir, "metrics.csv")
         header = ["epoch", "lr", "train_loss", "train_acc1", "train_acc5", "eval_loss", "eval_acc1", "eval_acc5", "eval_split"]
         append_csv(metrics_csv,[],header=header)  # write header once
@@ -118,8 +116,6 @@ def train_with_config(args, run_dir=None, logger=None):
 
         if metric > best:
             best = metric
-            if best_path is not None:
-                save_ckpt(best_path, model, optimizer, epoch+1, best, extra={"config":vars(args)})
             logger.info(f"saved best: {best*100:.2f}%")
 
         scheduler.step()
@@ -127,9 +123,6 @@ def train_with_config(args, run_dir=None, logger=None):
     # final test with best
     final_test_acc1 = None
     final_test_loss = None
-    if best_path is not None:
-        ckpt = torch.load(best_path, map_location="cpu")
-        model.load_state_dict(ckpt["model"], strict=True)
     model.to(device)
     te_loss, te_a1, te_a5 = evaluate(model, test_dl, criterion, device)
     final_test_acc1 = te_a1
