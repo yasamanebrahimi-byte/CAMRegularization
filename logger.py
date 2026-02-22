@@ -22,7 +22,7 @@ def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") ->
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     fh = logging.FileHandler(path, mode=mode)
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.INFO)
     fh.setFormatter(file_formatter)
     logger.addHandler(fh)
 
@@ -36,7 +36,7 @@ def set_global_log_file(path: Path, mode: str = "a", console: bool = True) -> No
     global _GLOBAL_LOG_PATH
     _GLOBAL_LOG_PATH = Path(path)
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     _attach_file_handler(root, _GLOBAL_LOG_PATH, mode=mode)
     
     # If console output is disabled, remove console handlers from all loggers
