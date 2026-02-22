@@ -61,12 +61,11 @@ Return a logger configured with a console handler and a shared file handler.
 - If a global log file has already been set, it will be attached to the
     returned logger as well.
 """
-def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None) -> logging.Logger:
+def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None, console: bool = True) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-
-    # Ensure console handler exists
-    _ensure_console_handler(logger)
+    if console:
+        _ensure_console_handler(logger)
 
     # If caller provided a specific file, set it globally and attach handlers
     if log_file is not None:

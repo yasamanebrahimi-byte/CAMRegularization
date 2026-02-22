@@ -19,7 +19,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
             do_mask = (epoch >= ms["warmup_epochs"]) and (ms["strategy"] != "none")
             if do_mask and (torch.rand(1, device=device).item() < ms["prob"]):
                 if ms["strategy"] == "random":
-                    x = apply_random_cutout(x, area_frac=ms["area"], block=ms["block"], fill=2.0)
+                    x = apply_random_cutout(x, area_frac=ms["area"], block=ms["block"], fill=0.0)
                 else:
                     if cam_runner is None:
                         raise RuntimeError("CAM masking requested but cam_runner is None.")
@@ -29,7 +29,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
                     cam = cam_runner.cam(x_cam, y) 
                     model.train(was_training)
                     mode = "high" if ms["strategy"] == "cam_high" else "low"
-                    x = apply_cam_cutout(x, cam.detach(), area_frac=ms["area"], block=ms["block"], fill=2.0, mode=mode)
+                    x = apply_cam_cutout(x, cam.detach(), area_frac=ms["area"], block=ms["block"], fill=0.0, mode=mode)
 
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(scaler is not None)):

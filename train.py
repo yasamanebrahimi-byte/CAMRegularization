@@ -161,7 +161,7 @@ def main():
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     run_name_for_log = Path(run_dir).name.replace(",", "-")
     log_path = log_root / f"{run_name_for_log}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_path)
+    logger = get_logger(__name__, log_file=log_path, console=False)
     
     # Train and return metrics
     train_with_config(args, run_dir=run_dir, logger=logger)

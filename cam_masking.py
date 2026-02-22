@@ -50,7 +50,7 @@ class GradCAM:
 def _rand_int(low, high, device):
     return torch.randint(low, high, (1,), device=device).item()
 
-def apply_random_cutout(x, area_frac=0.2, block=8, fill=1.0):
+def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
     """
     x: [B,3,H,W] (normalized ok). Masks same number of blocks per sample to match area_frac approximately.
     """
@@ -67,7 +67,7 @@ def apply_random_cutout(x, area_frac=0.2, block=8, fill=1.0):
             out[b, :, top:top+block, left:left+block] = fill
     return out
 
-def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high"):
+def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=0.0, mode="high"):
     """
     mode="high": mask hottest region (regularization)
     mode="low":  mask coldest region (denoising / remove irrelevant)
