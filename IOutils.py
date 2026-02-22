@@ -5,6 +5,13 @@ import time
 import os
 import torch
 
+def positive_float(value):
+    """Validator that ensures a float is greater than 0.0"""
+    f_value = float(value)
+    if f_value <= 0.0:
+        raise argparse.ArgumentTypeError(f"val_split must be > 0.0, got {f_value}")
+    return f_value
+
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
@@ -22,7 +29,7 @@ def build_parser():
     p.add_argument("--seed",        type=int,   default=42)
     p.add_argument("--log_every",   type=int,   default=100)
     p.add_argument("--run_name",    type=str,   default="")
-    p.add_argument("--val_split",   type=float, default=0.0)
+    p.add_argument("--val_split",   type=positive_float, default=0.1)
     p.add_argument("--min_lr",      type=float, default=0.0)
     p.add_argument("--gamma",       type=float, default=0.1)
     p.add_argument("--milestones",  type=str,   default="100,150")
