@@ -130,6 +130,10 @@ def train_with_config(args, run_dir=None, logger=None):
     logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
     logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
     
+    # Print final results to console
+    print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
+    print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
+    
     # Generate plots if we saved metrics
     if metrics_csv is not None and run_dir is not None:
         plot_metrics(metrics_csv, run_dir)

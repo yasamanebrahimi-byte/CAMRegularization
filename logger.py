@@ -30,13 +30,28 @@ def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") ->
 """
 Set a global log file path and attach it to the root logger only.
 Child loggers will propagate messages up to the root, preventing duplicates.
+If console=False, removes console handlers from all existing loggers.
 """
-def set_global_log_file(path: Path, mode: str = "a") -> None:
+def set_global_log_file(path: Path, mode: str = "a", console: bool = True) -> None:
     global _GLOBAL_LOG_PATH
     _GLOBAL_LOG_PATH = Path(path)
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     _attach_file_handler(root, _GLOBAL_LOG_PATH, mode=mode)
+    
+    # If console output is disabled, remove console handlers from all loggers
+    if not console:
+        root_handlers = list(root.handlers)
+        for h in root_handlers:
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+                root.removeHandler(h)
+        
+        # Also remove console handlers from any existing named loggers
+        for name, obj in list(logging.Logger.manager.loggerDict.items()):
+            if isinstance(obj, logging.Logger):
+                for h in list(obj.handlers):
+                    if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+                        obj.removeHandler(h)
 
 
 def _ensure_console_handler(logger: logging.Logger) -> None:
@@ -65,7 +80,7 @@ def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None,
     # If caller provided a specific file, set it globally
     if log_file is not None:
         path = Path(log_file)
-        set_global_log_file(path, mode="a")
+        set_global_log_file(path, mode="a", console=console)
 
     return logger
 
