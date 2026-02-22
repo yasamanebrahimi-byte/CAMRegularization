@@ -57,12 +57,13 @@ def make_run_dir(out_dir, run_name):
 def write_json(path, obj):
     with open(path, "w") as f: json.dump(obj, f, indent=2, sort_keys=True)
 
-def append_csv(path,row,header=None):
-    exists = os.path.exists(path)
-    with open(path, "a") as f:
-        if (not exists) and header: f.write(",".join(header) + "\n")
+def append_csv(path, row, header=None, mode="a"):
+    exists = os.path.exists(path) and mode == "a"
+    with open(path, mode) as f:
+        if (not exists) and header:
+            f.write(",".join(header) + "\n")
         if row:  # Only write row if it's not empty
-            f.write(",".join(str(x) for x in row)+"\n")
+            f.write(",".join(str(x) for x in row) + "\n")
 
 def save_ckpt(path, model, optimizer, epoch, best_acc, extra=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)

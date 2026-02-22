@@ -86,7 +86,7 @@ def train_with_config(args, run_dir=None, logger=None):
     if run_dir is not None:
         metrics_csv = os.path.join(run_dir, "metrics.csv")
         header = ["epoch", "lr", "train_loss", "train_acc1", "train_acc5", "eval_loss", "eval_acc1", "eval_acc5", "eval_split"]
-        append_csv(metrics_csv,[],header=header)  # write header once
+        append_csv(metrics_csv, [], header=header, mode="w")  # write mode to replace existing file
 
     for epoch in range(args.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
