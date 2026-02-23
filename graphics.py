@@ -37,17 +37,14 @@ def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
         xm = apply_cam_cutout(x, cam.detach(), area_frac=area, block=block, fill=0.0, mode=m)
     else:
         xm, cam = x, None
-
-    # where pixels changed (any channel) => mask map
-    diff = (xm != x0).any(dim=1, keepdim=True).float()  # [B,1,H,W]
-
+        
     # unnormalize for viewing
     x0_vis = unnormalize(x0)
     xm_vis = unnormalize(xm)
 
     # save first 8 samples as a grid-like panel (matplotlib)
     B = min(8, x.size(0))
-    fig, axes = plt.subplots(B, 4, figsize=(10, 2*B))
+    fig, axes = plt.subplots(B, 3, figsize=(10, 2*B))
     if B == 1: axes = axes.reshape(1, -1)
 
     for i in range(B):
@@ -62,9 +59,6 @@ def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
 
         axes[i,2].imshow(to_img(xm_vis[i]))
         axes[i,2].set_title("masked"); axes[i,2].axis("off")
-
-        axes[i,3].imshow(diff[i,0].detach().cpu().numpy(), vmin=0, vmax=1)
-        axes[i,3].set_title("where masked"); axes[i,3].axis("off")
 
     plt.tight_layout()
     path = os.path.join(out_dir, f"{mode}_panel.png")
