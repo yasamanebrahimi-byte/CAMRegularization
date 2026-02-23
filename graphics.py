@@ -1,11 +1,75 @@
-import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from logger import get_logger
+import os, torch
+from dataset_registry import get_dataset_loaders
+from model_registry import get_model
+from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout
 
 logger = get_logger(__name__)
+
+MEAN = torch.tensor([0.5071, 0.4867, 0.4408]).view(1,3,1,1)
+STD  = torch.tensor([0.2675, 0.2565, 0.2761]).view(1,3,1,1)
+
+def unnormalize(x):
+    return (x * STD.to(x.device)) + MEAN.to(x.device)
+
+@torch.no_grad()
+def to_img(x):  # [3,H,W] in 0..1
+    x = x.clamp(0, 1).permute(1,2,0).cpu().numpy()
+    return x
+
+def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
+    os.makedirs(out_dir, exist_ok=True)
+    device = next(model.parameters()).device
+
+    x0 = x.clone()
+    if mode == "random":
+        xm = apply_random_cutout(x, area_frac=area, block=block, fill=0.0)
+        cam = None
+    elif mode in ("cam_high", "cam_low"):
+        model.eval()
+        x_cam = x.detach().requires_grad_(True)
+        cam = cam_runner.cam(x_cam, y)  # [B,1,H,W] normalized
+        m = "high" if mode == "cam_high" else "low"
+        xm = apply_cam_cutout(x, cam.detach(), area_frac=area, block=block, fill=0.0, mode=m)
+    else:
+        xm, cam = x, None
+
+    # where pixels changed (any channel) => mask map
+    diff = (xm != x0).any(dim=1, keepdim=True).float()  # [B,1,H,W]
+
+    # unnormalize for viewing
+    x0_vis = unnormalize(x0)
+    xm_vis = unnormalize(xm)
+
+    # save first 8 samples as a grid-like panel (matplotlib)
+    B = min(8, x.size(0))
+    fig, axes = plt.subplots(B, 4, figsize=(10, 2*B))
+    if B == 1: axes = axes.reshape(1, -1)
+
+    for i in range(B):
+        axes[i,0].imshow(to_img(x0_vis[i]))
+        axes[i,0].set_title("original"); axes[i,0].axis("off")
+
+        if cam is not None:
+            axes[i,1].imshow(cam[i,0].detach().cpu().numpy(), vmin=0, vmax=1)
+            axes[i,1].set_title("CAM"); axes[i,1].axis("off")
+        else:
+            axes[i,1].axis("off"); axes[i,1].set_title("CAM (n/a)")
+
+        axes[i,2].imshow(to_img(xm_vis[i]))
+        axes[i,2].set_title("masked"); axes[i,2].axis("off")
+
+        axes[i,3].imshow(diff[i,0].detach().cpu().numpy(), vmin=0, vmax=1)
+        axes[i,3].set_title("where masked"); axes[i,3].axis("off")
+
+    plt.tight_layout()
+    path = os.path.join(out_dir, f"{mode}_panel.png")
+    plt.savefig(path, dpi=150)
+    plt.close()
 
 def _setup_subplot(ax, xlabel, ylabel, title):
     ax.set_xlabel(xlabel)
@@ -148,3 +212,21 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
         out_csv = tuning_dir / "ranked_by_val.csv"
         pd.DataFrame(rows).to_csv(out_csv, index=False)
         logger.info(f"\nSaved ranking to {out_csv}")
+
+
+def main():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    train_dl, _, _ = get_dataset_loaders("cifar100", "./data", batch_size=128, num_workers=2, val_split=0.15, seed=42)
+    x, y = next(iter(train_dl))
+    x, y = x.to(device), y.to(device)
+
+    model = get_model("resnet18", num_classes=100).to(device)
+
+    # match your train.py layer selection (layer2 / layer3 / layer4)
+    target_module = model.layer2
+    cam_runner = GradCAM(model, target_module)
+
+    out_dir = "./mask_images"
+    for mode in ["none", "random", "cam_high", "cam_low"]:
+        save_one(mode, out_dir, x, y, model, cam_runner, area=0.15, block=6)
