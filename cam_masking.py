@@ -68,11 +68,10 @@ def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
     return out
 
 def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
-                     topk_frac=0.2):
+                     thr=0.7):
     """
-    mode="high": mask hottest region(s)
-    mode="low":  mask coldest region(s)
-    topk_frac: fraction of pixels to consider as candidates (e.g., 0.1–0.3)
+    thr: for mode="high", candidates are cam >= thr
+         for mode="low",  candidates are cam <= thr  (use e.g. thr=0.3)
     """
     B, C, H, W = x.shape
     out = x.clone()
@@ -80,31 +79,31 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
     block_area = block * block
     n_blocks = max(1, mask_area // max(1, block_area))
 
-    flat = cam.reshape(B, -1)  # [B, H*W]
-    k = max(1, int(topk_frac * H * W))
+    cam2d = cam[:, 0]  # [B,H,W] in [0,1]
 
     for b in range(B):
         for _ in range(n_blocks):
-            # recompute candidates each time because we "invalidate" used regions
-            vals = flat[b]
             if mode == "high":
-                cand = torch.topk(vals, k=k, largest=True).indices
+                coords = (cam2d[b] >= thr).nonzero(as_tuple=False)
             else:
-                cand = torch.topk(vals, k=k, largest=False).indices
+                coords = (cam2d[b] <= thr).nonzero(as_tuple=False)
 
-            # pick one candidate center at random (prevents always masking same spot)
-            pick = cand[torch.randint(0, cand.numel(), (1,), device=x.device)].item()
-            cy, cx = divmod(pick, W)
+            # fallback if threshold too strict
+            if coords.numel() == 0:
+                cy = torch.randint(0, H, (1,), device=x.device).item()
+                cx = torch.randint(0, W, (1,), device=x.device).item()
+            else:
+                j = torch.randint(0, coords.size(0), (1,), device=x.device).item()
+                cy, cx = coords[j].tolist()
 
             top = max(0, min(H - block, cy - block // 2))
             left = max(0, min(W - block, cx - block // 2))
             out[b, :, top:top+block, left:left+block] = fill
 
-            # invalidate this region so next block doesn't re-hit it
-            flat2d = flat[b].view(H, W)
+            # optionally "invalidate" region so you don't re-mask same area
             if mode == "high":
-                flat2d[top:top+block, left:left+block] = -1.0
+                cam2d[b, top:top+block, left:left+block] = 0.0
             else:
-                flat2d[top:top+block, left:left+block] = 2.0
+                cam2d[b, top:top+block, left:left+block] = 1.0
 
     return out
