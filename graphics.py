@@ -69,6 +69,7 @@ def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
     plt.tight_layout()
     path = os.path.join(out_dir, f"{mode}_panel.png")
     plt.savefig(path, dpi=150)
+    logger.info(f"Saved {mode} mask visualization to {path}")
     plt.close()
 
 def _setup_subplot(ax, xlabel, ylabel, title):
@@ -230,3 +231,7 @@ def main():
     out_dir = "./mask_images"
     for mode in ["none", "random", "cam_high", "cam_low"]:
         save_one(mode, out_dir, x, y, model, cam_runner, area=0.15, block=6)
+
+
+if __name__ == "__main__":
+    main()
