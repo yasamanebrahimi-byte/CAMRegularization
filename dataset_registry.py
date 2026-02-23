@@ -13,8 +13,6 @@ def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split:
     mean = (0.5071, 0.4867, 0.4408)
     std = (0.2675, 0.2565, 0.2761)
     train_tfms = T.Compose([
-        T.RandomCrop(32, padding=4),
-        T.RandomHorizontalFlip(),
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
