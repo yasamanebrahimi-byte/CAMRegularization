@@ -34,7 +34,7 @@ class OptunaTuningConfig:
     tuning_dirname: str = "tuning_results_optuna"
     dataset: str = DEFAULT_DATASET
     model: str = DEFAULT_MODEL
-    n_trials: int = 50
+    n_trials: int = 32
     n_jobs: int = 1
 
 
@@ -45,22 +45,21 @@ FIXED_PARAMS: Dict[str, Any] = {
     "seed": 42,
     "log_every": 100,
     "amp": True,
-    "epochs": 100,
-    "min_lr": 0.0,
-    "gamma": 0.1,
     "val_split": 0.1,
+    "nesterov": True,
+    "scheduler": "cosine",
+    "min_lr": 1e-5,
 }
 
 
 # Hyperparameter search space
 OPTUNA_SPACE = {
-    "lr": {"type": "float", "low": 0.01, "high": 0.3, "log": True},
-    "weight_decay": {"type": "float", "low": 1e-5, "high": 5e-3, "log": True},
-    "momentum": {"type": "float", "low": 0.8, "high": 0.99},
-    "nesterov": {"type": "categorical", "choices": [False, True]},
-    "label_smoothing": {"type": "float", "low": 0.0, "high": 0.2},
-    "scheduler": {"type": "categorical", "choices": ["cosine", "multistep"]},
-    "warmup_epochs": {"type": "int", "low": 0, "high": 10},
+    "epochs": {"type": "categorical", "choices": [75, 100]},
+    "lr": {"type": "categorical", "choices": [0.03, 0.05, 0.1]},
+    "weight_decay": {"type": "categorical", "choices": [3e-4, 5e-4]},
+    "momentum": {"type": "categorical", "choices": [0.9, 0.95]},
+    "label_smoothing": {"type": "categorical", "choices": [0.0, 0.05]},
+    "warmup_epochs": {"type": "categorical", "choices": [0, 3]},
 }
 
 
@@ -68,32 +67,13 @@ OPTUNA_SPACE = {
 # Helpers
 # -----------------------------
 
-def compute_multistep_milestones(epochs: int) -> str:
-    if epochs == 150:
-        return "90,120"
-    if epochs == 200:
-        return "100,150"
-    return f"{int(0.5 * epochs)},{int(0.75 * epochs)}"
-
-
-def with_scheduler_dependent_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a copy where multistep milestones are consistent with the epoch budget."""
-    out = dict(params)
-    if out.get("scheduler") == "multistep":
-        out["milestones"] = compute_multistep_milestones(int(out["epochs"]))
-    else:
-        out["milestones"] = "na"
-    return out
-
 
 def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], dataset: str, model: str, trial_id: int) -> str:
     wd = float(all_params["weight_decay"])
-    ms = all_params["milestones"] if all_params["scheduler"] == "multistep" else "na"
     return (
-        f"optuna_trial{trial_id:03d}_{model}_{dataset}_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']:.4f}"
-        f"_wd{wd:.0e}_m{all_params['momentum']:.2f}_nest{int(bool(all_params['nesterov']))}"
-        f"_ls{all_params['label_smoothing']:.1f}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
-        f"_ms{ms}"
+        f"optuna_trial{trial_id:03d}_{model}_{dataset}_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
+        f"_wd{wd:.0e}_m{all_params['momentum']}_nest{int(bool(all_params['nesterov']))}"
+        f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
     )
 
 
@@ -109,18 +89,6 @@ def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
         setattr(args, key, value)
     
     return args
-
-
-# Pruning callback for intermediate reporting
-class TrialPruningCallback:
-    def __init__(self, trial: optuna.Trial):
-        self.trial = trial
-    
-    def __call__(self, epoch: int, val_acc: float) -> None:
-        """Called during training to report intermediate value."""
-        self.trial.report(val_acc, step=epoch)
-        if self.trial.should_prune():
-            raise optuna.TrialPruned()
 
 
 # -----------------------------
@@ -156,7 +124,6 @@ def objective(trial: optuna.Trial, cfg: OptunaTuningConfig) -> float:
     
     # Combine with fixed params
     all_params = {**FIXED_PARAMS, **suggested_params}
-    all_params = with_scheduler_dependent_params(all_params)
     
     # Add dataset and model
     all_params["dataset"] = cfg.dataset
@@ -335,8 +302,8 @@ if __name__ == "__main__":
                         help=f"Model name (default: {DEFAULT_MODEL})")
     parser.add_argument("--runs_root", type=str, default="./runs",
                         help="Root directory for runs")
-    parser.add_argument("--n_trials", type=int, default=50,
-                        help="Number of trials to run (default: 50)")
+    parser.add_argument("--n_trials", type=int, default=32,
+                        help="Number of trials to run (default: 32)")
     parser.add_argument("--n_jobs", type=int, default=1,
                         help="Number of parallel jobs (default: 1)")
     args = parser.parse_args()

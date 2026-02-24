@@ -36,7 +36,8 @@ class GradCAM:
 
         # class score for ground-truth labels
         idx = torch.arange(x.size(0), device=x.device)
-        score = logits[idx, y]  # [B]
+        pred = logits.argmax(dim=1)
+        score = logits[idx, pred]  
         grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
 
         weights = grads.mean(dim=(2,3), keepdim=True)  # [B,C,1,1]
@@ -67,19 +68,36 @@ def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
             out[b, :, top:top+block, left:left+block] = fill
     return out
 
-def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
-                     thr=0.7):
+def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high", thr=0.7):
     """
-    thr: for mode="high", candidates are cam >= thr
-         for mode="low",  candidates are cam <= thr  (use e.g. thr=0.3)
+    Apply cutout blocks guided by a CAM heatmap.
+
+    x:   [B,3,H,W]
+    cam: [B,1,H,W] in [0,1] (or at least comparable to threshold)
+
+    area_frac: approximate fraction of pixels to mask (via block sampling)
+    block:     block size (square)
+    fill:      value to fill masked regions in x
+    mode:
+      - "high": sample blocks from high-activation regions (cam >= thr)
+      - "low":  sample blocks from low-activation regions  (cam <= thr)
+    thr:
+      - for "high", typical thr ~ 0.6-0.8
+      - for "low",  typical thr ~ 0.2-0.4
+
+    IMPORTANT:
+    This function does NOT modify the input `cam` tensor. It clones the 2D CAM view
+    before invalidating regions to avoid affecting later CAM visualization.
     """
     B, C, H, W = x.shape
     out = x.clone()
+
     mask_area = int(area_frac * H * W)
     block_area = block * block
     n_blocks = max(1, mask_area // max(1, block_area))
 
-    cam2d = cam[:, 0]  # [B,H,W] in [0,1]
+    # Clone so we don't mutate the original CAM tensor (which may be used for visualization)
+    cam2d = cam[:, 0].detach().clone()  # [B,H,W]
 
     for b in range(B):
         for _ in range(n_blocks):
@@ -88,7 +106,7 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
             else:
                 coords = (cam2d[b] <= thr).nonzero(as_tuple=False)
 
-            # fallback if threshold too strict
+            # Fallback if threshold yields no candidates
             if coords.numel() == 0:
                 cy = torch.randint(0, H, (1,), device=x.device).item()
                 cx = torch.randint(0, W, (1,), device=x.device).item()
@@ -98,12 +116,13 @@ def apply_cam_cutout(x, cam, area_frac=0.2, block=8, fill=1.0, mode="high",
 
             top = max(0, min(H - block, cy - block // 2))
             left = max(0, min(W - block, cx - block // 2))
-            out[b, :, top:top+block, left:left+block] = fill
 
-            # optionally "invalidate" region so you don't re-mask same area
+            out[b, :, top:top + block, left:left + block] = fill
+
+            # Invalidate region in *local* cam2d so we don't repeatedly pick same area
             if mode == "high":
-                cam2d[b, top:top+block, left:left+block] = 0.0
+                cam2d[b, top:top + block, left:left + block] = 0.0
             else:
-                cam2d[b, top:top+block, left:left+block] = 1.0
+                cam2d[b, top:top + block, left:left + block] = 1.0
 
     return out

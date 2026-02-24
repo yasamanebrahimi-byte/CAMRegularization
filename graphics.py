@@ -3,7 +3,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from logger import get_logger
-import os, torch
+import os
+import torch
 from dataset_registry import get_dataset_loaders
 from model_registry import get_model
 from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout
@@ -21,50 +22,82 @@ def to_img(x):  # [3,H,W] in 0..1
     x = x.clamp(0, 1).permute(1,2,0).cpu().numpy()
     return x
 
-def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
-    os.makedirs(out_dir, exist_ok=True)
-    device = next(model.parameters()).device
 
-    x0 = x.clone()
+def _apply_mask(mode, x, y, model, cam_runner, area, block):
     if mode == "random":
-        xm = apply_random_cutout(x, area_frac=area, block=block, fill=0.0)
-        cam = None
-    elif mode in ("cam_high", "cam_low"):
+        return apply_random_cutout(x, area_frac=area, block=block, fill=0.0), None
+    if mode in ("cam_high", "cam_low"):
         model.eval()
         x_cam = x.detach().requires_grad_(True)
-        cam = cam_runner.cam(x_cam, y)  # [B,1,H,W] normalized
-        m = "high" if mode == "cam_high" else "low"
-        xm = apply_cam_cutout(x, cam.detach(), area_frac=area, block=block, fill=0.0, mode=m)
+        cam = cam_runner.cam(x_cam, y)
+        cam_mode = "high" if mode == "cam_high" else "low"
+        xm = apply_cam_cutout(
+            x,
+            cam.detach(),
+            area_frac=area,
+            block=block,
+            fill=0.0,
+            mode=cam_mode,
+        )
+        return xm, cam
+    return x, None
+
+
+def _build_cam_masked(x0, xm, cam):
+    if cam is None:
+        return None
+    eps = 1e-8
+    mask2d = (xm - x0).abs().sum(dim=1) > eps
+    cam_masked = cam[:, 0].detach().clone()
+    cam_masked[mask2d] = 1.0
+    return cam_masked
+
+
+def _show_panel(ax, image, title, **imshow_kwargs):
+    if image is None:
+        ax.set_title(f"{title} (n/a)")
     else:
-        xm, cam = x, None
-        
+        ax.imshow(image, **imshow_kwargs)
+        ax.set_title(title)
+    ax.axis("off")
+
+def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
+    os.makedirs(out_dir, exist_ok=True)
+
+    x0 = x.clone()
+    xm, cam = _apply_mask(mode, x, y, model, cam_runner, area, block)
+
     # unnormalize for viewing
     x0_vis = unnormalize(x0)
     xm_vis = unnormalize(xm)
 
+    cam_masked = _build_cam_masked(x0, xm, cam)
+
     # save first 8 samples as a grid-like panel (matplotlib)
     B = min(8, x.size(0))
-    fig, axes = plt.subplots(B, 3, figsize=(10, 2*B))
-    if B == 1: axes = axes.reshape(1, -1)
+    
+    # Determine number of columns based on mode
+    num_cols = 2 if mode in ("random", "none") else 4
+    fig, axes = plt.subplots(B, num_cols, figsize=(7 if num_cols == 2 else 13, 2 * B))
+    if B == 1:
+        axes = axes.reshape(1, -1)
 
     for i in range(B):
-        axes[i,0].imshow(to_img(x0_vis[i]))
-        axes[i,0].set_title("original"); axes[i,0].axis("off")
+        _show_panel(axes[i, 0], to_img(x0_vis[i]), "original")
+        _show_panel(axes[i, 1], to_img(xm_vis[i]), "masked")
 
-        if cam is not None:
-            axes[i,1].imshow(cam[i,0].detach().cpu().numpy(), vmin=0, vmax=1)
-            axes[i,1].set_title("CAM"); axes[i,1].axis("off")
-        else:
-            axes[i,1].axis("off"); axes[i,1].set_title("CAM (n/a)")
-
-        axes[i,2].imshow(to_img(xm_vis[i]))
-        axes[i,2].set_title("masked"); axes[i,2].axis("off")
+        if num_cols == 4:
+            cam_img = cam[i, 0].detach().cpu().numpy() if cam is not None else None
+            cam_masked_img = cam_masked[i].detach().cpu().numpy() if cam_masked is not None else None
+            _show_panel(axes[i, 2], cam_img, "CAM", vmin=0, vmax=1)
+            _show_panel(axes[i, 3], cam_masked_img, "CAM w/ mask", vmin=0, vmax=1)
 
     plt.tight_layout()
     path = os.path.join(out_dir, f"{mode}_panel.png")
     plt.savefig(path, dpi=150)
     logger.info(f"Saved {mode} mask visualization to {path}")
     plt.close()
+
 
 def _setup_subplot(ax, xlabel, ylabel, title):
     ax.set_xlabel(xlabel)
@@ -109,23 +142,20 @@ def plot_metrics(metrics_csv, run_dir):
 
 def plot_tuning_results(results, tuning_dir):
     try:
-        successful = [r for r in results if r["status"] == "success"]
-        if not successful:
+        points = [
+            (
+                r["run_name"],
+                r["final_test_acc1"] * 100,
+                r["params"]["lr"],
+                r["params"]["weight_decay"],
+            )
+            for r in results
+            if r.get("status") == "success" and "final_test_acc1" in r
+        ]
+        if not points:
             logger.info("No successful runs to plot")
             return
-        run_names = []
-        test_accs = []
-        lr_values = []
-        wd_values = []
-        for r in successful:
-            if "final_test_acc1" in r:
-                run_names.append(r["run_name"])
-                test_accs.append(r["final_test_acc1"] * 100)
-                lr_values.append(r["params"]["lr"])
-                wd_values.append(r["params"]["weight_decay"])
-        if not test_accs:
-            logger.info("No test accuracy data to plot")
-            return
+        run_names, test_accs, lr_values, wd_values = map(list, zip(*points))
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         fig.suptitle('Hyperparameter Tuning Results', fontsize=14, fontweight='bold')
         x_pos = range(len(run_names))
@@ -170,10 +200,9 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
         p = best_test["params"]
         logger.info(f"\nBest test accuracy (for reference): {acc * 100:.2f}% ({best_test['run_name']})")
         logger.info(f"   lr={p['lr']}, epochs={p['epochs']}, wd={p['weight_decay']}, val_split={p['val_split']}")
-    ranked: List[Tuple[Dict[str, Any], float]] = []
-    for r in successful:
-        if "best_val_acc" in r:
-            ranked.append((r, r["best_val_acc"]))
+    ranked: List[Tuple[Dict[str, Any], float]] = [
+        (r, r["best_val_acc"]) for r in successful if "best_val_acc" in r
+    ]
     ranked.sort(key=lambda x: x[1], reverse=True)
     if ranked:
         logger.info("\nTop 10 runs by BEST val_acc1 (max over epochs):")
@@ -186,24 +215,22 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
                 f"nest={p['nesterov']}, ls={p['label_smoothing']}, sch={p['scheduler']}, "
                 f"wu={p['warmup_epochs']}, ms={p.get('milestones','')}"
             )
-        rows = []
-        for r, best_val in ranked:
-            p = r["params"]
-            rows.append(
-                {
-                    "run_name": r["run_name"],
-                    "best_val_acc1": best_val,
-                    "lr": p["lr"],
-                    "epochs": p["epochs"],
-                    "weight_decay": p["weight_decay"],
-                    "momentum": p["momentum"],
-                    "nesterov": p["nesterov"],
-                    "label_smoothing": p["label_smoothing"],
-                    "scheduler": p["scheduler"],
-                    "warmup_epochs": p["warmup_epochs"],
-                    "milestones": p.get("milestones", ""),
-                }
-            )
+        rows = [
+            {
+                "run_name": r["run_name"],
+                "best_val_acc1": best_val,
+                "lr": r["params"]["lr"],
+                "epochs": r["params"]["epochs"],
+                "weight_decay": r["params"]["weight_decay"],
+                "momentum": r["params"]["momentum"],
+                "nesterov": r["params"]["nesterov"],
+                "label_smoothing": r["params"]["label_smoothing"],
+                "scheduler": r["params"]["scheduler"],
+                "warmup_epochs": r["params"]["warmup_epochs"],
+                "milestones": r["params"].get("milestones", ""),
+            }
+            for r, best_val in ranked
+        ]
         out_csv = tuning_dir / "ranked_by_val.csv"
         pd.DataFrame(rows).to_csv(out_csv, index=False)
         logger.info(f"\nSaved ranking to {out_csv}")
@@ -219,7 +246,7 @@ def main():
     model = get_model("resnet18", num_classes=100).to(device)
 
     # match your train.py layer selection (layer2 / layer3 / layer4)
-    target_module = model.layer2
+    target_module = model.layer4
     cam_runner = GradCAM(model, target_module)
 
     out_dir = "./mask_images"

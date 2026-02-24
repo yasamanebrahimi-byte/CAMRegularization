@@ -3,7 +3,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List, Optional
 import argparse
 
 from utils import *
@@ -34,27 +34,25 @@ class TuningConfig:
 
 
 PARAM_GRID: Dict[str, List[Any]] = {
-    "epochs": [100],
-    "lr": [0.05, 0.1, 0.2],
-    "weight_decay": [5e-4, 2e-3],
-    "momentum": [0.95],
-    "nesterov": [False, True],
-    "label_smoothing": [0.0, 0.1],
-    "scheduler": ["cosine", "multistep"],
-    "warmup_epochs": [0, 5],
-    "min_lr": [0.0],
-    "gamma": [0.1],
-    "milestones": ["100,150"],
-    "val_split": [0.1],
+    "lr": [0.03, 0.05, 0.1],
+    "weight_decay": [3e-4, 5e-4], 
+    "label_smoothing": [0.0, 0.05], 
+    "warmup_epochs": [0, 5], 
 }
 
 FIXED_PARAMS: Dict[str, Any] = {
+    "epochs": 150,
     "data_dir": "./data",
     "batch_size": 128,
     "num_workers": 2,
     "seed": 42,
     "log_every": 100,
     "amp": True,
+    "val_split": 0.1,
+    "nesterov": True,
+    "scheduler": "cosine",
+    "min_lr": 1e-5,
+    "momentum": 0.9
 }
 
 
@@ -69,41 +67,12 @@ def cartesian_product(grid: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
     return combos
 
 
-def prune_combinations(combos: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Apply simple pruning rules to cut unhelpful configs."""
-    kept = []
-    for c in combos:
-        # Only test warmup with cosine (common choice)
-        if c["scheduler"] == "multistep" and c["warmup_epochs"] > 0:
-            continue
-        kept.append(c)
-    return kept
-
-
-def compute_multistep_milestones(epochs: int) -> str:
-    if epochs == 150:
-        return "90,120"
-    if epochs == 200:
-        return "100,150"
-    return f"{int(0.5 * epochs)},{int(0.75 * epochs)}"
-
-
-def with_scheduler_dependent_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a copy where multistep milestones are consistent with the epoch budget."""
-    out = dict(params)
-    if out.get("scheduler") == "multistep":
-        out["milestones"] = compute_multistep_milestones(int(out["epochs"]))
-    return out
-
-
 def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], dataset: str, model: str) -> str:
     wd = float(all_params["weight_decay"])
-    ms = all_params["milestones"] if all_params["scheduler"] == "multistep" else "na"
     return (
         f"tune_{model}_{dataset}_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
         f"_wd{wd:.0e}_m{all_params['momentum']}_nest{int(bool(all_params['nesterov']))}"
         f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
-        f"_ms{ms}"
     )
 
 
@@ -126,7 +95,7 @@ def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
 # Main
 # -----------------------------
 
-def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
+def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[str, Any]]:
     # create tuning dir and setup a single log file for this tuning run
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.tuning_dirname)
     global logger
@@ -136,7 +105,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     log_file = log_root / f"tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_file)
 
-    combos = prune_combinations(cartesian_product(PARAM_GRID))
+    combos = cartesian_product(PARAM_GRID)
     logger.info(f"Running {len(combos)} training configurations for {cfg.model} on {cfg.dataset}...")
     logger.info(f"Results will be saved to {tuning_dir}\n")
 
@@ -144,7 +113,6 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
 
     for idx, grid_params in enumerate(combos, 1):
         all_params = {**FIXED_PARAMS, **grid_params}
-        all_params = with_scheduler_dependent_params(all_params)
         
         # Add dataset and model to all_params
         all_params["dataset"] = cfg.dataset
@@ -171,6 +139,24 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> None:
     logger.info(f"\nTuning complete! Results saved to {results_file}")
     print_summary(tuning_dir, results)
     plot_tuning_results(results, tuning_dir)
+
+    successful = [r for r in results if r.get("status") == "success"]
+    if not successful:
+        logger.warning("No successful runs found; returning None for best hyperparameters")
+        return None
+
+    if any("best_val_acc" in r for r in successful):
+        best_run = max(successful, key=lambda r: r.get("best_val_acc", float("-inf")))
+    else:
+        best_run = max(successful, key=lambda r: r.get("final_test_acc1", float("-inf")))
+
+    best_params = dict(best_run.get("params", {}))
+    logger.info(
+        f"Selected best run for downstream tuning: {best_run.get('run_name', 'unknown')} | "
+        f"best_val_acc={best_run.get('best_val_acc', 'n/a')} | "
+        f"final_test_acc1={best_run.get('final_test_acc1', 'n/a')}"
+    )
+    return best_params
 
 
 def run_single_training_run(
