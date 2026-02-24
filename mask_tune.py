@@ -125,7 +125,7 @@ def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Opt
     log_root.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     log_file = log_root / f"mask_tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_file)
+    logger = get_logger(__name__, log_file=log_file, console=False)
 
     logger.info(f"Starting base hyperparameter tuning for {cfg.model} on {cfg.dataset}")
     best_base_params = tune_hyperparameters(

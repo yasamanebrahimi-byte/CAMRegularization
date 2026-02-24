@@ -104,7 +104,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
     log_root.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     log_file = log_root / f"tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_file)
+    logger = get_logger(__name__, log_file=log_file, console=False)
 
     combos = cartesian_product(PARAM_GRID)
     logger.info(f"Running {len(combos)} training configurations for {cfg.model} on {cfg.dataset}...")
