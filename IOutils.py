@@ -20,7 +20,7 @@ def build_parser():
     p.add_argument("--data_dir",    type=str,   default="./data")
     p.add_argument("--out_dir",     type=str,   default="./runs")
     # Training hyperparameters
-    p.add_argument("--epochs",      type=int,   default=50)
+    p.add_argument("--epochs",      type=int,   default=100)
     p.add_argument("--batch_size",  type=int,   default=128)
     p.add_argument("--num_workers", type=int,   default=2)
     p.add_argument("--lr",          type=float, default=0.1)
@@ -30,21 +30,21 @@ def build_parser():
     p.add_argument("--log_every",   type=int,   default=100)
     p.add_argument("--run_name",    type=str,   default="")
     p.add_argument("--val_split",   type=positive_float, default=0.1)
-    p.add_argument("--min_lr",      type=float, default=0.0)
+    p.add_argument("--min_lr",      type=float, default=1e-5)
     p.add_argument("--gamma",       type=float, default=0.1)
-    p.add_argument("--milestones",  type=str,   default="100,150")
+    p.add_argument("--milestones",  type=str,   default="60,80")
     p.add_argument("--label_smoothing", type=float, default=0.0)
     p.add_argument("--scheduler",       type=str,   choices=["multistep","cosine"], default="cosine")
-    p.add_argument("--warmup_epochs",   type=int,   default=0)
+    p.add_argument("--warmup_epochs",   type=int,   default=5)
     p.add_argument("--nesterov",        action="store_true",    default=False)
     p.add_argument("--amp",             action="store_true",    default=False)
     # --- CAM-guided cutout ---
     p.add_argument("--masking",     type=str,   choices=["none","random","cam_high","cam_low"], default="none")
-    p.add_argument("--mask_warmup_epochs",  type=int,   default=0)
-    p.add_argument("--mask_prob",   type=float, default=1.0)
+    p.add_argument("--mask_warmup_epochs",  type=int,   default=15)
+    p.add_argument("--mask_prob",   type=float, default=0.75)
     p.add_argument("--mask_area",   type=float, default=0.2)
     p.add_argument("--mask_block",  type=int,   default=8)
-    p.add_argument("--cam_layer",   type=str,   default="layer2")
+    p.add_argument("--cam_layer",   type=str,   default="layer4")
     return p
 
 def make_run_dir(out_dir, run_name):
