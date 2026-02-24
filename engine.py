@@ -1,6 +1,5 @@
 import time
 import torch
-import torchvision.transforms as T
 from utils import accuracy_top1, accuracy_top5
 from logger import get_logger
 from cam_masking import apply_random_cutout, apply_cam_cutout  
@@ -34,15 +33,6 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
                     mode = "high" if ms["strategy"] == "cam_high" else "low"
                     x = apply_cam_cutout(x, cam.detach(), area_frac=ms["area"], block=ms["block"], fill=0.0, mode=mode)
         
-        # Apply random crop and flip AFTER masking
-        x_pil = [T.ToPILImage()(x[j].cpu()) for j in range(x.size(0))]
-        augment_tfms = T.Compose([
-            T.RandomCrop(32, padding=4),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-        ])
-        x = torch.stack([augment_tfms(img) for img in x_pil]).to(device)
-
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=(scaler is not None)):
             logits = model(x)
