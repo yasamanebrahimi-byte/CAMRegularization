@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
@@ -7,6 +8,7 @@ import argparse
 import time
 
 import optuna
+import optuna.visualization as vis
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
@@ -157,7 +159,6 @@ def objective(trial: optuna.Trial, cfg: OptunaTuningConfig) -> float:
         raise
     except Exception as e:
         logger.error(f"[Trial {trial.number}] Failed with error: {e}")
-        import traceback
         logger.error(traceback.format_exc())
         return 0.0
 
@@ -196,7 +197,6 @@ def run_single_training_run(
 
     except Exception as e:
         logger.error(f"Training failed with error: {e}")
-        import traceback
         logger.error(traceback.format_exc())
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
 
@@ -284,7 +284,6 @@ def tune_hyperparameters_optuna(cfg: OptunaTuningConfig = OptunaTuningConfig()) 
     
     # Save study visualization
     try:
-        import optuna.visualization as vis
         fig = vis.plot_param_importances(study).to_html()
         importance_file = tuning_dir / "param_importances.html"
         with open(importance_file, "w") as f:

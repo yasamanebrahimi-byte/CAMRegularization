@@ -1,6 +1,7 @@
 import itertools
 import json
 import os
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -193,7 +194,6 @@ def run_single_training_run(
 
     except Exception as e:
         logger.error(f"Training failed with error: {e}")
-        import traceback
         logger.error(traceback.format_exc())
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
 
