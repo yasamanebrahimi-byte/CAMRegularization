@@ -35,6 +35,8 @@ MASK_PARAM_GRID: Dict[str, List[Any]] = {
     "cam_layer": ["layer2", "layer3", "layer4"],
 }
 
+RANDOM_MASK_CAM_LAYER = "layer2"
+
 
 logger = None
 
@@ -55,7 +57,8 @@ def generate_mask_combinations() -> List[Dict[str, Any]]:
             for mask_prob in MASK_PARAM_GRID["mask_prob"]:
                 for mask_area in MASK_PARAM_GRID["mask_area"]:
                     for mask_block in MASK_PARAM_GRID["mask_block"]:
-                        for cam_layer in MASK_PARAM_GRID["cam_layer"]:
+                        cam_layers = MASK_PARAM_GRID["cam_layer"] if masking in {"cam_high", "cam_low"} else [RANDOM_MASK_CAM_LAYER]
+                        for cam_layer in cam_layers:
                             combinations.append(
                                 {
                                     "masking": masking,
