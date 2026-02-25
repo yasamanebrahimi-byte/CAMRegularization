@@ -34,6 +34,7 @@ MASK_PARAM_GRID: Dict[str, List[Any]] = {
 }
 
 RANDOM_MASK_CAM_LAYER = "layer2"
+ALL_MASKING_TYPES = "all"
 
 
 logger = None
@@ -53,10 +54,23 @@ def format_mask_run_name(base_params: Dict[str, Any], mask_params: Dict[str, Any
     )
 
 
-def generate_mask_combinations() -> List[Dict[str, Any]]:
-    combinations: List[Dict[str, Any]] = []
+def _normalize_masking_type(masking_type: Optional[str]) -> Optional[str]:
+    if masking_type in {None, ALL_MASKING_TYPES}:
+        return None
 
-    for masking in MASK_PARAM_GRID["masking"]:
+    if masking_type not in MASK_PARAM_GRID["masking"]:
+        valid = ", ".join([ALL_MASKING_TYPES, *MASK_PARAM_GRID["masking"]])
+        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
+
+    return masking_type
+
+
+def generate_mask_combinations(masking_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    selected_masking_type = _normalize_masking_type(masking_type)
+    combinations: List[Dict[str, Any]] = []
+    masking_values = [selected_masking_type] if selected_masking_type else MASK_PARAM_GRID["masking"]
+
+    for masking in masking_values:
         for warmup_epochs in MASK_PARAM_GRID["mask_warmup_epochs"]:
             for mask_prob in MASK_PARAM_GRID["mask_prob"]:
                 for mask_area in MASK_PARAM_GRID["mask_area"]:
@@ -105,8 +119,11 @@ def run_single_mask_training_run(
         return {"run_name": run_name, "params": params, "status": "error", "error": str(e)}
 
 
-def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Optional[Dict[str, Any]]:
+def tune_mask_hyperparameters(
+    cfg: MaskTuningConfig = MaskTuningConfig(), masking_type: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     global logger
+    selected_masking_type = _normalize_masking_type(masking_type)
 
     mask_tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
 
@@ -139,8 +156,9 @@ def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Opt
     best_base_params["dataset"] = cfg.dataset
     best_base_params["model"] = cfg.model
 
-    mask_combinations = generate_mask_combinations()
-    logger.info(f"Running {len(mask_combinations)} mask configurations")
+    mask_combinations = generate_mask_combinations(selected_masking_type)
+    mode_label = selected_masking_type if selected_masking_type else "all masking modes"
+    logger.info(f"Running {len(mask_combinations)} mask configurations for {mode_label}")
     logger.info(f"Mask tuning results will be saved to {mask_tuning_dir}\n")
 
     results: List[Dict[str, Any]] = []
@@ -159,7 +177,12 @@ def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Opt
         results.append(result_info)
         logger.info("")
 
-    results_file = mask_tuning_dir / "mask_tuning_results.json"
+    results_filename = (
+        f"mask_tuning_results_{selected_masking_type}.json"
+        if selected_masking_type
+        else "mask_tuning_results.json"
+    )
+    results_file = mask_tuning_dir / results_filename
     results_file.write_text(json.dumps(results, indent=2))
 
     logger.info(f"\nMask tuning complete! Results saved to {results_file}")
@@ -184,11 +207,24 @@ def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Opt
     return dict(best_mask_run.get("params", {}))
 
 
+def tune_single_mask_hyperparameters(
+    masking_type: str, cfg: MaskTuningConfig = MaskTuningConfig()
+) -> Optional[Dict[str, Any]]:
+    return tune_mask_hyperparameters(cfg, masking_type=masking_type)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Mask Hyperparameter Tuning")
     parser.add_argument("--dataset", type=str, default=DEFAULT_DATASET, help=f"Dataset name (default: {DEFAULT_DATASET})")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
     parser.add_argument("--runs_root", type=str, default="./runs", help="Root directory for runs")
+    parser.add_argument(
+        "--masking_type",
+        type=str,
+        default=ALL_MASKING_TYPES,
+        choices=[ALL_MASKING_TYPES, *MASK_PARAM_GRID["masking"]],
+        help="Masking mode to optimize (default: all)",
+    )
     args = parser.parse_args()
 
     cfg = MaskTuningConfig(
@@ -196,4 +232,4 @@ if __name__ == "__main__":
         dataset=args.dataset,
         model=args.model,
     )
-    tune_mask_hyperparameters(cfg)
+    tune_mask_hyperparameters(cfg, masking_type=args.masking_type)
