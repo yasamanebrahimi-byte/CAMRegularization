@@ -7,15 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from IOutils import build_parser, ensure_dir, make_run_dir, write_json
+from IOutils import build_parser, ensure_dir, make_run_dir, write_json, build_args_from_params
+from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
 from tune import OPTIMAL_CONFIG_PATH, TuningConfig, load_optimal_config_params, tune_hyperparameters
-
-
-DEFAULT_DATASET = "cifar100"
-DEFAULT_MODEL = "resnet18"
 
 
 @dataclass(frozen=True)
@@ -42,12 +39,18 @@ RANDOM_MASK_CAM_LAYER = "layer2"
 logger = None
 
 
-def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
-    parser = build_parser()
-    args = parser.parse_args([])
-    for key, value in params.items():
-        setattr(args, key, value)
-    return args
+def format_mask_run_name(base_params: Dict[str, Any], mask_params: Dict[str, Any], dataset: str, model: str) -> str:
+    base_name = (
+        f"mask_tune_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
+        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
+        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
+    )
+
+    return (
+        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
+        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
+        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
+    )
 
 
 def generate_mask_combinations() -> List[Dict[str, Any]]:
@@ -71,20 +74,6 @@ def generate_mask_combinations() -> List[Dict[str, Any]]:
                                 }
                             )
     return combinations
-
-
-def format_mask_run_name(base_params: Dict[str, Any], mask_params: Dict[str, Any], dataset: str, model: str) -> str:
-    base_name = (
-        f"mask_tune_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
-        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
-        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
-    )
-
-    return (
-        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
-        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
-        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
-    )
 
 
 def run_single_mask_training_run(

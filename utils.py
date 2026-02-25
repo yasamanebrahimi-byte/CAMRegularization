@@ -1,9 +1,9 @@
 import random
 import torch
-from pathlib import Path
-from logger import get_logger
 
-logger = get_logger(__name__)
+# Default configuration constants
+DEFAULT_DATASET = "cifar100"
+DEFAULT_MODEL = "resnet18"
 
 def set_seed(seed):
     random.seed(seed)

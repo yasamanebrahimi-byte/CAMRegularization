@@ -3,7 +3,7 @@ Model registry for easy addition of new models.
 Each model is registered with metadata about its expected input and number of classes.
 """
 import torch.nn as nn
-from torchvision.models import *
+from torchvision.models import resnet18
 from typing import Callable, Dict, Any
 
 # Type for model builder functions: takes (num_classes, **kwargs) and returns nn.Module

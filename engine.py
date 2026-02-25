@@ -1,18 +1,13 @@
-import time
 import torch
 from utils import accuracy_top1, accuracy_top5
-from logger import get_logger
-from cam_masking import apply_random_cutout, apply_cam_cutout  
-
-logger = get_logger(__name__)
+from cam_masking import apply_random_cutout, apply_cam_cutout
 
 def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_every,
                     epoch=0, masking_cfg=None, cam_runner=None):
     model.train()
     running_loss, running_acc1, running_acc5 = 0.0, 0.0, 0.0
-    t0 = time.time()
 
-    for i, (x, y) in enumerate(loader, start=1):
+    for x, y in loader:
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
         
         # Apply masking BEFORE random crop

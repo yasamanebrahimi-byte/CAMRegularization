@@ -10,6 +10,8 @@ from logger import get_logger
 
 DatasetLoaderFunc = Callable[..., Tuple[DataLoader, Optional[DataLoader], DataLoader]]
 
+logger = get_logger(__name__)
+
 
 class _ImagePathDataset(Dataset):
     def __init__(self, samples: List[Tuple[str, int]], transform=None):
@@ -87,7 +89,6 @@ def _build_dataloaders(
 
 def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split: float = 0.0, 
     seed: int = 42, **kwargs) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    logger = get_logger(__name__)
     mean = (0.5071, 0.4867, 0.4408)
     std = (0.2675, 0.2565, 0.2761)
     train_tfms = T.Compose([
@@ -123,7 +124,6 @@ def _tiny_imagenet_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    logger = get_logger(__name__)
     root = Path(data_dir)
     tiny_root = _resolve_existing_path(
         str(root / "tiny-imagenet-200"),
@@ -174,7 +174,6 @@ def _cub200_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    logger = get_logger(__name__)
     root = Path(data_dir)
     cub_root = _resolve_existing_path(
         str(root / "CUB_200_2011"),
@@ -251,7 +250,6 @@ def _malimg_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    logger = get_logger(__name__)
     root = Path(data_dir)
     malimg_root = _resolve_existing_path(
         str(root / "MalImg"),

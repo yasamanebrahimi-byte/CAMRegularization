@@ -80,3 +80,14 @@ def save_ckpt(path, model, optimizer, epoch, best_acc, extra=None):
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+def build_args_from_params(params):
+    """Convert a params dict to an argparse.Namespace object that train_with_config expects."""
+    parser = build_parser()
+    args = parser.parse_args([])  # Parse empty args to get defaults
+    
+    # Override with provided params
+    for key, value in params.items():
+        setattr(args, key, value)
+    
+    return args

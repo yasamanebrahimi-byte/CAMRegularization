@@ -12,18 +12,14 @@ import optuna.visualization as vis
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
-from utils import *
-from IOutils import *
+from IOutils import build_parser, ensure_dir, make_run_dir, write_json, build_args_from_params
+from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
 
 # Will be set by tune_hyperparameters_optuna at startup so all functions use same file
 logger = None
-
-# Default configuration - can be overridden when calling tune_hyperparameters_optuna()
-DEFAULT_DATASET = "cifar100"
-DEFAULT_MODEL = "resnet18"
 
 
 # -----------------------------
@@ -77,20 +73,6 @@ def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], da
         f"_wd{wd:.0e}_m{all_params['momentum']}_nest{int(bool(all_params['nesterov']))}"
         f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
     )
-
-
-def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
-    """
-    Convert a params dict to an argparse.Namespace object that train_with_config expects.
-    """
-    parser = build_parser()
-    args = parser.parse_args([])  # Parse empty args to get defaults
-    
-    # Override with provided params
-    for key, value in params.items():
-        setattr(args, key, value)
-    
-    return args
 
 
 # -----------------------------
