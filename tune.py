@@ -213,6 +213,7 @@ def run_single_training_run(
         # Create run directory
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
+        logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
         
         # Train and get metrics
         metrics = train_with_config(args, run_dir=run_dir, logger=logger)

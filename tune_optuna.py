@@ -28,6 +28,7 @@ class OptunaMaskTuningConfig:
     runs_root: Path = Path("./runs")
     dataset: str = DEFAULT_DATASET
     model: str = DEFAULT_MODEL
+    base_runs_subdir: str = "_base_pre_tuning"
     base_tuning_dirname: str = "tuning_results"
     mask_tuning_dirname: str = "mask_tuning_results_optuna"
     n_jobs: int = 1
@@ -138,10 +139,17 @@ def _run_single_stage(
         args.run_name = run_name
         args.dataset = params.get("dataset", cfg.dataset)
         args.model = params.get("model", cfg.model)
+        args.masking = params.get("masking", args.masking)
+        args.mask_warmup_epochs = params.get("mask_warmup_epochs", args.mask_warmup_epochs)
+        args.mask_prob = params.get("mask_prob", args.mask_prob)
+        args.mask_area = params.get("mask_area", args.mask_area)
+        args.mask_block = params.get("mask_block", args.mask_block)
+        args.cam_layer = params.get("cam_layer", args.cam_layer)
         args.out_dir = str(cfg.runs_root / args.model / args.dataset)
 
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
+        logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
 
         metrics = train_with_config(args, run_dir=run_dir, logger=logger)
         return {
@@ -247,7 +255,7 @@ def tune_hyperparameters_optuna(
     logger = get_logger(__name__, log_file=log_file, console=False)
 
     base_tuning_cfg = TuningConfig(
-        runs_root=cfg.runs_root,
+        runs_root=cfg.runs_root / cfg.base_runs_subdir,
         tuning_dirname=cfg.base_tuning_dirname,
         dataset=cfg.dataset,
         model=cfg.model,
@@ -266,6 +274,12 @@ def tune_hyperparameters_optuna(
         logger.error("Base hyperparameter tuning did not produce successful runs")
         return None
 
+    best_base_params.pop("masking", None)
+    best_base_params.pop("mask_warmup_epochs", None)
+    best_base_params.pop("mask_prob", None)
+    best_base_params.pop("mask_area", None)
+    best_base_params.pop("mask_block", None)
+    best_base_params.pop("cam_layer", None)
     best_base_params["dataset"] = cfg.dataset
     best_base_params["model"] = cfg.model
 
@@ -278,6 +292,7 @@ def tune_hyperparameters_optuna(
 
     logger.info(f"Starting Optuna mask tuning for {cfg.model} on {cfg.dataset}")
     logger.info(f"Masking type: {mode_label}")
+    logger.info(f"Base pre-tuning runs root: {base_tuning_cfg.runs_root}")
     logger.info(f"Objective: best_val_acc")
     logger.info(f"Trials: {n_trials} | Jobs: {cfg.n_jobs}")
     logger.info(f"Multi-fidelity stage budgets (epochs): {stage_budgets}")
