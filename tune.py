@@ -117,7 +117,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
     # create tuning dir and setup a single log file for this tuning run
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.tuning_dirname)
     global logger
-    logger = get_logger(__name__)
+    logger = get_logger(__name__, console=False)
 
     results: List[Dict[str, Any]] = []
 
@@ -208,7 +208,7 @@ def run_single_training_run(
         # Create run directory
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
-        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=True)
+        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=False)
         run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
         
         # Train and get metrics

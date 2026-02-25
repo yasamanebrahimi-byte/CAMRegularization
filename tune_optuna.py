@@ -149,7 +149,7 @@ def _run_single_stage(
 
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
-        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=True)
+        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=False)
         run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
 
         metrics = train_with_config(args, run_dir=run_dir, logger=run_logger)
@@ -250,7 +250,7 @@ def tune_hyperparameters_optuna(
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     mode_label = selected_masking_type if selected_masking_type else ALL_MASKING_TYPES
-    logger = get_logger(__name__)
+    logger = get_logger(__name__, console=False)
 
     base_tuning_cfg = TuningConfig(
         runs_root=cfg.runs_root / cfg.base_runs_subdir,
