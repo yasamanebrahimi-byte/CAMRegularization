@@ -23,7 +23,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
                     was_training = model.training
                     model.eval()
                     x_cam = x.detach().requires_grad_(True)
-                    cam = cam_runner.cam(x_cam, y) 
+                    cam = cam_runner.cam(x_cam)
                     model.train(was_training)
                     mode = "high" if ms["strategy"] == "cam_high" else "low"
                     x = apply_cam_cutout(x, cam.detach(), area_frac=ms["area"], block=ms["block"], fill=0.0, mode=mode)

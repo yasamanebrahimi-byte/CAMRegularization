@@ -23,10 +23,11 @@ class GradCAM:
         cam = cam / (cam.amax(dim=(2,3), keepdim=True) + 1e-6)
         return cam
 
-    def cam(self, x, y):
+    def cam(self, x):
         """
         Returns CAM in input resolution: [B, 1, H_in, W_in]
         Uses grad w.r.t activations via torch.autograd.grad (no param .grad accumulation).
+        Computes CAM for the predicted class.
         """
         self.model.zero_grad(set_to_none=True)
         logits = self.model(x)  # forward hook saves activations
@@ -34,7 +35,7 @@ class GradCAM:
         if acts is None:
             raise RuntimeError("GradCAM activations are None. Hook not firing?")
 
-        # class score for ground-truth labels
+        # class score for predicted labels
         idx = torch.arange(x.size(0), device=x.device)
         pred = logits.argmax(dim=1)
         score = logits[idx, pred]  
@@ -48,9 +49,6 @@ class GradCAM:
         cam = F.interpolate(cam, size=x.shape[-2:], mode="bilinear", align_corners=False)  # to input size
         return cam
 
-def _rand_int(low, high, device):
-    return torch.randint(low, high, (1,), device=device).item()
-
 def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
     """
     x: [B,3,H,W] (normalized ok). Masks same number of blocks per sample to match area_frac approximately.
@@ -63,8 +61,8 @@ def apply_random_cutout(x, area_frac=0.2, block=8, fill=0.0):
 
     for b in range(B):
         for _ in range(n_blocks):
-            top = _rand_int(0, max(1, H - block + 1), x.device)
-            left = _rand_int(0, max(1, W - block + 1), x.device)
+            top = torch.randint(0, max(1, H - block + 1), (1,), device=x.device).item()
+            left = torch.randint(0, max(1, W - block + 1), (1,), device=x.device).item()
             out[b, :, top:top+block, left:left+block] = fill
     return out
 

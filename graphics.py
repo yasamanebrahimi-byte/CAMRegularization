@@ -29,7 +29,7 @@ def _apply_mask(mode, x, y, model, cam_runner, area, block):
     if mode in ("cam_high", "cam_low"):
         model.eval()
         x_cam = x.detach().requires_grad_(True)
-        cam = cam_runner.cam(x_cam, y)
+        cam = cam_runner.cam(x_cam)
         cam_mode = "high" if mode == "cam_high" else "low"
         xm = apply_cam_cutout(
             x,
@@ -246,7 +246,7 @@ def main():
     model = get_model("resnet18", num_classes=100).to(device)
 
     # match your train.py layer selection (layer2 / layer3 / layer4)
-    target_module = model.layer4
+    target_module = model.layer3
     cam_runner = GradCAM(model, target_module)
 
     out_dir = "./mask_images"
