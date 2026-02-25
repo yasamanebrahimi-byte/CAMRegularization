@@ -56,6 +56,8 @@ FIXED_PARAMS: Dict[str, Any] = {
     "momentum": 0.9
 }
 
+OPTIMAL_CONFIG_PATH = Path("data") / "optimal_config.json"
+
 
 # -----------------------------
 # Helpers
@@ -92,6 +94,41 @@ def build_args_from_params(params: Dict[str, Any]) -> argparse.Namespace:
     return args
 
 
+def load_optimal_config_params(cfg: TuningConfig) -> Optional[Dict[str, Any]]:
+    """
+    Load precomputed best hyperparameters from data/optimal_config.json when available.
+    Returns None if file does not exist or cannot be parsed.
+    """
+    optimal_path = Path.cwd() / OPTIMAL_CONFIG_PATH
+    if not optimal_path.exists():
+        return None
+
+    try:
+        loaded = json.loads(optimal_path.read_text())
+    except Exception as e:
+        if logger is not None:
+            logger.warning(f"Failed to load optimal config from {optimal_path}: {e}")
+        return None
+
+    if not isinstance(loaded, dict):
+        if logger is not None:
+            logger.warning(f"Optimal config at {optimal_path} is not a JSON object; ignoring file")
+        return None
+
+    parser = build_parser()
+    valid_arg_keys = set(vars(parser.parse_args([])).keys())
+
+    params = {k: v for k, v in loaded.items() if k in valid_arg_keys}
+    params = {**FIXED_PARAMS, **params}
+    params["dataset"] = cfg.dataset
+    params["model"] = cfg.model
+
+    params.pop("run_name", None)
+    params.pop("out_dir", None)
+
+    return params
+
+
 # -----------------------------
 # Main
 # -----------------------------
@@ -106,33 +143,49 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
     log_file = log_root / f"tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_file, console=False)
 
-    combos = cartesian_product(PARAM_GRID)
-    logger.info(f"Running {len(combos)} training configurations for {cfg.model} on {cfg.dataset}...")
-    logger.info(f"Results will be saved to {tuning_dir}\n")
-
     results: List[Dict[str, Any]] = []
 
-    for idx, grid_params in enumerate(combos, 1):
-        all_params = {**FIXED_PARAMS, **grid_params}
-        
-        # Add dataset and model to all_params
-        all_params["dataset"] = cfg.dataset
-        all_params["model"] = cfg.model
+    optimal_params = load_optimal_config_params(cfg)
+    if optimal_params is not None:
+        run_name = format_run_name(optimal_params, FIXED_PARAMS, cfg.dataset, cfg.model)
+        logger.info(
+            f"Found {OPTIMAL_CONFIG_PATH}; running a single training configuration for {cfg.model} on {cfg.dataset}"
+        )
+        logger.info(f"Results will be saved to {tuning_dir}\n")
+        logger.info(f"[1/1] Running: {run_name}")
 
-        run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
-
-        logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
-
-        result_info = run_single_training_run(cfg, run_name, all_params)
-        
-        # Log completion status
+        result_info = run_single_training_run(cfg, run_name, optimal_params)
         if result_info["status"] == "success" and "final_test_acc1" in result_info:
             logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")
         else:
             logger.info("Completed successfully" if result_info["status"] == "success" else "Failed")
-        
+
         results.append(result_info)
         logger.info("")
+    else:
+        combos = cartesian_product(PARAM_GRID)
+        logger.info(f"Running {len(combos)} training configurations for {cfg.model} on {cfg.dataset}...")
+        logger.info(f"Results will be saved to {tuning_dir}\n")
+
+        for idx, grid_params in enumerate(combos, 1):
+            all_params = {**FIXED_PARAMS, **grid_params}
+
+            all_params["dataset"] = cfg.dataset
+            all_params["model"] = cfg.model
+
+            run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
+
+            logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
+
+            result_info = run_single_training_run(cfg, run_name, all_params)
+
+            if result_info["status"] == "success" and "final_test_acc1" in result_info:
+                logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")
+            else:
+                logger.info("Completed successfully" if result_info["status"] == "success" else "Failed")
+
+            results.append(result_info)
+            logger.info("")
 
     results_file = tuning_dir / "tuning_results.json"
     results_file.write_text(json.dumps(results, indent=2))

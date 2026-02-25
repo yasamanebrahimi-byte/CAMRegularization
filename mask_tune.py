@@ -11,7 +11,7 @@ from IOutils import build_parser, ensure_dir, make_run_dir, write_json
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
-from tune import TuningConfig, tune_hyperparameters
+from tune import OPTIMAL_CONFIG_PATH, TuningConfig, load_optimal_config_params, tune_hyperparameters
 
 
 DEFAULT_DATASET = "cifar100"
@@ -127,15 +127,21 @@ def tune_mask_hyperparameters(cfg: MaskTuningConfig = MaskTuningConfig()) -> Opt
     log_file = log_root / f"mask_tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_file, console=False)
 
-    logger.info(f"Starting base hyperparameter tuning for {cfg.model} on {cfg.dataset}")
-    best_base_params = tune_hyperparameters(
-        TuningConfig(
-            runs_root=cfg.runs_root,
-            tuning_dirname=cfg.base_tuning_dirname,
-            dataset=cfg.dataset,
-            model=cfg.model,
-        )
+    base_tuning_cfg = TuningConfig(
+        runs_root=cfg.runs_root,
+        tuning_dirname=cfg.base_tuning_dirname,
+        dataset=cfg.dataset,
+        model=cfg.model,
     )
+
+    best_base_params = load_optimal_config_params(base_tuning_cfg)
+    if best_base_params is not None:
+        logger.info(
+            f"Found {OPTIMAL_CONFIG_PATH}; reusing cached base hyperparameters and skipping base tuning runs"
+        )
+    else:
+        logger.info(f"Starting base hyperparameter tuning for {cfg.model} on {cfg.dataset}")
+        best_base_params = tune_hyperparameters(base_tuning_cfg)
 
     if not best_base_params:
         logger.error("Base hyperparameter tuning did not produce successful runs")
