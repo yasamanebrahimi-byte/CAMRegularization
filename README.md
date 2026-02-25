@@ -113,3 +113,36 @@ Reference paper: https://www.sciencedirect.com/science/article/pii/S221421262500
      - No masking
    - Evidence that CAMs can be used as training signals
    - Insights for when the CAM-guided regularization could improve generalization
+
+# Running Optuna Mask Tuning
+
+Use `tune_optuna.py` to optimize masking hyperparameters with:
+
+- objective = best validation accuracy (`best_val_acc`)
+- pruning of weak trials (Hyperband)
+- multi-fidelity training (short budget first, then promote promising trials)
+
+Supported masking modes:
+
+- `all`
+- `random`
+- `cam_high`
+- `cam_low`
+
+Automatic number of trials by masking mode:
+
+- `all` -> 100
+- `cam_high` or `cam_low` -> 64
+- `random` -> 32
+
+Example (single masking mode):
+
+```bash
+python tune_optuna.py --dataset cifar100 --model resnet18 --masking_type cam_high
+```
+
+Example (all parser arguments):
+
+```bash
+python tune_optuna.py --dataset cifar100 --model resnet18 --runs_root ./runs --n_jobs 1 --masking_type all --min_resource_epochs 15 --max_resource_epochs 100 --reduction_factor 2
+```
