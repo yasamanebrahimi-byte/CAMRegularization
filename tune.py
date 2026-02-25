@@ -12,7 +12,6 @@ from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
-import time
 
 # Will be set by tune_hyperparameters at startup so all functions use same file
 logger = None
@@ -118,11 +117,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
     # create tuning dir and setup a single log file for this tuning run
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.tuning_dirname)
     global logger
-    log_root = Path.cwd() / "log"
-    log_root.mkdir(parents=True, exist_ok=True)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_file = log_root / f"tune_{cfg.model}_{cfg.dataset}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_file, console=False)
+    logger = get_logger(__name__)
 
     results: List[Dict[str, Any]] = []
 
@@ -213,10 +208,11 @@ def run_single_training_run(
         # Create run directory
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
-        logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
+        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=True)
+        run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
         
         # Train and get metrics
-        metrics = train_with_config(args, run_dir=run_dir, logger=logger)
+        metrics = train_with_config(args, run_dir=run_dir, logger=run_logger)
         
         return {
             "run_name": run_name,

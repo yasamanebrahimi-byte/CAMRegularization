@@ -149,9 +149,10 @@ def _run_single_stage(
 
         run_dir = make_run_dir(args.out_dir, args.run_name)
         write_json(os.path.join(run_dir, "config.json"), vars(args))
-        logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
+        run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=True)
+        run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
 
-        metrics = train_with_config(args, run_dir=run_dir, logger=logger)
+        metrics = train_with_config(args, run_dir=run_dir, logger=run_logger)
         return {
             "run_name": run_name,
             "params": params,
@@ -247,12 +248,9 @@ def tune_hyperparameters_optuna(
     selected_masking_type = _normalize_masking_type(masking_type)
 
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
-    log_root = Path.cwd() / "log"
-    log_root.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     mode_label = selected_masking_type if selected_masking_type else ALL_MASKING_TYPES
-    log_file = log_root / f"tune_optuna_mask_{cfg.model}_{cfg.dataset}_{mode_label}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_file, console=False)
+    logger = get_logger(__name__)
 
     base_tuning_cfg = TuningConfig(
         runs_root=cfg.runs_root / cfg.base_runs_subdir,
