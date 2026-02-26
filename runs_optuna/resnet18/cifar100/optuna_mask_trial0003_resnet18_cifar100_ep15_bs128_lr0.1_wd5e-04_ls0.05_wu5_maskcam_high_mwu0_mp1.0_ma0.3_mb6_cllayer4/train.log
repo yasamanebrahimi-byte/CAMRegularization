@@ -1,0 +1,85 @@
+2026-02-26 01:08:23 - __main__ - INFO - Resolved training args for optuna_mask_trial0003_resnet18_cifar100_ep15_bs128_lr0.1_wd5e-04_ls0.05_wu5_maskcam_high_mwu0_mp1.0_ma0.3_mb6_cllayer4: {"amp": true, "batch_size": 128, "cam_layer": "layer4", "data_dir": "./data", "dataset": "cifar100", "epochs": 15, "gamma": 0.1, "label_smoothing": 0.05, "log_every": 100, "lr": 0.1, "mask_area": 0.3, "mask_block": 6, "mask_prob": 1.0, "mask_warmup_epochs": 0, "masking": "cam_high", "milestones": "60,80", "min_lr": 1e-05, "model": "resnet18", "momentum": 0.9, "nesterov": true, "num_workers": 2, "out_dir": "runs_optuna/resnet18/cifar100", "run_name": "optuna_mask_trial0003_resnet18_cifar100_ep15_bs128_lr0.1_wd5e-04_ls0.05_wu5_maskcam_high_mwu0_mp1.0_ma0.3_mb6_cllayer4", "scheduler": "cosine", "seed": 42, "val_split": 0.1, "warmup_epochs": 5, "weight_decay": 0.0005}
+2026-02-26 01:08:23 - __main__ - INFO - device: cuda | cuda: True | gpu: NVIDIA L4
+2026-02-26 01:08:26 - __main__ - INFO - Masking enabled: {'strategy': 'cam_high', 'warmup_epochs': 0, 'prob': 1.0, 'area': 0.3, 'block': 6}
+2026-02-26 01:08:26 - __main__ - INFO - Model: resnet18 | Dataset: cifar100 | Classes: 100
+2026-02-26 01:08:26 - __main__ - INFO - 
+Epoch 1/15 | lr 0.000100
+2026-02-26 01:09:54 - __main__ - INFO - Train: loss 4.6420 acc1 1.36% acc5 6.17%
+2026-02-26 01:09:54 - __main__ - INFO - Val:   loss 4.5824 acc1 1.85% acc5 7.64%
+2026-02-26 01:09:54 - __main__ - INFO - saved best: 1.85%
+2026-02-26 01:09:54 - __main__ - INFO - 
+Epoch 2/15 | lr 0.020080
+2026-02-26 01:11:24 - __main__ - INFO - Train: loss 3.9599 acc1 10.39% acc5 30.39%
+2026-02-26 01:11:24 - __main__ - INFO - Val:   loss 3.7844 acc1 14.48% acc5 39.42%
+2026-02-26 01:11:24 - __main__ - INFO - saved best: 14.48%
+2026-02-26 01:11:24 - __main__ - INFO - 
+Epoch 3/15 | lr 0.040060
+2026-02-26 01:12:54 - __main__ - INFO - Train: loss 3.5534 acc1 17.50% acc5 44.12%
+2026-02-26 01:12:54 - __main__ - INFO - Val:   loss 3.3877 acc1 21.12% acc5 50.29%
+2026-02-26 01:12:54 - __main__ - INFO - saved best: 21.12%
+2026-02-26 01:12:54 - __main__ - INFO - 
+Epoch 4/15 | lr 0.060040
+2026-02-26 01:14:24 - __main__ - INFO - Train: loss 3.2687 acc1 23.03% acc5 52.73%
+2026-02-26 01:14:24 - __main__ - INFO - Val:   loss 3.3237 acc1 25.32% acc5 54.21%
+2026-02-26 01:14:24 - __main__ - INFO - saved best: 25.32%
+2026-02-26 01:14:24 - __main__ - INFO - 
+Epoch 5/15 | lr 0.080020
+2026-02-26 01:15:53 - __main__ - INFO - Train: loss 3.0300 acc1 27.84% acc5 59.15%
+2026-02-26 01:15:53 - __main__ - INFO - Val:   loss 3.1769 acc1 27.34% acc5 56.31%
+2026-02-26 01:15:53 - __main__ - INFO - saved best: 27.34%
+2026-02-26 01:15:53 - __main__ - INFO - 
+Epoch 6/15 | lr 0.100000
+2026-02-26 01:17:23 - __main__ - INFO - Train: loss 2.8469 acc1 31.67% acc5 64.14%
+2026-02-26 01:17:23 - __main__ - INFO - Val:   loss 2.7274 acc1 36.12% acc5 68.07%
+2026-02-26 01:17:23 - __main__ - INFO - saved best: 36.12%
+2026-02-26 01:17:23 - __main__ - INFO - 
+Epoch 7/15 | lr 0.097553
+2026-02-26 01:18:52 - __main__ - INFO - Train: loss 2.6505 acc1 36.38% acc5 68.86%
+2026-02-26 01:18:52 - __main__ - INFO - Val:   loss 2.6023 acc1 39.21% acc5 71.08%
+2026-02-26 01:18:52 - __main__ - INFO - saved best: 39.21%
+2026-02-26 01:18:52 - __main__ - INFO - 
+Epoch 8/15 | lr 0.090452
+2026-02-26 01:20:21 - __main__ - INFO - Train: loss 2.5002 acc1 40.29% acc5 72.44%
+2026-02-26 01:20:21 - __main__ - INFO - Val:   loss 2.4265 acc1 42.66% acc5 73.57%
+2026-02-26 01:20:21 - __main__ - INFO - saved best: 42.66%
+2026-02-26 01:20:21 - __main__ - INFO - 
+Epoch 9/15 | lr 0.079391
+2026-02-26 01:21:51 - __main__ - INFO - Train: loss 2.3682 acc1 43.35% acc5 75.47%
+2026-02-26 01:21:51 - __main__ - INFO - Val:   loss 2.3431 acc1 43.86% acc5 76.58%
+2026-02-26 01:21:51 - __main__ - INFO - saved best: 43.86%
+2026-02-26 01:21:51 - __main__ - INFO - 
+Epoch 10/15 | lr 0.065454
+2026-02-26 01:23:20 - __main__ - INFO - Train: loss 2.2399 acc1 46.55% acc5 78.42%
+2026-02-26 01:23:20 - __main__ - INFO - Val:   loss 2.2667 acc1 46.96% acc5 77.41%
+2026-02-26 01:23:20 - __main__ - INFO - saved best: 46.96%
+2026-02-26 01:23:20 - __main__ - INFO - 
+Epoch 11/15 | lr 0.050005
+2026-02-26 01:24:50 - __main__ - INFO - Train: loss 2.1050 acc1 50.49% acc5 81.05%
+2026-02-26 01:24:50 - __main__ - INFO - Val:   loss 2.1935 acc1 49.14% acc5 79.68%
+2026-02-26 01:24:50 - __main__ - INFO - saved best: 49.14%
+2026-02-26 01:24:50 - __main__ - INFO - 
+Epoch 12/15 | lr 0.034556
+2026-02-26 01:26:19 - __main__ - INFO - Train: loss 1.9658 acc1 54.25% acc5 83.79%
+2026-02-26 01:26:19 - __main__ - INFO - Val:   loss 1.9320 acc1 54.71% acc5 84.45%
+2026-02-26 01:26:19 - __main__ - INFO - saved best: 54.71%
+2026-02-26 01:26:19 - __main__ - INFO - 
+Epoch 13/15 | lr 0.020619
+2026-02-26 01:27:49 - __main__ - INFO - Train: loss 1.8061 acc1 58.80% acc5 86.70%
+2026-02-26 01:27:49 - __main__ - INFO - Val:   loss 1.8221 acc1 58.71% acc5 86.12%
+2026-02-26 01:27:49 - __main__ - INFO - saved best: 58.71%
+2026-02-26 01:27:49 - __main__ - INFO - 
+Epoch 14/15 | lr 0.009558
+2026-02-26 01:29:19 - __main__ - INFO - Train: loss 1.6653 acc1 63.16% acc5 89.10%
+2026-02-26 01:29:19 - __main__ - INFO - Val:   loss 1.6915 acc1 61.80% acc5 88.79%
+2026-02-26 01:29:19 - __main__ - INFO - saved best: 61.80%
+2026-02-26 01:29:19 - __main__ - INFO - 
+Epoch 15/15 | lr 0.002457
+2026-02-26 01:30:48 - __main__ - INFO - Train: loss 1.5670 acc1 66.33% acc5 90.57%
+2026-02-26 01:30:48 - __main__ - INFO - Val:   loss 1.6588 acc1 63.33% acc5 88.94%
+2026-02-26 01:30:48 - __main__ - INFO - saved best: 63.33%
+2026-02-26 01:30:50 - __main__ - INFO - 
+Best tracked (val): 63.33%
+2026-02-26 01:30:50 - __main__ - INFO - Final test: loss 1.6582 acc1 62.94% acc5 88.74%
+2026-02-26 01:30:51 - graphics - INFO - Metrics plot saved to runs_optuna/resnet18/cifar100/optuna_mask_trial0003_resnet18_cifar100_ep15_bs128_lr0.1_wd5e-04_ls0.05_wu5_maskcam_high_mwu0_mp1.0_ma0.3_mb6_cllayer4/metrics_plot.png
+2026-02-26 01:30:51 - __main__ - INFO - [Trial 3] Stage result | best_val_acc=0.633330 | best_so_far=0.633330
+2026-02-26 01:30:51 - __main__ - INFO - [Trial 3] Stage 2/5 | epochs=30 | run=optuna_mask_trial0003_resnet18_cifar100_ep30_bs128_lr0.1_wd5e-04_ls0.05_wu5_maskcam_high_mwu0_mp1.0_ma0.3_mb6_cllayer4
