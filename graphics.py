@@ -4,8 +4,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from logger import get_logger
 import os
+import argparse
 import torch
-from dataset_registry import get_dataset_loaders
+import torch.nn as nn
+import torch.optim as optim
+from dataset_registry import get_dataset_loaders, get_num_classes
 from model_registry import get_model
 from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout
 
@@ -105,6 +108,63 @@ def _setup_subplot(ax, xlabel, ylabel, title):
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
     ax.legend()
+
+
+def _build_parser():
+    p = argparse.ArgumentParser("CAM Mask Visualization")
+    p.add_argument("--dataset", type=str, default="cifar100")
+    p.add_argument("--data_dir", type=str, default="./data")
+    p.add_argument("--model", type=str, default="resnet18")
+    p.add_argument("--batch_size", type=int, default=128)
+    p.add_argument("--num_workers", type=int, default=2)
+    p.add_argument("--val_split", type=float, default=0.15)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--warmup_epochs", type=int, default=15)
+    p.add_argument("--warmup_lr", type=float, default=0.1)
+    p.add_argument("--warmup_momentum", type=float, default=0.9)
+    p.add_argument("--warmup_weight_decay", type=float, default=5e-4)
+    p.add_argument("--warmup_label_smoothing", type=float, default=0.0)
+    p.add_argument("--max_batches_per_epoch", type=int, default=0,
+                   help="Limit warmup batches per epoch for faster preview (0 = full epoch).")
+    p.add_argument("--cam_layer", type=str, choices=["layer2", "layer3", "layer4"], default="layer3")
+    p.add_argument("--out_dir", type=str, default="./mask_images")
+    p.add_argument("--area", type=float, default=0.15)
+    p.add_argument("--block", type=int, default=6)
+    return p
+
+
+def _warmup_model(model, train_dl, device, epochs, lr, momentum, weight_decay, label_smoothing, max_batches_per_epoch):
+    if epochs <= 0:
+        return
+
+    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    optimizer = optim.SGD(
+        model.parameters(),
+        lr=lr,
+        momentum=momentum,
+        weight_decay=weight_decay,
+        nesterov=False,
+    )
+
+    model.train()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        batch_count = 0
+        for x, y in train_dl:
+            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(x)
+            loss = criterion(logits, y)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+            batch_count += 1
+
+            if max_batches_per_epoch > 0 and batch_count >= max_batches_per_epoch:
+                break
+
+        avg_loss = running_loss / max(1, batch_count)
+        logger.info(f"Warmup epoch {epoch + 1}/{epochs} | loss={avg_loss:.4f}")
 
 def plot_metrics(metrics_csv, run_dir):
     try:
@@ -237,21 +297,47 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
 
 
 def main():
+    args = _build_parser().parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    train_dl, _, _ = get_dataset_loaders("cifar100", "./data", batch_size=128, num_workers=2, val_split=0.15, seed=42)
+    train_dl, _, _ = get_dataset_loaders(
+        args.dataset,
+        args.data_dir,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        val_split=args.val_split,
+        seed=args.seed,
+    )
+
+    num_classes = get_num_classes(args.dataset)
+    model = get_model(args.model, num_classes=num_classes).to(device)
+
+    logger.info(
+        f"Preparing mask preview with model={args.model}, dataset={args.dataset}, "
+        f"warmup_epochs={args.warmup_epochs}"
+    )
+
+    _warmup_model(
+        model=model,
+        train_dl=train_dl,
+        device=device,
+        epochs=args.warmup_epochs,
+        lr=args.warmup_lr,
+        momentum=args.warmup_momentum,
+        weight_decay=args.warmup_weight_decay,
+        label_smoothing=args.warmup_label_smoothing,
+        max_batches_per_epoch=args.max_batches_per_epoch,
+    )
+
     x, y = next(iter(train_dl))
     x, y = x.to(device), y.to(device)
 
-    model = get_model("resnet18", num_classes=100).to(device)
-
-    # match your train.py layer selection (layer2 / layer3 / layer4)
-    target_module = model.layer3
+    target_module = getattr(model, args.cam_layer)
     cam_runner = GradCAM(model, target_module)
 
-    out_dir = "./mask_images"
+    out_dir = args.out_dir
     for mode in ["none", "random", "cam_high", "cam_low"]:
-        save_one(mode, out_dir, x, y, model, cam_runner, area=0.15, block=6)
+        save_one(mode, out_dir, x, y, model, cam_runner, area=args.area, block=args.block)
 
 
 if __name__ == "__main__":

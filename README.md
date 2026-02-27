@@ -87,6 +87,7 @@ Reference paper: https://www.sciencedirect.com/science/article/pii/S221421262500
    - A warm-up phase with no masking to set the saliency estimates
 3. Model Interpretation
    - Use CAM and HiResCAM during training to guide the masking decisions
+   - Implementation note: CAMs are computed online from the model's current weights during training (not precomputed before training)
 4. Masking Strategies
    - No masking and random masking (control)
    - Denoising with CAMs
@@ -97,6 +98,9 @@ Reference paper: https://www.sciencedirect.com/science/article/pii/S221421262500
      - Mask the same fraction of image area
      - Use identical mask shapes and fill values
      - Are evaluated across multiple masking strengths (e.g., 10%, 20%)
+   - Warm-up behavior:
+     - CAM masking (`cam_high`, `cam_low`) is applied only after `mask_warmup_epochs`
+     - During warm-up epochs, training runs without masking to stabilize saliency estimates
 5. Metrics
    - Models could be compared using
      - Accuracy
@@ -121,6 +125,10 @@ Use `tune_optuna.py` to optimize masking hyperparameters with:
 - objective = best validation accuracy (`best_val_acc`)
 - pruning of weak trials (Hyperband)
 - multi-fidelity training (short budget first, then promote promising trials)
+
+Warm-up search space note:
+
+- Current tuning scripts use non-zero CAM masking warm-up candidates (`15`, `30`) to preserve an explicit no-masking phase before CAM-guided cutout.
 
 Supported masking modes:
 

@@ -26,7 +26,7 @@ class GreedyMaskTuningConfig:
 
 MASK_PARAM_GRID: Dict[str, List[Any]] = {
     "masking": ["random", "cam_high", "cam_low"],
-    "mask_warmup_epochs": [0, 15, 30],
+    "mask_warmup_epochs": [15, 30],
     "mask_prob": [0.5, 0.75, 1.0],
     "mask_area": [0.2, 0.3, 0.4],
     "mask_block": [4, 6, 8],

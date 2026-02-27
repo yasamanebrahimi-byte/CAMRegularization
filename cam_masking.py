@@ -16,7 +16,6 @@ class GradCAM:
             self._hook.remove()
             self._hook = None
 
-    @torch.no_grad()
     def _normalize_cam(self, cam):
         # cam: [B, 1, H, W]
         cam = cam - cam.amin(dim=(2,3), keepdim=True)
@@ -29,17 +28,20 @@ class GradCAM:
         Uses grad w.r.t activations via torch.autograd.grad (no param .grad accumulation).
         Computes CAM for the predicted class.
         """
-        self.model.zero_grad(set_to_none=True)
-        logits = self.model(x)  # forward hook saves activations
-        acts = self.activations  # [B,C,H,W]
-        if acts is None:
-            raise RuntimeError("GradCAM activations are None. Hook not firing?")
+        with torch.enable_grad():
+            self.model.zero_grad(set_to_none=True)
+            logits = self.model(x)  # forward hook saves activations
+            acts = self.activations  # [B,C,H,W]
+            if acts is None:
+                raise RuntimeError("GradCAM activations are None. Hook not firing?")
+            if not acts.requires_grad:
+                raise RuntimeError("GradCAM activations do not require gradients. Check grad/no_grad context.")
 
-        # class score for predicted labels
-        idx = torch.arange(x.size(0), device=x.device)
-        pred = logits.argmax(dim=1)
-        score = logits[idx, pred]  
-        grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
+            # class score for predicted labels
+            idx = torch.arange(x.size(0), device=x.device)
+            pred = logits.argmax(dim=1)
+            score = logits[idx, pred]
+            grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
 
         weights = grads.mean(dim=(2,3), keepdim=True)  # [B,C,1,1]
         cam = (weights * acts).sum(dim=1, keepdim=True)  # [B,1,H,W]

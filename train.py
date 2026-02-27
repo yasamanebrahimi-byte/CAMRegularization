@@ -43,6 +43,14 @@ def train_with_config(args, run_dir=None, logger=None):
     masking_cfg = None
 
     if args.masking != "none":
+        effective_mask_warmup_epochs = args.mask_warmup_epochs
+        if args.masking in {"cam_high", "cam_low"} and effective_mask_warmup_epochs <= 0:
+            effective_mask_warmup_epochs = max(1, args.warmup_epochs)
+            logger.info(
+                "mask_warmup_epochs <= 0 is not recommended for CAM masking; "
+                f"using {effective_mask_warmup_epochs} instead."
+            )
+
         # Choose target module for ResNet
         if args.cam_layer == "layer4":
             target_module = model.layer4
@@ -57,7 +65,7 @@ def train_with_config(args, run_dir=None, logger=None):
 
         masking_cfg = {
             "strategy": args.masking,             # none/random/cam_high/cam_low
-            "warmup_epochs": args.mask_warmup_epochs,
+            "warmup_epochs": effective_mask_warmup_epochs,
             "prob": args.mask_prob,
             "area": args.mask_area,
             "block": args.mask_block,
