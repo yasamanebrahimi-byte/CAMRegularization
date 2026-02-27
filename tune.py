@@ -13,9 +13,6 @@ from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
 
-# Will be set by tune_hyperparameters at startup so all functions use same file
-logger = None
-
 
 # -----------------------------
 # Config
@@ -74,7 +71,9 @@ def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], da
     )
 
 
-def load_optimal_config_params(cfg: TuningConfig) -> Optional[Dict[str, Any]]:
+def load_optimal_config_params(
+    cfg: TuningConfig, logger=None
+) -> Optional[Dict[str, Any]]:
     """
     Load precomputed best hyperparameters from data/optimal_config.json when available.
     Returns None if file does not exist or cannot be parsed.
@@ -116,12 +115,11 @@ def load_optimal_config_params(cfg: TuningConfig) -> Optional[Dict[str, Any]]:
 def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[str, Any]]:
     # create tuning dir and setup a single log file for this tuning run
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.tuning_dirname)
-    global logger
     logger = get_logger(__name__, console=False)
 
     results: List[Dict[str, Any]] = []
 
-    optimal_params = load_optimal_config_params(cfg)
+    optimal_params = load_optimal_config_params(cfg, logger=logger)
     if optimal_params is not None:
         run_name = format_run_name(optimal_params, FIXED_PARAMS, cfg.dataset, cfg.model)
         logger.info(
@@ -130,7 +128,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
         logger.info(f"Results will be saved to {tuning_dir}\n")
         logger.info(f"[1/1] Running: {run_name}")
 
-        result_info = run_single_training_run(cfg, run_name, optimal_params)
+        result_info = run_single_training_run(cfg, run_name, optimal_params, logger)
         if result_info["status"] == "success" and "final_test_acc1" in result_info:
             logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")
         else:
@@ -153,7 +151,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
 
             logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
 
-            result_info = run_single_training_run(cfg, run_name, all_params)
+            result_info = run_single_training_run(cfg, run_name, all_params, logger)
 
             if result_info["status"] == "success" and "final_test_acc1" in result_info:
                 logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")
@@ -190,7 +188,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
 
 
 def run_single_training_run(
-    cfg: TuningConfig, run_name: str, params: Dict[str, Any]
+    cfg: TuningConfig, run_name: str, params: Dict[str, Any], logger
 ) -> Dict[str, Any]:
     """Run a single training and return results."""
     try:

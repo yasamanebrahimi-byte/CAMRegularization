@@ -13,7 +13,6 @@ from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
 import time
 from pathlib import Path
-from cam_masking import GradCAM
 
 def build_optimizer(args, model):
     return optim.SGD(

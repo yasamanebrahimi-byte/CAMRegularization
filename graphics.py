@@ -27,7 +27,7 @@ def to_img(x):  # [3,H,W] in 0..1
     return x
 
 
-def _apply_mask(mode, x, y, model, cam_runner, area, block):
+def _apply_mask(mode, x, model, cam_runner, area, block):
     if mode == "random":
         return apply_random_cutout(x, area_frac=area, block=block, fill=0.0), None
     if mode in ("cam_high", "cam_low"):
@@ -65,11 +65,11 @@ def _show_panel(ax, image, title, **imshow_kwargs):
         ax.set_title(title)
     ax.axis("off")
 
-def save_one(mode, out_dir, x, y, model, cam_runner, area=0.3, block=8):
+def save_one(mode, out_dir, x, model, cam_runner, area=0.3, block=8):
     os.makedirs(out_dir, exist_ok=True)
 
     x0 = x.clone()
-    xm, cam = _apply_mask(mode, x, y, model, cam_runner, area, block)
+    xm, cam = _apply_mask(mode, x, model, cam_runner, area, block)
 
     # unnormalize for viewing
     x0_vis = unnormalize(x0)
@@ -334,15 +334,15 @@ def main():
     )
 
     preview_dl = train_dl if args.preview_split == "train" else test_dl
-    x, y = next(iter(preview_dl))
-    x, y = x.to(device), y.to(device)
+    x, _ = next(iter(preview_dl))
+    x = x.to(device)
 
     target_module = getattr(model, args.cam_layer)
     cam_runner = GradCAM(model, target_module)
 
     out_dir = args.out_dir
     for mode in ["none", "random", "cam_high", "cam_low"]:
-        save_one(mode, out_dir, x, y, model, cam_runner, area=args.area, block=args.block)
+        save_one(mode, out_dir, x, model, cam_runner, area=args.area, block=args.block)
 
 
 if __name__ == "__main__":

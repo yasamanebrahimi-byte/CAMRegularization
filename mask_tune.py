@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from IOutils import build_parser, ensure_dir, make_run_dir, write_json, build_args_from_params
+from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params, normalize_masking_type, format_mask_run_name
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
@@ -37,32 +37,8 @@ RANDOM_MASK_CAM_LAYER = "layer2"
 ALL_MASKING_TYPES = "all"
 
 
-logger = None
-
-
-def format_mask_run_name(base_params: Dict[str, Any], mask_params: Dict[str, Any], dataset: str, model: str) -> str:
-    base_name = (
-        f"mask_tune_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
-        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
-        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
-    )
-
-    return (
-        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
-        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
-        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
-    )
-
-
 def _normalize_masking_type(masking_type: Optional[str]) -> Optional[str]:
-    if masking_type in {None, ALL_MASKING_TYPES}:
-        return None
-
-    if masking_type not in MASK_PARAM_GRID["masking"]:
-        valid = ", ".join([ALL_MASKING_TYPES, *MASK_PARAM_GRID["masking"]])
-        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
-
-    return masking_type
+    return normalize_masking_type(masking_type, MASK_PARAM_GRID["masking"], all_value=ALL_MASKING_TYPES)
 
 
 def generate_mask_combinations(masking_type: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -91,7 +67,7 @@ def generate_mask_combinations(masking_type: Optional[str] = None) -> List[Dict[
 
 
 def run_single_mask_training_run(
-    cfg: MaskTuningConfig, run_name: str, params: Dict[str, Any]
+    cfg: MaskTuningConfig, run_name: str, params: Dict[str, Any], logger
 ) -> Dict[str, Any]:
     try:
         args = build_args_from_params(params)
@@ -122,7 +98,6 @@ def run_single_mask_training_run(
 def tune_mask_hyperparameters(
     cfg: MaskTuningConfig = MaskTuningConfig(), masking_type: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    global logger
     selected_masking_type = _normalize_masking_type(masking_type)
 
     mask_tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
@@ -140,7 +115,7 @@ def tune_mask_hyperparameters(
         model=cfg.model,
     )
 
-    best_base_params = load_optimal_config_params(base_tuning_cfg)
+    best_base_params = load_optimal_config_params(base_tuning_cfg, logger=logger)
     if best_base_params is not None:
         logger.info(
             f"Found {OPTIMAL_CONFIG_PATH}; reusing cached base hyperparameters and skipping base tuning runs"
@@ -164,10 +139,10 @@ def tune_mask_hyperparameters(
     results: List[Dict[str, Any]] = []
     for idx, mask_params in enumerate(mask_combinations, 1):
         all_params = {**best_base_params, **mask_params}
-        run_name = format_mask_run_name(best_base_params, mask_params, cfg.dataset, cfg.model)
+        run_name = format_mask_run_name(best_base_params, mask_params, cfg.dataset, cfg.model, prefix="mask_tune")
 
         logger.info(f"[{idx}/{len(mask_combinations)}] Running: {run_name}")
-        result_info = run_single_mask_training_run(cfg, run_name, all_params)
+        result_info = run_single_mask_training_run(cfg, run_name, all_params, logger)
 
         if result_info["status"] == "success" and "final_test_acc1" in result_info:
             logger.info(f"Completed successfully - Test Acc: {result_info['final_test_acc1'] * 100:.2f}%")

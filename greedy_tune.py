@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params
+from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params, normalize_masking_type, format_mask_run_name
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
@@ -45,32 +45,8 @@ RANDOM_MASK_CAM_LAYER = "layer2"
 ALL_MASKING_TYPES = "all"
 
 
-logger = None
-
-
-def format_mask_run_name(base_params: Dict[str, Any], mask_params: Dict[str, Any], dataset: str, model: str) -> str:
-    base_name = (
-        f"greedy_tune_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
-        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
-        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
-    )
-
-    return (
-        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
-        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
-        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
-    )
-
-
 def _normalize_masking_type(masking_type: Optional[str]) -> Optional[str]:
-    if masking_type in {None, ALL_MASKING_TYPES}:
-        return None
-
-    if masking_type not in MASK_PARAM_GRID["masking"]:
-        valid = ", ".join([ALL_MASKING_TYPES, *MASK_PARAM_GRID["masking"]])
-        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
-
-    return masking_type
+    return normalize_masking_type(masking_type, MASK_PARAM_GRID["masking"], all_value=ALL_MASKING_TYPES)
 
 
 def _sanitize_for_name(value: Any) -> str:
@@ -86,7 +62,7 @@ def _build_stage_run_name(
     factor: str,
     factor_value: Any,
 ) -> str:
-    base_run_name = format_mask_run_name(base_params, mask_params, dataset, model)
+    base_run_name = format_mask_run_name(base_params, mask_params, dataset, model, prefix="greedy_tune")
     return f"{base_run_name}_gs{stage_idx}_{factor}_{_sanitize_for_name(factor_value)}"
 
 
@@ -119,7 +95,7 @@ def _factors_for_masking(masking: str) -> List[str]:
 
 
 def run_single_mask_training_run(
-    cfg: GreedyMaskTuningConfig, run_name: str, params: Dict[str, Any]
+    cfg: GreedyMaskTuningConfig, run_name: str, params: Dict[str, Any], logger
 ) -> Dict[str, Any]:
     try:
         args = build_args_from_params(params)
@@ -162,6 +138,7 @@ def _run_greedy_for_masking(
     best_base_params: Dict[str, Any],
     masking: str,
     all_results: List[Dict[str, Any]],
+    logger,
 ) -> Optional[Dict[str, Any]]:
     logger.info(f"\nStarting greedy factor tuning for masking='{masking}'")
     current_mask_params = _initial_mask_params(masking)
@@ -193,7 +170,7 @@ def _run_greedy_for_masking(
             )
 
             logger.info(f"Running candidate: {run_name}")
-            result_info = run_single_mask_training_run(cfg, run_name, all_params)
+            result_info = run_single_mask_training_run(cfg, run_name, all_params, logger)
             result_info["greedy_stage"] = stage_idx
             result_info["greedy_factor"] = factor
             result_info["greedy_candidate"] = candidate_value
@@ -225,7 +202,6 @@ def _run_greedy_for_masking(
 def tune_mask_hyperparameters_greedy(
     cfg: GreedyMaskTuningConfig = GreedyMaskTuningConfig(), masking_type: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    global logger
     selected_masking_type = _normalize_masking_type(masking_type)
 
     mask_tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
@@ -243,7 +219,7 @@ def tune_mask_hyperparameters_greedy(
         model=cfg.model,
     )
 
-    best_base_params = load_optimal_config_params(base_tuning_cfg)
+    best_base_params = load_optimal_config_params(base_tuning_cfg, logger=logger)
     if best_base_params is not None:
         logger.info(
             f"Found {OPTIMAL_CONFIG_PATH}; reusing cached base hyperparameters and skipping base tuning runs"
@@ -267,7 +243,7 @@ def tune_mask_hyperparameters_greedy(
     best_params_per_masking: List[Dict[str, Any]] = []
 
     for masking in masking_values:
-        best_mask_params = _run_greedy_for_masking(cfg, best_base_params, masking, results)
+        best_mask_params = _run_greedy_for_masking(cfg, best_base_params, masking, results, logger)
         if best_mask_params is None:
             continue
 

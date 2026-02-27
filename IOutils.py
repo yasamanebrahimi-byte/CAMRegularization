@@ -4,6 +4,9 @@ from pathlib import Path
 import time
 import os
 import torch
+from typing import Any, Dict, List, Optional
+
+from utils import DEFAULT_DATASET, DEFAULT_MODEL
 
 def positive_float(value):
     """Validator that ensures a float is greater than 0.0"""
@@ -15,8 +18,8 @@ def positive_float(value):
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
-    p.add_argument("--dataset",     type=str,   default="cifar100",  help="Dataset name (e.g., 'cifar100', 'cifar10')")
-    p.add_argument("--model",       type=str,   default="resnet18",   help="Model name (e.g., 'resnet18', 'resnet50', 'vgg16')")
+    p.add_argument("--dataset",     type=str,   default=DEFAULT_DATASET,  help="Dataset name (e.g., 'cifar100', 'cifar10')")
+    p.add_argument("--model",       type=str,   default=DEFAULT_MODEL,   help="Model name (e.g., 'resnet18', 'resnet50', 'vgg16')")
     p.add_argument("--data_dir",    type=str,   default="./data")
     p.add_argument("--out_dir",     type=str,   default="./runs")
     # Training hyperparameters
@@ -91,3 +94,38 @@ def build_args_from_params(params):
         setattr(args, key, value)
     
     return args
+
+
+def normalize_masking_type(
+    masking_type: Optional[str],
+    valid_masking_values: List[str],
+    all_value: str = "all",
+) -> Optional[str]:
+    if masking_type in {None, all_value}:
+        return None
+
+    if masking_type not in valid_masking_values:
+        valid = ", ".join([all_value, *valid_masking_values])
+        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
+
+    return masking_type
+
+
+def format_mask_run_name(
+    base_params: Dict[str, Any],
+    mask_params: Dict[str, Any],
+    dataset: str,
+    model: str,
+    prefix: str,
+) -> str:
+    base_name = (
+        f"{prefix}_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
+        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
+        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
+    )
+
+    return (
+        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
+        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
+        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
+    )

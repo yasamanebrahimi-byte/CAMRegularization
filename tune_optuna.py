@@ -12,15 +12,12 @@ import optuna.visualization as vis
 from optuna.pruners import HyperbandPruner
 from optuna.samplers import TPESampler
 
-from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params
+from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params, normalize_masking_type
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
 from tune import OPTIMAL_CONFIG_PATH, TuningConfig, load_optimal_config_params, tune_hyperparameters
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
-
-
-logger = None
 
 
 @dataclass(frozen=True)
@@ -51,14 +48,7 @@ ALL_MASKING_TYPES = "all"
 
 
 def _normalize_masking_type(masking_type: Optional[str]) -> Optional[str]:
-    if masking_type in {None, ALL_MASKING_TYPES}:
-        return None
-
-    if masking_type not in MASK_PARAM_SPACE["masking"]:
-        valid = ", ".join([ALL_MASKING_TYPES, *MASK_PARAM_SPACE["masking"]])
-        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
-
-    return masking_type
+    return normalize_masking_type(masking_type, MASK_PARAM_SPACE["masking"], all_value=ALL_MASKING_TYPES)
 
 
 def _build_stage_budgets(min_epochs: int, max_epochs: int, reduction_factor: int) -> List[int]:
@@ -133,6 +123,7 @@ def _run_single_stage(
     cfg: OptunaMaskTuningConfig,
     run_name: str,
     params: Dict[str, Any],
+    logger,
 ) -> Dict[str, Any]:
     try:
         args = build_args_from_params(params)
@@ -173,6 +164,7 @@ def _objective(
     base_params: Dict[str, Any],
     selected_masking_type: Optional[str],
     stage_budgets: List[int],
+    logger,
 ) -> float:
     mask_params = _sample_mask_params(trial, selected_masking_type)
     merged_params = {**base_params, **mask_params, "dataset": cfg.dataset, "model": cfg.model}
@@ -199,7 +191,7 @@ def _objective(
             f"epochs={stage_epochs} | run={stage_run_name}"
         )
 
-        stage_result = _run_single_stage(cfg, stage_run_name, stage_params)
+        stage_result = _run_single_stage(cfg, stage_run_name, stage_params, logger)
         if stage_result.get("status") != "success":
             trial.set_user_attr("status", "failed")
             trial.set_user_attr("failed_stage", stage_idx)
@@ -244,7 +236,6 @@ def _objective(
 def tune_hyperparameters_optuna(
     cfg: OptunaMaskTuningConfig = OptunaMaskTuningConfig(), masking_type: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    global logger
     selected_masking_type = _normalize_masking_type(masking_type)
 
     tuning_dir = ensure_dir(cfg.runs_root / f"{cfg.model}_{cfg.dataset}" / cfg.mask_tuning_dirname)
@@ -259,7 +250,7 @@ def tune_hyperparameters_optuna(
         model=cfg.model,
     )
 
-    best_base_params = load_optimal_config_params(base_tuning_cfg)
+    best_base_params = load_optimal_config_params(base_tuning_cfg, logger=logger)
     if best_base_params is not None:
         logger.info(
             f"Found {OPTIMAL_CONFIG_PATH}; reusing cached base hyperparameters and skipping base tuning runs"
@@ -313,7 +304,7 @@ def tune_hyperparameters_optuna(
     )
 
     study.optimize(
-        lambda trial: _objective(trial, cfg, best_base_params, selected_masking_type, stage_budgets),
+        lambda trial: _objective(trial, cfg, best_base_params, selected_masking_type, stage_budgets, logger),
         n_trials=n_trials,
         n_jobs=cfg.n_jobs,
         show_progress_bar=True,
