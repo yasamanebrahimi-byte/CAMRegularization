@@ -7,6 +7,7 @@ import torch.optim as optim
 from model_registry import get_model
 from dataset_registry import get_dataset_loaders, get_num_classes
 from engine import train_one_epoch, evaluate
+from cam_masking import GradCAM
 from utils import set_seed
 from IOutils import build_parser, make_run_dir, write_json, append_csv
 from graphics import plot_metrics
