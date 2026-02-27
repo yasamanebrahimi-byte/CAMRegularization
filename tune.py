@@ -27,7 +27,7 @@ class TuningConfig:
 
 
 PARAM_GRID: Dict[str, List[Any]] = {
-    "lr": [0.03, 0.05, 0.1],
+    "lr": [0.1, 0.15, 0.2],
     "weight_decay": [3e-4, 5e-4], 
     "label_smoothing": [0.0, 0.05], 
     "warmup_epochs": [0, 5], 
