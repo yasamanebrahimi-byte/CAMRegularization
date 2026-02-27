@@ -11,6 +11,7 @@ import torch.optim as optim
 from dataset_registry import get_dataset_loaders, get_num_classes
 from model_registry import get_model
 from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout
+from utils import set_seed
 
 logger = get_logger(__name__)
 
@@ -116,9 +117,10 @@ def _build_parser():
     p.add_argument("--data_dir", type=str, default="./data")
     p.add_argument("--model", type=str, default="resnet18")
     p.add_argument("--batch_size", type=int, default=128)
-    p.add_argument("--num_workers", type=int, default=2)
+    p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--val_split", type=float, default=0.15)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--preview_split", type=str, choices=["train", "test"], default="test")
     p.add_argument("--warmup_epochs", type=int, default=15)
     p.add_argument("--warmup_lr", type=float, default=0.1)
     p.add_argument("--warmup_momentum", type=float, default=0.9)
@@ -298,9 +300,11 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
 
 def main():
     args = _build_parser().parse_args()
+    set_seed(args.seed)
+    torch.use_deterministic_algorithms(True, warn_only=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    train_dl, _, _ = get_dataset_loaders(
+    train_dl, _, test_dl = get_dataset_loaders(
         args.dataset,
         args.data_dir,
         batch_size=args.batch_size,
@@ -329,7 +333,8 @@ def main():
         max_batches_per_epoch=args.max_batches_per_epoch,
     )
 
-    x, y = next(iter(train_dl))
+    preview_dl = train_dl if args.preview_split == "train" else test_dl
+    x, y = next(iter(preview_dl))
     x, y = x.to(device), y.to(device)
 
     target_module = getattr(model, args.cam_layer)
