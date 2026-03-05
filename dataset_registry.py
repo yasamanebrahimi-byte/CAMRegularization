@@ -1,4 +1,7 @@
 import os
+import subprocess
+import sys
+import zipfile
 from pathlib import Path
 import torch
 import torchvision
@@ -35,6 +38,103 @@ def _resolve_existing_path(*candidates: str) -> Optional[str]:
         if candidate and os.path.isdir(candidate):
             return candidate
     return None
+
+
+def _build_kaggle_auth_env(token: str) -> Dict[str, str]:
+    token = token.strip()
+    if not token:
+        raise ValueError("KAGGLE_API_TOKEN is empty.")
+    if not token.startswith("KGAT_"):
+        raise ValueError("KAGGLE_API_TOKEN must start with 'KGAT_'.")
+
+    env = os.environ.copy()
+    env["KAGGLE_API_TOKEN"] = token
+    return env
+
+
+def _ensure_kaggle_dataset_available(
+    dataset_label: str,
+    data_dir: str,
+    kaggle_dataset: str,
+    local_dir_candidates: List[str],
+    archive_filename: str,
+    kaggle_api_token: str,
+) -> str:
+    existing = _resolve_existing_path(*local_dir_candidates)
+    if existing is not None:
+        return existing
+
+    if not kaggle_dataset.strip():
+        raise FileNotFoundError(
+            f"{dataset_label} dataset not found locally and kaggle dataset slug is empty. "
+            "Pass kaggle_dataset='owner/dataset-name' in config/kwargs."
+        )
+
+    env = _build_kaggle_auth_env(kaggle_api_token)
+
+    data_path = Path(data_dir)
+    data_path.mkdir(parents=True, exist_ok=True)
+    archive_path = data_path / archive_filename
+
+    logger.info("%s not found locally. Downloading from Kaggle dataset '%s'...", dataset_label, kaggle_dataset)
+    cmd = [
+        sys.executable,
+        "-m",
+        "kaggle",
+        "datasets",
+        "download",
+        "-d",
+        kaggle_dataset,
+        "-p",
+        str(data_path),
+        "-f",
+        archive_path.name,
+        "--force",
+    ]
+
+    try:
+        subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except subprocess.CalledProcessError:
+        fallback_cmd = [
+            sys.executable,
+            "-m",
+            "kaggle",
+            "datasets",
+            "download",
+            "-d",
+            kaggle_dataset,
+            "-p",
+            str(data_path),
+            "--force",
+        ]
+        subprocess.run(fallback_cmd, check=True, env=env)
+
+    zip_candidates = []
+    if archive_path.exists():
+        zip_candidates.append(archive_path)
+    zip_candidates.extend(sorted(data_path.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True))
+
+    extracted = False
+    for zip_path in zip_candidates:
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(data_path)
+            extracted = True
+            break
+        except zipfile.BadZipFile:
+            continue
+
+    if not extracted:
+        raise FileNotFoundError(
+            f"Downloaded {dataset_label} archive could not be found or extracted."
+        )
+
+    existing = _resolve_existing_path(*local_dir_candidates)
+    if existing is None:
+        raise FileNotFoundError(
+            f"{dataset_label} download completed, but no valid class-subfolder directory was found under data/."
+        )
+    return existing
 
 
 def _split_train_val(
@@ -250,16 +350,21 @@ def _malimg_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    KAGGLE_API_TOKEN = "KGAT_b9cda71d7565a5dd59748f52ea14fd41"
+    kaggle_dataset = str(kwargs.get("kaggle_dataset", "")).strip()
     root = Path(data_dir)
-    malimg_root = _resolve_existing_path(
-        str(root / "MalImg"),
-        str(root / "malimg"),
-        data_dir,
+    malimg_root = _ensure_kaggle_dataset_available(
+        dataset_label="MalImg",
+        data_dir=data_dir,
+        kaggle_dataset=kaggle_dataset,
+        local_dir_candidates=[
+            str(root / "MalImg"),
+            str(root / "malimg"),
+            data_dir,
+        ],
+        archive_filename="malimg_kaggle.zip",
+        kaggle_api_token=KAGGLE_API_TOKEN,
     )
-    if malimg_root is None:
-        raise FileNotFoundError(
-            "MalImg not found. Expected class-subfolder images under data/MalImg (or data/malimg)."
-        )
 
     image_size = int(kwargs.get("image_size", 224))
     test_split = float(kwargs.get("test_split", 0.2))
