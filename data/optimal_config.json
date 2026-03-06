@@ -24,7 +24,7 @@
   "run_name": "tune_resnet18_cifar100_ep150_bs128_lr0.1_wd5e-04_m0.9_nest1_ls0.05_schcosine_wu5",
   "scheduler": "cosine",
   "seed": 42,
-  "val_split": 0.1,
+  "val_split": 0.4,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
