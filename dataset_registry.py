@@ -360,11 +360,61 @@ def _malimg_loader(
         local_dir_candidates=[
             str(root / "MalImg"),
             str(root / "malimg"),
-            data_dir,
+            str(root / "malimg_dataset"),
         ],
         archive_filename="malimg_kaggle.zip",
         kaggle_api_token=KAGGLE_API_TOKEN,
     )
+
+    malimg_root_path = Path(malimg_root)
+    split_root = None
+    split_root_candidates = [malimg_root_path]
+    if malimg_root_path.is_dir():
+        split_root_candidates.extend([p for p in malimg_root_path.iterdir() if p.is_dir()])
+
+    for candidate in split_root_candidates:
+        train_dir = candidate / "train"
+        val_dir = candidate / "val"
+        test_dir = candidate / "test"
+        if train_dir.is_dir() and val_dir.is_dir() and test_dir.is_dir():
+            split_root = candidate
+            break
+
+    if split_root is not None:
+        train_dir = split_root / "train"
+        val_dir = split_root / "val"
+        test_dir = split_root / "test"
+
+        probe_ds = torchvision.datasets.ImageFolder(root=str(train_dir))
+        if len(probe_ds) == 0:
+            raise ValueError(f"No images found in '{train_dir}'.")
+
+        first_image_path, _ = probe_ds.samples[0]
+        with Image.open(first_image_path) as first_img:
+            inferred_width, inferred_height = first_img.convert("RGB").size
+        inferred_size = (inferred_height, inferred_width)
+
+        mean = (0.485, 0.456, 0.406)
+        std = (0.229, 0.224, 0.225)
+        train_tfms = T.Compose([
+            T.Resize(inferred_size),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
+        test_tfms = T.Compose([
+            T.Resize(inferred_size),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
+
+        train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+        val_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
+        test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
+
+        if val_split and val_split > 0.0:
+            logger.info("MalImg official train/val/test split detected; ignoring val_split=%s.", val_split)
+        return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
     probe_ds = torchvision.datasets.ImageFolder(root=malimg_root)
     if len(probe_ds) == 0:
