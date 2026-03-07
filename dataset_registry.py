@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -73,32 +74,68 @@ def _ensure_kaggle_dataset_available(
 
     env = _build_kaggle_auth_env(kaggle_api_token)
 
+    try:
+        import kagglehub  # type: ignore
+
+        logger.info("%s not found locally. Downloading via kagglehub dataset '%s'...", dataset_label, kaggle_dataset)
+        downloaded_root = kagglehub.dataset_download(kaggle_dataset)
+        if downloaded_root and os.path.isdir(downloaded_root):
+            downloaded_root_path = Path(downloaded_root)
+            data_path = Path(data_dir)
+            data_path.mkdir(parents=True, exist_ok=True)
+
+            for child in downloaded_root_path.iterdir():
+                target = data_path / child.name
+                if child.is_dir():
+                    if not target.exists():
+                        shutil.copytree(child, target)
+                elif child.is_file():
+                    if not target.exists():
+                        shutil.copy2(child, target)
+
+            existing = _resolve_existing_path(*local_dir_candidates)
+            if existing is not None:
+                return existing
+            return downloaded_root
+    except Exception as exc:
+        logger.warning("kagglehub download failed, falling back to Kaggle CLI: %s", exc)
+
     data_path = Path(data_dir)
     data_path.mkdir(parents=True, exist_ok=True)
     archive_path = data_path / archive_filename
 
     logger.info("%s not found locally. Downloading from Kaggle dataset '%s'...", dataset_label, kaggle_dataset)
-    cmd = [
-        sys.executable,
-        "-m",
-        "kaggle",
-        "datasets",
-        "download",
-        "-d",
-        kaggle_dataset,
-        "-p",
-        str(data_path),
-        "-f",
-        archive_path.name,
-        "--force",
-    ]
-
-    try:
-        subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    except subprocess.CalledProcessError:
-        fallback_cmd = [
+    primary_cmd_candidates = [
+        [
+            "kaggle",
+            "datasets",
+            "download",
+            "-d",
+            kaggle_dataset,
+            "-p",
+            str(data_path),
+            "-f",
+            archive_path.name,
+            "--force",
+        ],
+        [
             sys.executable,
             "-m",
+            "kaggle.cli",
+            "datasets",
+            "download",
+            "-d",
+            kaggle_dataset,
+            "-p",
+            str(data_path),
+            "-f",
+            archive_path.name,
+            "--force",
+        ],
+    ]
+
+    fallback_cmd_candidates = [
+        [
             "kaggle",
             "datasets",
             "download",
@@ -107,8 +144,44 @@ def _ensure_kaggle_dataset_available(
             "-p",
             str(data_path),
             "--force",
-        ]
-        subprocess.run(fallback_cmd, check=True, env=env)
+        ],
+        [
+            sys.executable,
+            "-m",
+            "kaggle.cli",
+            "datasets",
+            "download",
+            "-d",
+            kaggle_dataset,
+            "-p",
+            str(data_path),
+            "--force",
+        ],
+    ]
+
+    last_error = None
+    for cmd in primary_cmd_candidates:
+        try:
+            subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            last_error = None
+            break
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            last_error = exc
+
+    if last_error is not None:
+        for fallback_cmd in fallback_cmd_candidates:
+            try:
+                subprocess.run(fallback_cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                last_error = None
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+                last_error = exc
+
+    if last_error is not None:
+        raise RuntimeError(
+            "Kaggle download failed. Install 'kagglehub' for token-based auth (KAGGLE_API_TOKEN), "
+            "or configure Kaggle CLI credentials (KAGGLE_USERNAME/KAGGLE_KEY)."
+        ) from last_error
 
     zip_candidates = []
     if archive_path.exists():
