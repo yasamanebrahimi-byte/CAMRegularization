@@ -84,8 +84,11 @@ class GradCAM:
             score = logits[idx, pred]
             grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
 
-        weights = grads.mean(dim=(2,3), keepdim=True)  # [B,C,1,1]
-        cam = (weights * acts).sum(dim=1, keepdim=True)  # [B,1,H,W]
+        weights = grads.mean(dim=(2,3), keepdim=True).detach()  # [B,C,1,1]
+        acts_detached = acts.detach()
+        self.activations = None
+
+        cam = (weights * acts_detached).sum(dim=1, keepdim=True)  # [B,1,H,W]
         cam = F.relu(cam)
 
         cam = self._normalize_cam(cam)

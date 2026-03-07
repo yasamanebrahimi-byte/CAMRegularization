@@ -87,6 +87,46 @@ def _resolve_existing_path(*candidates: str) -> Optional[str]:
     return None
 
 
+def _find_microsoft_malware_root(search_root: Path) -> Optional[Path]:
+    if not search_root.exists() or not search_root.is_dir():
+        return None
+
+    direct_labels = search_root / "trainLabels.csv"
+    direct_train = search_root / "train"
+    if direct_labels.is_file() and direct_train.is_dir():
+        return search_root
+
+    # Common extracted directory names first (fast path)
+    common_names = [
+        "malware-classification",
+        "malware_classification",
+        "microsoft-malware-classification",
+        "MicrosoftMalwareClassification",
+        "big2015",
+    ]
+    for name in common_names:
+        candidate = search_root / name
+        if (candidate / "trainLabels.csv").is_file() and (candidate / "train").is_dir():
+            return candidate
+
+    # Fallback: shallow recursive scan to tolerate nested extraction folders.
+    # Keep depth bounded to avoid expensive full-disk scans.
+    max_depth = 3
+    for labels_file in search_root.rglob("trainLabels.csv"):
+        try:
+            rel_parts = labels_file.relative_to(search_root).parts
+        except ValueError:
+            continue
+        if len(rel_parts) > (max_depth + 1):
+            continue
+
+        candidate_root = labels_file.parent
+        if (candidate_root / "train").is_dir():
+            return candidate_root
+
+    return None
+
+
 def _build_kaggle_auth_env(token: str) -> Dict[str, str]:
     token = token.strip()
     if not token:
@@ -262,7 +302,14 @@ def _ensure_kaggle_competition_available(
     competition_slug: str,
     local_root_candidates: List[str],
 ) -> str:
-    existing = _resolve_existing_path(*local_root_candidates)
+    existing = None
+    for candidate in local_root_candidates:
+        if not candidate:
+            continue
+        discovered = _find_microsoft_malware_root(Path(candidate))
+        if discovered is not None:
+            existing = str(discovered)
+            break
     if existing is not None:
         return existing
 
@@ -318,7 +365,14 @@ def _ensure_kaggle_competition_available(
             continue
 
     # Re-check explicit local candidates first
-    existing = _resolve_existing_path(*local_root_candidates)
+    existing = None
+    for candidate in local_root_candidates:
+        if not candidate:
+            continue
+        discovered = _find_microsoft_malware_root(Path(candidate))
+        if discovered is not None:
+            existing = str(discovered)
+            break
     if existing is not None:
         return existing
 
@@ -626,21 +680,20 @@ def _malimg_loader(
     if len(probe_ds) == 0:
         raise ValueError(f"No images found in '{train_dir}'.")
 
-    first_image_path, _ = probe_ds.samples[0]
-    with Image.open(first_image_path) as first_img:
-        inferred_width, inferred_height = first_img.convert("RGB").size
-    inferred_size = (inferred_height, inferred_width)
+    image_size = int(kwargs.get("image_size", 224))
+    if image_size <= 0:
+        raise ValueError(f"Invalid image_size={image_size}. Expected a positive integer.")
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     train_tfms = T.Compose([
-        T.Resize(inferred_size),
+        T.Resize((image_size, image_size)),
         T.RandomHorizontalFlip(),
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
     test_tfms = T.Compose([
-        T.Resize(inferred_size),
+        T.Resize((image_size, image_size)),
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
@@ -664,24 +717,40 @@ def _malware_classification_loader(
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     competition_slug = "malware-classification"
     root = Path(data_dir)
+    discovered_root = _find_microsoft_malware_root(root)
     comp_root = _ensure_kaggle_competition_available(
         competition_label="Microsoft Malware Classification",
         data_dir=data_dir,
         competition_slug=competition_slug,
         local_root_candidates=[
+            str(discovered_root) if discovered_root is not None else "",
             str(root / "malware-classification"),
             str(root / "malware_classification"),
+            str(root / "microsoft-malware-classification"),
+            str(root / "big2015"),
             str(root),
         ],
     )
 
     comp_root_path = Path(comp_root)
+    discovered_after_download = _find_microsoft_malware_root(comp_root_path)
+    if discovered_after_download is not None:
+        comp_root_path = discovered_after_download
+
     labels_csv = comp_root_path / "trainLabels.csv"
     train_dir = comp_root_path / "train"
     if not labels_csv.is_file() or not train_dir.is_dir():
+        has_malimg = (root / "malimg_dataset").is_dir()
+        hint = (
+            "Detected 'malimg_dataset' under data_dir; if that is your intended dataset, use --dataset malimg. "
+            if has_malimg
+            else ""
+        )
         raise FileNotFoundError(
             f"Invalid Microsoft Malware Classification structure at '{comp_root_path}'. "
-            "Expected trainLabels.csv and train/."
+            "Expected trainLabels.csv and train/. "
+            f"Current --data_dir is '{root}'. {hint}"
+            "Otherwise point --data_dir to the folder that contains trainLabels.csv and train/."
         )
 
     labeled_samples: List[Tuple[str, int]] = []

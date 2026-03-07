@@ -34,6 +34,22 @@ def train_with_config(args, run_dir=None, logger=None):
     set_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
+
+    effective_batch_size = int(args.batch_size)
+    default_input_size = get_default_input_size(args.dataset)
+    if (
+        device == "cuda"
+        and args.masking in {"cam_high", "cam_low"}
+        and default_input_size >= 224
+        and effective_batch_size > 32
+    ):
+        logger.info(
+            "Reducing batch_size from %s to 32 for CAM masking on %spx inputs to reduce CUDA OOM risk.",
+            effective_batch_size,
+            default_input_size,
+        )
+        effective_batch_size = 32
+        args.batch_size = effective_batch_size
     
     # Load dataset using registry
     dataset_kwargs = {
@@ -42,7 +58,7 @@ def train_with_config(args, run_dir=None, logger=None):
     }
 
     train_dl, val_dl, test_dl = get_dataset_loaders(
-        args.dataset, args.data_dir, args.batch_size, args.num_workers,
+        args.dataset, args.data_dir, effective_batch_size, args.num_workers,
         **dataset_kwargs,
     )
     
