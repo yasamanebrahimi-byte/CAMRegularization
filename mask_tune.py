@@ -7,7 +7,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params, normalize_masking_type, format_mask_run_name
+from IOutils import (
+    ensure_dir,
+    make_run_dir,
+    write_json,
+    build_args_from_params,
+    normalize_masking_type,
+    format_mask_run_name,
+    add_dataset_model_args,
+    add_tuning_runtime_args,
+)
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
@@ -22,6 +31,11 @@ class MaskTuningConfig:
     model: str = DEFAULT_MODEL
     base_tuning_dirname: str = "tuning_results"
     mask_tuning_dirname: str = "mask_tuning_results"
+    data_dir: str = "./data"
+    val_split: float = 0.1
+    batch_size: int = 128
+    num_workers: int = 2
+    epochs: int = 150
 
 
 MASK_PARAM_GRID: Dict[str, List[Any]] = {
@@ -113,6 +127,11 @@ def tune_mask_hyperparameters(
         tuning_dirname=cfg.base_tuning_dirname,
         dataset=cfg.dataset,
         model=cfg.model,
+        data_dir=cfg.data_dir,
+        val_split=cfg.val_split,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        epochs=cfg.epochs,
     )
 
     best_base_params = load_optimal_config_params(base_tuning_cfg, logger=logger)
@@ -130,6 +149,11 @@ def tune_mask_hyperparameters(
 
     best_base_params["dataset"] = cfg.dataset
     best_base_params["model"] = cfg.model
+    best_base_params["data_dir"] = cfg.data_dir
+    best_base_params["val_split"] = cfg.val_split
+    best_base_params["batch_size"] = cfg.batch_size
+    best_base_params["num_workers"] = cfg.num_workers
+    best_base_params["epochs"] = cfg.epochs
 
     mask_combinations = generate_mask_combinations(selected_masking_type)
     mode_label = selected_masking_type if selected_masking_type else "all masking modes"
@@ -190,9 +214,8 @@ def tune_single_mask_hyperparameters(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Mask Hyperparameter Tuning")
-    parser.add_argument("--dataset", type=str, default=DEFAULT_DATASET, help=f"Dataset name (default: {DEFAULT_DATASET})")
-    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
-    parser.add_argument("--runs_root", type=str, default="./runs", help="Root directory for runs")
+    add_dataset_model_args(parser, default_dataset=DEFAULT_DATASET, default_model=DEFAULT_MODEL)
+    add_tuning_runtime_args(parser)
     parser.add_argument(
         "--masking_type",
         type=str,
@@ -206,5 +229,10 @@ if __name__ == "__main__":
         runs_root=Path(args.runs_root),
         dataset=args.dataset,
         model=args.model,
+        data_dir=args.data_dir,
+        val_split=args.val_split,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        epochs=args.epochs,
     )
     tune_mask_hyperparameters(cfg, masking_type=args.masking_type)

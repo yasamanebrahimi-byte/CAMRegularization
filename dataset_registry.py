@@ -351,7 +351,6 @@ def _malimg_loader(
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     KAGGLE_API_TOKEN = "KGAT_b9cda71d7565a5dd59748f52ea14fd41"
-    kaggle_dataset = str(kwargs.get("kaggle_dataset", "")).strip()
     root = Path(data_dir)
     malimg_root = _ensure_kaggle_dataset_available(
         dataset_label="MalImg",
@@ -366,19 +365,25 @@ def _malimg_loader(
         kaggle_api_token=KAGGLE_API_TOKEN,
     )
 
-    image_size = int(kwargs.get("image_size", 224))
-    test_split = float(kwargs.get("test_split", 0.2))
+    probe_ds = torchvision.datasets.ImageFolder(root=malimg_root)
+    if len(probe_ds) == 0:
+        raise ValueError(f"No images found in '{malimg_root}'.")
+
+    first_image_path, _ = probe_ds.samples[0]
+    with Image.open(first_image_path) as first_img:
+        inferred_width, inferred_height = first_img.convert("RGB").size
+    inferred_size = (inferred_height, inferred_width)
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     train_tfms = T.Compose([
-        T.Resize((image_size, image_size)),
+        T.Resize(inferred_size),
         T.RandomHorizontalFlip(),
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
     test_tfms = T.Compose([
-        T.Resize((image_size, image_size)),
+        T.Resize(inferred_size),
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
@@ -386,25 +391,12 @@ def _malimg_loader(
     full_train_ds = torchvision.datasets.ImageFolder(root=malimg_root, transform=train_tfms)
     full_eval_ds = torchvision.datasets.ImageFolder(root=malimg_root, transform=test_tfms)
 
-    if len(full_train_ds) == 0:
-        raise ValueError(f"No images found in '{malimg_root}'.")
-
-    test_size = int(len(full_train_ds) * test_split)
-    test_size = min(max(test_size, 1), len(full_train_ds) - 1)
-    train_size = len(full_train_ds) - test_size
-
-    g = torch.Generator().manual_seed(seed)
-    indices = torch.randperm(len(full_train_ds), generator=g).tolist()
-    train_indices = indices[:train_size]
-    test_indices = indices[train_size:]
-
-    train_ds = Subset(full_train_ds, train_indices)
-    train_eval_ds = Subset(full_eval_ds, train_indices)
-    test_ds = Subset(full_eval_ds, test_indices)
-
-    train_ds, val_ds = _split_train_val(train_ds, train_eval_ds, val_split, seed)
+    train_ds, val_ds = _split_train_val(full_train_ds, full_eval_ds, val_split, seed)
     if val_ds is None:
-        logger.info("MalImg has no official split; using random train/test split. Pass val_split>0 for train-val.")
+        raise ValueError("MalImg requires val_split > 0.0 because it does not provide an official test split.")
+
+    test_ds = val_ds
+    logger.info("MalImg has no official split; using validation split for evaluation.")
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
 DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -447,6 +439,14 @@ def get_num_classes(dataset_name: str) -> int:
             f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
         )
     return DATASET_REGISTRY[dataset_name]["num_classes"]
+
+
+def get_default_input_size(dataset_name: str) -> int:
+    if dataset_name not in DATASET_REGISTRY:
+        raise ValueError(
+            f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
+        )
+    return int(DATASET_REGISTRY[dataset_name]["default_input_size"])
 
 def get_available_datasets() -> list:
     return list(DATASET_REGISTRY.keys())

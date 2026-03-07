@@ -7,19 +7,71 @@ import torch
 from typing import Any, Dict, List, Optional
 
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
+from dataset_registry import get_available_datasets
+from model_registry import get_available_models
 
-def positive_float(value):
-    """Validator that ensures a float is greater than 0.0"""
+def non_negative_float(value):
+    """Validator that ensures a float is greater than or equal to 0.0"""
     f_value = float(value)
-    if f_value <= 0.0:
-        raise argparse.ArgumentTypeError(f"val_split must be > 0.0, got {f_value}")
+    if f_value < 0.0:
+        raise argparse.ArgumentTypeError(f"val_split must be >= 0.0, got {f_value}")
     return f_value
+
+
+def _dataset_model_kwargs(default_dataset: str, default_model: str) -> Dict[str, Any]:
+    datasets = get_available_datasets()
+    models = get_available_models()
+    kwargs: Dict[str, Any] = {}
+
+    if datasets:
+        kwargs["dataset_choices"] = datasets
+        kwargs["dataset_default"] = default_dataset if default_dataset in datasets else datasets[0]
+    else:
+        kwargs["dataset_choices"] = None
+        kwargs["dataset_default"] = default_dataset
+
+    if models:
+        kwargs["model_choices"] = models
+        kwargs["model_default"] = default_model if default_model in models else models[0]
+    else:
+        kwargs["model_choices"] = None
+        kwargs["model_default"] = default_model
+
+    return kwargs
+
+
+def add_dataset_model_args(parser: argparse.ArgumentParser, default_dataset: str = DEFAULT_DATASET, default_model: str = DEFAULT_MODEL) -> argparse.ArgumentParser:
+    resolved = _dataset_model_kwargs(default_dataset, default_model)
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=resolved["dataset_default"],
+        choices=resolved["dataset_choices"],
+        help="Dataset name",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=resolved["model_default"],
+        choices=resolved["model_choices"],
+        help="Model name",
+    )
+    return parser
+
+
+def add_tuning_runtime_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument("--runs_root", type=str, default="./runs", help="Root directory for runs")
+    parser.add_argument("--data_dir", type=str, default="./data", help="Dataset root directory")
+    parser.add_argument("--val_split", type=float, default=0.1, help="Validation split ratio")
+    parser.add_argument("--batch_size", type=int, default=128, help="Batch size for training runs")
+    parser.add_argument("--num_workers", type=int, default=2, help="Number of dataloader workers")
+    parser.add_argument("--epochs", type=int, default=150, help="Training epochs per run")
+    return parser
 
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
-    p.add_argument("--dataset",     type=str,   default=DEFAULT_DATASET,  help="Dataset name (e.g., 'cifar100', 'cifar10')")
-    p.add_argument("--model",       type=str,   default=DEFAULT_MODEL,   help="Model name (e.g., 'resnet18', 'resnet50', 'vgg16')")
+    add_dataset_model_args(p, default_dataset=DEFAULT_DATASET, default_model=DEFAULT_MODEL)
     p.add_argument("--data_dir",    type=str,   default="./data")
     p.add_argument("--out_dir",     type=str,   default="./runs")
     # Training hyperparameters
@@ -32,7 +84,7 @@ def build_parser():
     p.add_argument("--seed",        type=int,   default=42)
     p.add_argument("--log_every",   type=int,   default=100)
     p.add_argument("--run_name",    type=str,   default="")
-    p.add_argument("--val_split",   type=positive_float, default=0.1)
+    p.add_argument("--val_split",   type=non_negative_float, default=0.1)
     p.add_argument("--min_lr",      type=float, default=1e-5)
     p.add_argument("--gamma",       type=float, default=0.1)
     p.add_argument("--milestones",  type=str,   default="60,80")

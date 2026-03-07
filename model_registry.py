@@ -11,11 +11,11 @@ ModelBuilder = Callable[[int], nn.Module]
 
 
 def _resnet18_builder(num_classes: int, input_size: int = 32, **kwargs) -> nn.Module:
-    """Build ResNet18 adapted for small image sizes (like CIFAR)."""
-    model = resnet18(weights=None) 
-    # Adapt for small image inputs (e.g., 32x32)
-    model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-    model.maxpool = nn.Identity()
+    """Build ResNet18 with stem selected by input size."""
+    model = resnet18(weights=None)
+    if input_size <= 64:
+        model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        model.maxpool = nn.Identity()
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     
     return model

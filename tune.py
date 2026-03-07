@@ -7,7 +7,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import argparse
 
-from IOutils import build_parser, ensure_dir, make_run_dir, write_json, build_args_from_params
+from IOutils import (
+    build_parser,
+    ensure_dir,
+    make_run_dir,
+    write_json,
+    build_args_from_params,
+    add_dataset_model_args,
+    add_tuning_runtime_args,
+)
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
@@ -24,6 +32,11 @@ class TuningConfig:
     tuning_dirname: str = "tuning_results"
     dataset: str = DEFAULT_DATASET
     model: str = DEFAULT_MODEL
+    data_dir: str = "./data"
+    val_split: float = 0.1
+    batch_size: int = 128
+    num_workers: int = 2
+    epochs: int = 150
 
 
 PARAM_GRID: Dict[str, List[Any]] = {
@@ -65,7 +78,7 @@ def cartesian_product(grid: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
 def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], dataset: str, model: str) -> str:
     wd = float(all_params["weight_decay"])
     return (
-        f"tune_{model}_{dataset}_ep{all_params['epochs']}_bs{fixed_params['batch_size']}_lr{all_params['lr']}"
+        f"tune_{model}_{dataset}_ep{all_params['epochs']}_bs{all_params['batch_size']}_lr{all_params['lr']}"
         f"_wd{wd:.0e}_m{all_params['momentum']}_nest{int(bool(all_params['nesterov']))}"
         f"_ls{all_params['label_smoothing']}_sch{all_params['scheduler']}_wu{all_params['warmup_epochs']}"
     )
@@ -101,6 +114,11 @@ def load_optimal_config_params(
     params = {**FIXED_PARAMS, **params}
     params["dataset"] = cfg.dataset
     params["model"] = cfg.model
+    params["data_dir"] = cfg.data_dir
+    params["val_split"] = cfg.val_split
+    params["batch_size"] = cfg.batch_size
+    params["num_workers"] = cfg.num_workers
+    params["epochs"] = cfg.epochs
 
     params.pop("run_name", None)
     params.pop("out_dir", None)
@@ -146,6 +164,11 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
 
             all_params["dataset"] = cfg.dataset
             all_params["model"] = cfg.model
+            all_params["data_dir"] = cfg.data_dir
+            all_params["val_split"] = cfg.val_split
+            all_params["batch_size"] = cfg.batch_size
+            all_params["num_workers"] = cfg.num_workers
+            all_params["epochs"] = cfg.epochs
 
             run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
 
@@ -231,17 +254,18 @@ def run_single_training_run(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Hyperparameter Tuning")
-    parser.add_argument("--dataset", type=str, default=DEFAULT_DATASET, 
-                        help=f"Dataset name (default: {DEFAULT_DATASET})")
-    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
-                        help=f"Model name (default: {DEFAULT_MODEL})")
-    parser.add_argument("--runs_root", type=str, default="./runs",
-                        help="Root directory for runs")
+    add_dataset_model_args(parser, default_dataset=DEFAULT_DATASET, default_model=DEFAULT_MODEL)
+    add_tuning_runtime_args(parser)
     args = parser.parse_args()
     
     cfg = TuningConfig(
         runs_root=Path(args.runs_root),
         dataset=args.dataset,
-        model=args.model
+        model=args.model,
+        data_dir=args.data_dir,
+        val_split=args.val_split,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        epochs=args.epochs,
     )
     tune_hyperparameters(cfg)

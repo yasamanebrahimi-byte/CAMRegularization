@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from model_registry import get_model
-from dataset_registry import get_dataset_loaders, get_num_classes
+from dataset_registry import get_dataset_loaders, get_num_classes, get_default_input_size
 from engine import train_one_epoch, evaluate
 from cam_masking import GradCAM
 from utils import set_seed
@@ -31,14 +31,28 @@ def train_with_config(args, run_dir=None, logger=None):
     logger.info(f"device: {device} | cuda: {torch.cuda.is_available()} | gpu: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}")
     
     # Load dataset using registry
+    dataset_kwargs = {
+        "val_split": args.val_split,
+        "seed": args.seed,
+    }
+
     train_dl, val_dl, test_dl = get_dataset_loaders(
         args.dataset, args.data_dir, args.batch_size, args.num_workers,
-        val_split=args.val_split, seed=args.seed
+        **dataset_kwargs,
     )
     
     # Get number of classes from dataset registry and create model
     num_classes = get_num_classes(args.dataset)
-    model = get_model(args.model, num_classes=num_classes).to(device)
+    input_size = get_default_input_size(args.dataset)
+    try:
+        sample_batch, _ = next(iter(train_dl))
+        if sample_batch.ndim >= 4:
+            inferred_h = int(sample_batch.shape[-2])
+            inferred_w = int(sample_batch.shape[-1])
+            input_size = min(inferred_h, inferred_w)
+    except Exception:
+        pass
+    model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
     cam_runner = None
     masking_cfg = None
 
