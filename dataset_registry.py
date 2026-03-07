@@ -14,6 +14,7 @@ from logger import get_logger
 DatasetLoaderFunc = Callable[..., Tuple[DataLoader, Optional[DataLoader], DataLoader]]
 
 logger = get_logger(__name__)
+KAGGLE_API_TOKEN = "KGAT_b9cda71d7565a5dd59748f52ea14fd41"
 
 
 class _ImagePathDataset(Dataset):
@@ -350,7 +351,7 @@ def _malimg_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    KAGGLE_API_TOKEN = "KGAT_b9cda71d7565a5dd59748f52ea14fd41"
+    kaggle_dataset = "manmandes/malimg"
     root = Path(data_dir)
     malimg_root = _ensure_kaggle_dataset_available(
         dataset_label="MalImg",
