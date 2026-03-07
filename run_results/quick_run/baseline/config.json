@@ -24,7 +24,7 @@
   "run_name": "baseline",
   "scheduler": "cosine",
   "seed": 42,
-  "val_split": 0.1,
+  "val_split": 0.4,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
