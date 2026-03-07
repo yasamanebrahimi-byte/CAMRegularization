@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import time
 import traceback
 from dataclasses import dataclass
@@ -12,12 +11,18 @@ import optuna.visualization as vis
 from optuna.pruners import HyperbandPruner
 from optuna.samplers import TPESampler
 
-from IOutils import ensure_dir, make_run_dir, write_json, build_args_from_params, normalize_masking_type
+from IOutils import (
+    ensure_dir,
+    prepare_run_from_params,
+    normalize_masking_type,
+    add_dataset_model_args,
+    add_tuning_runtime_args,
+)
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
 from tune import OPTIMAL_CONFIG_PATH, TuningConfig, load_optimal_config_params, tune_hyperparameters
-from utils import DEFAULT_DATASET, DEFAULT_MODEL
+from utils import DEFAULT_DATASET, DEFAULT_MODEL, apply_training_context
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,11 @@ class OptunaMaskTuningConfig:
     min_resource_epochs: int = 15
     max_resource_epochs: int = 100
     reduction_factor: int = 2
+    data_dir: str = "./data"
+    val_split: float = 0.1
+    batch_size: int = 128
+    num_workers: int = 2
+    epochs: int = 150
 
 
 MASK_PARAM_SPACE: Dict[str, List[Any]] = {
@@ -40,10 +50,10 @@ MASK_PARAM_SPACE: Dict[str, List[Any]] = {
     "mask_prob": [0.5, 0.75, 1.0],
     "mask_area": [0.2, 0.3, 0.4],
     "mask_block": [4, 6, 8],
-    "cam_layer": ["layer2", "layer3", "layer4"],
+    "cam_layer": ["auto"],
 }
 
-RANDOM_MASK_CAM_LAYER = "layer2"
+RANDOM_MASK_CAM_LAYER = "auto"
 ALL_MASKING_TYPES = "all"
 
 
@@ -126,20 +136,13 @@ def _run_single_stage(
     logger,
 ) -> Dict[str, Any]:
     try:
-        args = build_args_from_params(params)
-        args.run_name = run_name
-        args.dataset = params.get("dataset", cfg.dataset)
-        args.model = params.get("model", cfg.model)
-        args.masking = params.get("masking", args.masking)
-        args.mask_warmup_epochs = params.get("mask_warmup_epochs", args.mask_warmup_epochs)
-        args.mask_prob = params.get("mask_prob", args.mask_prob)
-        args.mask_area = params.get("mask_area", args.mask_area)
-        args.mask_block = params.get("mask_block", args.mask_block)
-        args.cam_layer = params.get("cam_layer", args.cam_layer)
-        args.out_dir = str(cfg.runs_root / args.model / args.dataset)
-
-        run_dir = make_run_dir(args.out_dir, args.run_name)
-        write_json(os.path.join(run_dir, "config.json"), vars(args))
+        args, run_dir = prepare_run_from_params(
+            params,
+            run_name=run_name,
+            runs_root=cfg.runs_root,
+            dataset=cfg.dataset,
+            model=cfg.model,
+        )
         run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=False)
         run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
 
@@ -248,6 +251,11 @@ def tune_hyperparameters_optuna(
         tuning_dirname=cfg.base_tuning_dirname,
         dataset=cfg.dataset,
         model=cfg.model,
+        data_dir=cfg.data_dir,
+        val_split=cfg.val_split,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        epochs=cfg.epochs,
     )
 
     best_base_params = load_optimal_config_params(base_tuning_cfg, logger=logger)
@@ -269,8 +277,16 @@ def tune_hyperparameters_optuna(
     best_base_params.pop("mask_area", None)
     best_base_params.pop("mask_block", None)
     best_base_params.pop("cam_layer", None)
-    best_base_params["dataset"] = cfg.dataset
-    best_base_params["model"] = cfg.model
+    best_base_params = apply_training_context(
+        best_base_params,
+        dataset=cfg.dataset,
+        model=cfg.model,
+        data_dir=cfg.data_dir,
+        val_split=cfg.val_split,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        epochs=cfg.epochs,
+    )
 
     stage_budgets = _build_stage_budgets(
         min_epochs=cfg.min_resource_epochs,
@@ -392,9 +408,8 @@ def tune_hyperparameters_optuna(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Mask Hyperparameter Tuning with Optuna")
-    parser.add_argument("--dataset", type=str, default=DEFAULT_DATASET, help=f"Dataset name (default: {DEFAULT_DATASET})")
-    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
-    parser.add_argument("--runs_root", type=str, default="./runs", help="Root directory for runs")
+    add_dataset_model_args(parser, default_dataset=DEFAULT_DATASET, default_model=DEFAULT_MODEL)
+    add_tuning_runtime_args(parser)
     parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel Optuna jobs")
     parser.add_argument(
         "--masking_type",
@@ -416,5 +431,10 @@ if __name__ == "__main__":
         min_resource_epochs=args.min_resource_epochs,
         max_resource_epochs=args.max_resource_epochs,
         reduction_factor=args.reduction_factor,
+        data_dir=args.data_dir,
+        val_split=args.val_split,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        epochs=args.epochs,
     )
     tune_hyperparameters_optuna(cfg, masking_type=args.masking_type)

@@ -1,5 +1,46 @@
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
+
+
+def _get_submodule(model: nn.Module, module_name: str) -> nn.Module:
+    if hasattr(model, "get_submodule"):
+        return model.get_submodule(module_name)
+
+    cur: nn.Module = model
+    for token in module_name.split("."):
+        if token.isdigit():
+            cur = cur[int(token)]
+        else:
+            cur = getattr(cur, token)
+    return cur
+
+
+def resolve_cam_target_module(model: nn.Module, cam_layer: str = "auto"):
+    requested = (cam_layer or "auto").strip()
+    if requested.lower() != "auto":
+        try:
+            return requested, _get_submodule(model, requested)
+        except Exception as exc:
+            raise ValueError(f"Could not find CAM layer '{requested}' in model '{type(model).__name__}'.") from exc
+
+    conv_candidates = [
+        (name, module)
+        for name, module in model.named_modules()
+        if name and isinstance(module, nn.Conv2d)
+    ]
+    if conv_candidates:
+        return conv_candidates[-1]
+
+    feature_candidates = [
+        (name, module)
+        for name, module in model.named_modules()
+        if name and not isinstance(module, nn.Sequential)
+    ]
+    if feature_candidates:
+        return feature_candidates[-1]
+
+    raise ValueError(f"Unable to automatically select CAM layer for model '{type(model).__name__}'.")
 
 class GradCAM:
     def __init__(self, model, target_module):

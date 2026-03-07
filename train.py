@@ -5,10 +5,15 @@ import torch.nn as nn
 import torch.optim as optim
 
 from model_registry import get_model
-from dataset_registry import get_dataset_loaders, get_num_classes, get_default_input_size
+from dataset_registry import (
+    get_dataset_loaders,
+    get_num_classes,
+    get_default_input_size,
+    infer_num_classes_from_loader,
+)
 from engine import train_one_epoch, evaluate
-from cam_masking import GradCAM
-from utils import set_seed
+from cam_masking import GradCAM, resolve_cam_target_module
+from utils import set_seed, infer_input_size_from_loader
 from IOutils import build_parser, make_run_dir, write_json, append_csv
 from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
@@ -41,17 +46,9 @@ def train_with_config(args, run_dir=None, logger=None):
         **dataset_kwargs,
     )
     
-    # Get number of classes from dataset registry and create model
-    num_classes = get_num_classes(args.dataset)
-    input_size = get_default_input_size(args.dataset)
-    try:
-        sample_batch, _ = next(iter(train_dl))
-        if sample_batch.ndim >= 4:
-            inferred_h = int(sample_batch.shape[-2])
-            inferred_w = int(sample_batch.shape[-1])
-            input_size = min(inferred_h, inferred_w)
-    except Exception:
-        pass
+    inferred_num_classes = infer_num_classes_from_loader(train_dl)
+    num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
+    input_size = infer_input_size_from_loader(train_dl, get_default_input_size(args.dataset))
     model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
     cam_runner = None
     masking_cfg = None
@@ -65,17 +62,10 @@ def train_with_config(args, run_dir=None, logger=None):
                 f"using {effective_mask_warmup_epochs} instead."
             )
 
-        # Choose target module for ResNet
-        if args.cam_layer == "layer4":
-            target_module = model.layer4
-        elif args.cam_layer == "layer3":
-            target_module = model.layer3
-        elif args.cam_layer == "layer2":
-            target_module = model.layer2
-        else:
-            raise ValueError(f"Unsupported cam_layer: {args.cam_layer}")
-
-        cam_runner = GradCAM(model, target_module)
+        if args.masking in {"cam_high", "cam_low"}:
+            selected_layer_name, target_module = resolve_cam_target_module(model, args.cam_layer)
+            cam_runner = GradCAM(model, target_module)
+            logger.info(f"CAM target layer resolved to '{selected_layer_name}'")
 
         masking_cfg = {
             "strategy": args.masking,             # none/random/cam_high/cam_low
@@ -83,6 +73,7 @@ def train_with_config(args, run_dir=None, logger=None):
             "prob": args.mask_prob,
             "area": args.mask_area,
             "block": args.mask_block,
+            "cam_layer": args.cam_layer,
         }
         logger.info(f"Masking enabled: {masking_cfg}")
 
@@ -109,14 +100,14 @@ def train_with_config(args, run_dir=None, logger=None):
     metrics_csv = None
     if run_dir is not None:
         metrics_csv = os.path.join(run_dir, "metrics.csv")
-        header = ["epoch", "lr", "train_loss", "train_acc1", "train_acc5", "eval_loss", "eval_acc1", "eval_acc5", "eval_split"]
+        header = ["epoch", "lr", "train_loss", "train_acc1", "train_f1", "eval_loss", "eval_acc1", "eval_f1", "eval_split"]
         append_csv(metrics_csv, [], header=header, mode="w")  # write mode to replace existing file
 
     for epoch in range(args.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
         logger.info(f"\nEpoch {epoch+1}/{args.epochs} | lr {lr_now:.6f}")
 
-        tr_loss, tr_a1, tr_a5 = train_one_epoch(
+        tr_loss, tr_a1, tr_f1 = train_one_epoch(
             model, train_dl, criterion, optimizer,
             scaler if scaler.is_enabled() else None,
             device, log_every=args.log_every,
@@ -124,19 +115,19 @@ def train_with_config(args, run_dir=None, logger=None):
         )
 
         if val_dl is not None:
-            ev_loss, ev_a1, ev_a5 = evaluate(model, val_dl, criterion, device)
+            ev_loss, ev_a1, ev_f1 = evaluate(model, val_dl, criterion, device)
             split = "val"
             metric = ev_a1
         else:
-            ev_loss, ev_a1, ev_a5 = evaluate(model, test_dl, criterion, device)
+            ev_loss, ev_a1, ev_f1 = evaluate(model, test_dl, criterion, device)
             split = "test"
             metric = ev_a1
 
-        logger.info(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% acc5 {tr_a5*100:.2f}%")
-        logger.info(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% acc5 {ev_a5*100:.2f}%")
+        logger.info(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% f1 {tr_f1*100:.2f}%")
+        logger.info(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% f1 {ev_f1*100:.2f}%")
 
         if metrics_csv is not None:
-            append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_a5:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_a5:.6f}",split])
+            append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_f1:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_f1:.6f}",split])
 
         if metric > best:
             best = metric
@@ -146,17 +137,19 @@ def train_with_config(args, run_dir=None, logger=None):
 
     # final test with best
     final_test_acc1 = None
+    final_test_f1 = None
     final_test_loss = None
     model.to(device)
-    te_loss, te_a1, te_a5 = evaluate(model, test_dl, criterion, device)
+    te_loss, te_a1, te_f1 = evaluate(model, test_dl, criterion, device)
     final_test_acc1 = te_a1
+    final_test_f1 = te_f1
     final_test_loss = te_loss
     logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
+    logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% f1 {te_f1*100:.2f}%")
     
     # Print final results to console
     print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% acc5 {te_a5*100:.2f}%")
+    print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% f1 {te_f1*100:.2f}%")
     
     # Generate plots if we saved metrics
     if metrics_csv is not None and run_dir is not None:
@@ -164,6 +157,7 @@ def train_with_config(args, run_dir=None, logger=None):
     
     return {
         "final_test_acc1": final_test_acc1,
+        "final_test_f1": final_test_f1,
         "best_val_acc": best,
         "final_test_loss": final_test_loss
     }

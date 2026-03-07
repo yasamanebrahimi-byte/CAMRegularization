@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import sys
 import zipfile
+import csv
+import math
 from pathlib import Path
 import torch
 import torchvision
@@ -30,6 +32,49 @@ class _ImagePathDataset(Dataset):
         image_path, target = self.samples[index]
         with Image.open(image_path) as img:
             image = img.convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, target
+
+
+class _MalwareBytesDataset(Dataset):
+    def __init__(self, samples: List[Tuple[str, int]], image_size: int = 224, transform=None):
+        self.samples = samples
+        self.image_size = image_size
+        self.transform = transform
+
+    @staticmethod
+    def _parse_hex_bytes(bytes_path: str, max_len: int) -> bytearray:
+        values = bytearray()
+        with open(bytes_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) <= 1:
+                    continue
+                for token in parts[1:]:
+                    if len(values) >= max_len:
+                        return values
+                    if token == "??":
+                        values.append(0)
+                        continue
+                    try:
+                        values.append(int(token, 16))
+                    except ValueError:
+                        values.append(0)
+        return values
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int):
+        bytes_path, target = self.samples[index]
+        max_pixels = self.image_size * self.image_size
+        values = self._parse_hex_bytes(bytes_path, max_pixels)
+        if len(values) < max_pixels:
+            values.extend([0] * (max_pixels - len(values)))
+
+        image = Image.frombytes("L", (self.image_size, self.image_size), bytes(values))
+        image = image.convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
         return image, target
@@ -209,6 +254,115 @@ def _ensure_kaggle_dataset_available(
             f"{dataset_label} download completed, but no valid class-subfolder directory was found under data/."
         )
     return existing
+
+
+def _ensure_kaggle_competition_available(
+    competition_label: str,
+    data_dir: str,
+    competition_slug: str,
+    local_root_candidates: List[str],
+) -> str:
+    existing = _resolve_existing_path(*local_root_candidates)
+    if existing is not None:
+        return existing
+
+    data_path = Path(data_dir)
+    data_path.mkdir(parents=True, exist_ok=True)
+
+    logger.info("%s not found locally. Downloading Kaggle competition '%s'...", competition_label, competition_slug)
+    cmd_candidates = [
+        [
+            "kaggle",
+            "competitions",
+            "download",
+            "-c",
+            competition_slug,
+            "-p",
+            str(data_path),
+            "--force",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "kaggle.cli",
+            "competitions",
+            "download",
+            "-c",
+            competition_slug,
+            "-p",
+            str(data_path),
+            "--force",
+        ],
+    ]
+
+    last_error = None
+    for cmd in cmd_candidates:
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            last_error = None
+            break
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise RuntimeError(
+            "Kaggle competition download failed. Configure Kaggle CLI credentials and accept competition rules."
+        ) from last_error
+
+    zip_candidates = sorted(data_path.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for zip_path in zip_candidates:
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(data_path)
+        except zipfile.BadZipFile:
+            continue
+
+    # Re-check explicit local candidates first
+    existing = _resolve_existing_path(*local_root_candidates)
+    if existing is not None:
+        return existing
+
+    # Fallback: discover competition root by required files.
+    roots = [data_path]
+    roots.extend([p for p in data_path.iterdir() if p.is_dir()])
+    for root in roots:
+        if (root / "train").is_dir() and (root / "trainLabels.csv").is_file():
+            return str(root)
+
+    raise FileNotFoundError(
+        f"{competition_label} download completed, but expected train/ and trainLabels.csv were not found under '{data_path}'."
+    )
+
+
+def _split_train_val_test_indices(
+    n_items: int,
+    val_ratio: float,
+    test_ratio: float,
+    seed: int,
+) -> Tuple[List[int], List[int], List[int]]:
+    if n_items < 3:
+        raise ValueError("At least 3 labeled samples are required to create train/val/test splits.")
+    if val_ratio <= 0.0 or test_ratio <= 0.0 or (val_ratio + test_ratio) >= 1.0:
+        raise ValueError(
+            f"Invalid split ratios: val_ratio={val_ratio}, test_ratio={test_ratio}. "
+            "Require val_ratio>0, test_ratio>0, and val_ratio+test_ratio<1."
+        )
+
+    g = torch.Generator().manual_seed(seed)
+    perm = torch.randperm(n_items, generator=g).tolist()
+
+    n_val = max(1, int(math.floor(n_items * val_ratio)))
+    n_test = max(1, int(math.floor(n_items * test_ratio)))
+    n_train = n_items - n_val - n_test
+    if n_train < 1:
+        raise ValueError(
+            f"Split leaves no training samples: n_items={n_items}, n_val={n_val}, n_test={n_test}."
+        )
+
+    train_idx = perm[:n_train]
+    val_idx = perm[n_train:n_train + n_val]
+    test_idx = perm[n_train + n_val:]
+    return train_idx, val_idx, test_idx
 
 
 def _split_train_val(
@@ -439,9 +593,14 @@ def _malimg_loader(
         kaggle_api_token=KAGGLE_API_TOKEN,
     )
 
-    malimg_root_path = Path(malimg_root)
+    data_root_path = Path(data_dir)
+    preferred_split_root = data_root_path / "malimg_dataset"
     split_root = None
-    split_root_candidates = [malimg_root_path]
+    split_root_candidates: List[Path] = [preferred_split_root]
+
+    malimg_root_path = Path(malimg_root)
+    if malimg_root_path != preferred_split_root:
+        split_root_candidates.append(malimg_root_path)
     if malimg_root_path.is_dir():
         split_root_candidates.extend([p for p in malimg_root_path.iterdir() if p.is_dir()])
 
@@ -453,45 +612,19 @@ def _malimg_loader(
             split_root = candidate
             break
 
-    if split_root is not None:
-        train_dir = split_root / "train"
-        val_dir = split_root / "val"
-        test_dir = split_root / "test"
+    if split_root is None:
+        raise FileNotFoundError(
+            "MalImg requires an explicit split directory structure with train/val/test. "
+            f"Expected under '{preferred_split_root}', or nested in '{malimg_root_path}'."
+        )
 
-        probe_ds = torchvision.datasets.ImageFolder(root=str(train_dir))
-        if len(probe_ds) == 0:
-            raise ValueError(f"No images found in '{train_dir}'.")
+    train_dir = split_root / "train"
+    val_dir = split_root / "val"
+    test_dir = split_root / "test"
 
-        first_image_path, _ = probe_ds.samples[0]
-        with Image.open(first_image_path) as first_img:
-            inferred_width, inferred_height = first_img.convert("RGB").size
-        inferred_size = (inferred_height, inferred_width)
-
-        mean = (0.485, 0.456, 0.406)
-        std = (0.229, 0.224, 0.225)
-        train_tfms = T.Compose([
-            T.Resize(inferred_size),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            T.Normalize(mean, std),
-        ])
-        test_tfms = T.Compose([
-            T.Resize(inferred_size),
-            T.ToTensor(),
-            T.Normalize(mean, std),
-        ])
-
-        train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
-        val_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
-        test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
-
-        if val_split and val_split > 0.0:
-            logger.info("MalImg official train/val/test split detected; ignoring val_split=%s.", val_split)
-        return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
-
-    probe_ds = torchvision.datasets.ImageFolder(root=malimg_root)
+    probe_ds = torchvision.datasets.ImageFolder(root=str(train_dir))
     if len(probe_ds) == 0:
-        raise ValueError(f"No images found in '{malimg_root}'.")
+        raise ValueError(f"No images found in '{train_dir}'.")
 
     first_image_path, _ = probe_ds.samples[0]
     with Image.open(first_image_path) as first_img:
@@ -512,15 +645,94 @@ def _malimg_loader(
         T.Normalize(mean, std),
     ])
 
-    full_train_ds = torchvision.datasets.ImageFolder(root=malimg_root, transform=train_tfms)
-    full_eval_ds = torchvision.datasets.ImageFolder(root=malimg_root, transform=test_tfms)
+    train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+    val_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
+    test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
 
-    train_ds, val_ds = _split_train_val(full_train_ds, full_eval_ds, val_split, seed)
-    if val_ds is None:
-        raise ValueError("MalImg requires val_split > 0.0 because it does not provide an official test split.")
+    if val_split and val_split > 0.0:
+        logger.info("MalImg explicit train/val/test split detected; ignoring val_split=%s.", val_split)
+    return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
-    test_ds = val_ds
-    logger.info("MalImg has no official split; using validation split for evaluation.")
+
+def _malware_classification_loader(
+    data_dir: str,
+    batch_size: int,
+    num_workers: int,
+    val_split: float = 0.1,
+    seed: int = 42,
+    **kwargs,
+) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    competition_slug = "malware-classification"
+    root = Path(data_dir)
+    comp_root = _ensure_kaggle_competition_available(
+        competition_label="Microsoft Malware Classification",
+        data_dir=data_dir,
+        competition_slug=competition_slug,
+        local_root_candidates=[
+            str(root / "malware-classification"),
+            str(root / "malware_classification"),
+            str(root),
+        ],
+    )
+
+    comp_root_path = Path(comp_root)
+    labels_csv = comp_root_path / "trainLabels.csv"
+    train_dir = comp_root_path / "train"
+    if not labels_csv.is_file() or not train_dir.is_dir():
+        raise FileNotFoundError(
+            f"Invalid Microsoft Malware Classification structure at '{comp_root_path}'. "
+            "Expected trainLabels.csv and train/."
+        )
+
+    labeled_samples: List[Tuple[str, int]] = []
+    with open(labels_csv, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sample_id = row["Id"].strip()
+            cls = int(row["Class"]) - 1
+            bytes_path = train_dir / f"{sample_id}.bytes"
+            if bytes_path.is_file():
+                labeled_samples.append((str(bytes_path), cls))
+
+    if not labeled_samples:
+        raise FileNotFoundError(
+            f"No labeled .bytes files found under '{train_dir}'."
+        )
+
+    eval_split = val_split if (val_split and val_split > 0.0) else 0.1
+    if not val_split or val_split <= 0.0:
+        logger.info("No val_split provided for malware_classification; defaulting val_split to %.2f.", eval_split)
+
+    test_split = kwargs.get("test_split", eval_split)
+    if test_split <= 0.0:
+        test_split = eval_split
+
+    train_idx, val_idx, test_idx = _split_train_val_test_indices(
+        n_items=len(labeled_samples),
+        val_ratio=eval_split,
+        test_ratio=test_split,
+        seed=seed,
+    )
+
+    image_size = int(kwargs.get("image_size", 224))
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    train_tfms = T.Compose([
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+    test_tfms = T.Compose([
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+
+    full_train_ds = _MalwareBytesDataset(labeled_samples, image_size=image_size, transform=train_tfms)
+    full_eval_ds = _MalwareBytesDataset(labeled_samples, image_size=image_size, transform=test_tfms)
+
+    train_ds = Subset(full_train_ds, train_idx)
+    val_ds = Subset(full_eval_ds, val_idx)
+    test_ds = Subset(full_eval_ds, test_idx)
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
 DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -544,6 +756,16 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
         "num_classes": 25,
         "default_input_size": 224,
     },
+    "malware_classification": {
+        "loader": _malware_classification_loader,
+        "num_classes": 9,
+        "default_input_size": 224,
+    },
+    "big2015": {
+        "loader": _malware_classification_loader,
+        "num_classes": 9,
+        "default_input_size": 224,
+    },
 }
 
 def get_dataset_loaders(dataset_name: str, data_dir: str, batch_size: int, 
@@ -563,6 +785,64 @@ def get_num_classes(dataset_name: str) -> int:
             f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
         )
     return DATASET_REGISTRY[dataset_name]["num_classes"]
+
+
+def _infer_num_classes_from_dataset(dataset: Dataset) -> Optional[int]:
+    if hasattr(dataset, "num_classes"):
+        try:
+            n = int(getattr(dataset, "num_classes"))
+            if n > 0:
+                return n
+        except (TypeError, ValueError):
+            pass
+
+    if hasattr(dataset, "classes"):
+        classes = getattr(dataset, "classes")
+        try:
+            n = len(classes)
+            if n > 0:
+                return n
+        except TypeError:
+            pass
+
+    if isinstance(dataset, Subset):
+        parent = dataset.dataset
+        parent_classes = _infer_num_classes_from_dataset(parent)
+        if parent_classes is not None:
+            return parent_classes
+
+        if hasattr(parent, "targets"):
+            targets = getattr(parent, "targets")
+            try:
+                indexed_targets = [int(targets[i]) for i in dataset.indices]
+                if indexed_targets:
+                    return int(max(indexed_targets)) + 1
+            except Exception:
+                pass
+
+    if hasattr(dataset, "targets"):
+        targets = getattr(dataset, "targets")
+        try:
+            if len(targets) > 0:
+                return int(max(int(v) for v in targets)) + 1
+        except Exception:
+            pass
+
+    if hasattr(dataset, "samples"):
+        samples = getattr(dataset, "samples")
+        try:
+            labels = {int(label) for _, label in samples}
+            if labels:
+                return int(max(labels)) + 1
+        except Exception:
+            pass
+
+    return None
+
+
+def infer_num_classes_from_loader(loader: DataLoader) -> Optional[int]:
+    dataset = loader.dataset
+    return _infer_num_classes_from_dataset(dataset)
 
 
 def get_default_input_size(dataset_name: str) -> int:

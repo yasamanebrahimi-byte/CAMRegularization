@@ -99,7 +99,7 @@ def build_parser():
     p.add_argument("--mask_prob",   type=float, default=0.75)
     p.add_argument("--mask_area",   type=float, default=0.2)
     p.add_argument("--mask_block",  type=int,   default=8)
-    p.add_argument("--cam_layer",   type=str,   default="layer4")
+    p.add_argument("--cam_layer",   type=str,   default="auto", help="CAM layer path or 'auto'")
     return p
 
 def make_run_dir(out_dir, run_name):
@@ -146,6 +146,25 @@ def build_args_from_params(params):
         setattr(args, key, value)
     
     return args
+
+
+def prepare_run_from_params(
+    params: Dict[str, Any],
+    *,
+    run_name: str,
+    runs_root: Path,
+    dataset: str,
+    model: str,
+):
+    args = build_args_from_params(params)
+    args.run_name = run_name
+    args.dataset = params.get("dataset", dataset)
+    args.model = params.get("model", model)
+    args.out_dir = str(Path(runs_root) / args.model / args.dataset)
+
+    run_dir = make_run_dir(args.out_dir, args.run_name)
+    write_json(os.path.join(run_dir, "config.json"), vars(args))
+    return args, run_dir
 
 
 def normalize_masking_type(

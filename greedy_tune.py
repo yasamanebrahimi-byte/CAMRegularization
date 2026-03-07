@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import time
 import traceback
 from dataclasses import dataclass
@@ -9,15 +8,13 @@ from typing import Any, Dict, List, Optional
 
 from IOutils import (
     ensure_dir,
-    make_run_dir,
-    write_json,
-    build_args_from_params,
+    prepare_run_from_params,
     normalize_masking_type,
     format_mask_run_name,
     add_dataset_model_args,
     add_tuning_runtime_args,
 )
-from utils import DEFAULT_DATASET, DEFAULT_MODEL
+from utils import DEFAULT_DATASET, DEFAULT_MODEL, apply_training_context
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
@@ -44,7 +41,7 @@ MASK_PARAM_GRID: Dict[str, List[Any]] = {
     "mask_prob": [0.5, 0.75, 1.0],
     "mask_area": [0.2, 0.3, 0.4],
     "mask_block": [4, 6, 8],
-    "cam_layer": ["layer2", "layer3", "layer4"],
+    "cam_layer": ["auto"],
 }
 
 GREEDY_FACTOR_ORDER: List[str] = [
@@ -55,7 +52,7 @@ GREEDY_FACTOR_ORDER: List[str] = [
     "cam_layer",
 ]
 
-RANDOM_MASK_CAM_LAYER = "layer2"
+RANDOM_MASK_CAM_LAYER = "auto"
 ALL_MASKING_TYPES = "all"
 
 
@@ -112,15 +109,13 @@ def run_single_mask_training_run(
     cfg: GreedyMaskTuningConfig, run_name: str, params: Dict[str, Any], logger
 ) -> Dict[str, Any]:
     try:
-        args = build_args_from_params(params)
-        args.run_name = run_name
-        args.dataset = params.get("dataset", cfg.dataset)
-        args.model = params.get("model", cfg.model)
-
-        args.out_dir = str(cfg.runs_root / args.model / args.dataset)
-
-        run_dir = make_run_dir(args.out_dir, args.run_name)
-        write_json(os.path.join(run_dir, "config.json"), vars(args))
+        args, run_dir = prepare_run_from_params(
+            params,
+            run_name=run_name,
+            runs_root=cfg.runs_root,
+            dataset=cfg.dataset,
+            model=cfg.model,
+        )
 
         metrics = train_with_config(args, run_dir=run_dir, logger=logger)
         return {
@@ -251,13 +246,16 @@ def tune_mask_hyperparameters_greedy(
         logger.error("Base hyperparameter tuning did not produce successful runs")
         return None
 
-    best_base_params["dataset"] = cfg.dataset
-    best_base_params["model"] = cfg.model
-    best_base_params["data_dir"] = cfg.data_dir
-    best_base_params["val_split"] = cfg.val_split
-    best_base_params["batch_size"] = cfg.batch_size
-    best_base_params["num_workers"] = cfg.num_workers
-    best_base_params["epochs"] = cfg.epochs
+    best_base_params = apply_training_context(
+        best_base_params,
+        dataset=cfg.dataset,
+        model=cfg.model,
+        data_dir=cfg.data_dir,
+        val_split=cfg.val_split,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        epochs=cfg.epochs,
+    )
 
     masking_values = [selected_masking_type] if selected_masking_type else MASK_PARAM_GRID["masking"]
     logger.info(f"Greedy mask tuning results will be saved to {mask_tuning_dir}")

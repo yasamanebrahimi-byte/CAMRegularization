@@ -1,6 +1,5 @@
 import itertools
 import json
-import os
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,13 +9,11 @@ import argparse
 from IOutils import (
     build_parser,
     ensure_dir,
-    make_run_dir,
-    write_json,
-    build_args_from_params,
+    prepare_run_from_params,
     add_dataset_model_args,
     add_tuning_runtime_args,
 )
-from utils import DEFAULT_DATASET, DEFAULT_MODEL
+from utils import DEFAULT_DATASET, DEFAULT_MODEL, apply_training_context
 from graphics import plot_tuning_results, print_summary
 from logger import get_logger
 from train import train_with_config
@@ -111,14 +108,16 @@ def load_optimal_config_params(
     valid_arg_keys = set(vars(parser.parse_args([])).keys())
 
     params = {k: v for k, v in loaded.items() if k in valid_arg_keys}
-    params = {**FIXED_PARAMS, **params}
-    params["dataset"] = cfg.dataset
-    params["model"] = cfg.model
-    params["data_dir"] = cfg.data_dir
-    params["val_split"] = cfg.val_split
-    params["batch_size"] = cfg.batch_size
-    params["num_workers"] = cfg.num_workers
-    params["epochs"] = cfg.epochs
+    params = apply_training_context(
+        {**FIXED_PARAMS, **params},
+        dataset=cfg.dataset,
+        model=cfg.model,
+        data_dir=cfg.data_dir,
+        val_split=cfg.val_split,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        epochs=cfg.epochs,
+    )
 
     params.pop("run_name", None)
     params.pop("out_dir", None)
@@ -160,15 +159,16 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
         logger.info(f"Results will be saved to {tuning_dir}\n")
 
         for idx, grid_params in enumerate(combos, 1):
-            all_params = {**FIXED_PARAMS, **grid_params}
-
-            all_params["dataset"] = cfg.dataset
-            all_params["model"] = cfg.model
-            all_params["data_dir"] = cfg.data_dir
-            all_params["val_split"] = cfg.val_split
-            all_params["batch_size"] = cfg.batch_size
-            all_params["num_workers"] = cfg.num_workers
-            all_params["epochs"] = cfg.epochs
+            all_params = apply_training_context(
+                {**FIXED_PARAMS, **grid_params},
+                dataset=cfg.dataset,
+                model=cfg.model,
+                data_dir=cfg.data_dir,
+                val_split=cfg.val_split,
+                batch_size=cfg.batch_size,
+                num_workers=cfg.num_workers,
+                epochs=cfg.epochs,
+            )
 
             run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
 
@@ -215,20 +215,13 @@ def run_single_training_run(
 ) -> Dict[str, Any]:
     """Run a single training and return results."""
     try:
-        # Build args from params
-        args = build_args_from_params(params)
-        args.run_name = run_name
-        
-        # Ensure dataset and model are set in args
-        args.dataset = params.get("dataset", cfg.dataset)
-        args.model = params.get("model", cfg.model)
-        
-        # Set out_dir to the model/dataset subdirectory under cfg.runs_root
-        args.out_dir = str(cfg.runs_root / args.model / args.dataset)
-        
-        # Create run directory
-        run_dir = make_run_dir(args.out_dir, args.run_name)
-        write_json(os.path.join(run_dir, "config.json"), vars(args))
+        args, run_dir = prepare_run_from_params(
+            params,
+            run_name=run_name,
+            runs_root=cfg.runs_root,
+            dataset=cfg.dataset,
+            model=cfg.model,
+        )
         run_logger = get_logger(__name__, log_file=Path(run_dir) / "train.log", console=False)
         run_logger.info(f"Resolved training args for {run_name}: {json.dumps(vars(args), sort_keys=True)}")
         

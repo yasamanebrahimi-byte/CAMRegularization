@@ -6,20 +6,16 @@ from logger import get_logger
 import os
 import argparse
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from dataset_registry import get_dataset_loaders, get_num_classes
-from model_registry import get_model
-from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout
-from utils import set_seed
+from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout, resolve_cam_target_module
+from engine import warmup_model
+from utils import set_seed, infer_input_size_from_loader
 
 logger = get_logger(__name__)
 
-MEAN = torch.tensor([0.5071, 0.4867, 0.4408]).view(1,3,1,1)
-STD  = torch.tensor([0.2675, 0.2565, 0.2761]).view(1,3,1,1)
-
 def unnormalize(x):
-    return (x * STD.to(x.device)) + MEAN.to(x.device)
+    x_min = x.amin(dim=(2, 3), keepdim=True)
+    x_max = x.amax(dim=(2, 3), keepdim=True)
+    return (x - x_min) / (x_max - x_min + 1e-6)
 
 @torch.no_grad()
 def to_img(x):  # [3,H,W] in 0..1
@@ -128,45 +124,12 @@ def _build_parser():
     p.add_argument("--warmup_label_smoothing", type=float, default=0.0)
     p.add_argument("--max_batches_per_epoch", type=int, default=0,
                    help="Limit warmup batches per epoch for faster preview (0 = full epoch).")
-    p.add_argument("--cam_layer", type=str, choices=["layer2", "layer3", "layer4"], default="layer3")
+    p.add_argument("--cam_layer", type=str, default="auto")
     p.add_argument("--out_dir", type=str, default="./mask_images")
     p.add_argument("--area", type=float, default=0.15)
     p.add_argument("--block", type=int, default=6)
     return p
 
-
-def _warmup_model(model, train_dl, device, epochs, lr, momentum, weight_decay, label_smoothing, max_batches_per_epoch):
-    if epochs <= 0:
-        return
-
-    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=lr,
-        momentum=momentum,
-        weight_decay=weight_decay,
-        nesterov=False,
-    )
-
-    model.train()
-    for epoch in range(epochs):
-        running_loss = 0.0
-        batch_count = 0
-        for x, y in train_dl:
-            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
-            optimizer.zero_grad(set_to_none=True)
-            logits = model(x)
-            loss = criterion(logits, y)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-            batch_count += 1
-
-            if max_batches_per_epoch > 0 and batch_count >= max_batches_per_epoch:
-                break
-
-        avg_loss = running_loss / max(1, batch_count)
-        logger.info(f"Warmup epoch {epoch + 1}/{epochs} | loss={avg_loss:.4f}")
 
 def plot_metrics(metrics_csv, run_dir):
     try:
@@ -182,13 +145,18 @@ def plot_metrics(metrics_csv, run_dir):
         ax.plot(df["epoch"], df["eval_acc1"] * 100,  "r-", linewidth=2, label="Eval Acc1")
         _setup_subplot(ax, "Epoch", "Accuracy (%)", "Accuracy@1 (Train vs Eval)")
         ax = axes[1, 0]
-        ax.plot(df["epoch"], df["train_acc5"] * 100, "b--", linewidth=2, label="Train Acc5")
-        ax.plot(df["epoch"], df["eval_acc5"] * 100,  "r--", linewidth=2, label="Eval Acc5")
-        _setup_subplot(ax, "Epoch", "Accuracy (%)", "Accuracy@5 (Train vs Eval)")
+        if {"train_f1", "eval_f1"}.issubset(df.columns):
+            ax.plot(df["epoch"], df["train_f1"] * 100, "b--", linewidth=2, label="Train F1")
+            ax.plot(df["epoch"], df["eval_f1"] * 100,  "r--", linewidth=2, label="Eval F1")
+            _setup_subplot(ax, "Epoch", "Score (%)", "Macro F1 (Train vs Eval)")
+        else:
+            ax.axis("off")
         ax = axes[1, 1]
         if {"train_loss", "eval_loss", "train_acc1", "eval_acc1"}.issubset(df.columns):
             ax.plot(df["epoch"], df["eval_loss"] - df["train_loss"], linewidth=2, label="Loss Gap (Eval-Train)")
             ax.plot(df["epoch"], (df["eval_acc1"] - df["train_acc1"]) * 100, linewidth=2, label="Acc1 Gap (Eval-Train)")
+            if {"train_f1", "eval_f1"}.issubset(df.columns):
+                ax.plot(df["epoch"], (df["eval_f1"] - df["train_f1"]) * 100, linewidth=2, label="F1 Gap (Eval-Train)")
             _setup_subplot(ax, "Epoch", "Gap", "Generalization Gap")
         else:
             ax.axis("off")
@@ -299,6 +267,14 @@ def print_summary(tuning_dir: Path, results: List[Dict[str, Any]]) -> None:
 
 
 def main():
+    from dataset_registry import (
+        get_dataset_loaders,
+        get_num_classes,
+        infer_num_classes_from_loader,
+        get_default_input_size,
+    )
+    from model_registry import get_model
+
     args = _build_parser().parse_args()
     set_seed(args.seed)
     torch.use_deterministic_algorithms(True, warn_only=True)
@@ -313,17 +289,20 @@ def main():
         seed=args.seed,
     )
 
-    num_classes = get_num_classes(args.dataset)
-    model = get_model(args.model, num_classes=num_classes).to(device)
+    inferred_num_classes = infer_num_classes_from_loader(train_dl)
+    num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
+    input_size = infer_input_size_from_loader(train_dl, get_default_input_size(args.dataset))
+
+    model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
 
     logger.info(
         f"Preparing mask preview with model={args.model}, dataset={args.dataset}, "
         f"warmup_epochs={args.warmup_epochs}"
     )
 
-    _warmup_model(
+    warmup_model(
         model=model,
-        train_dl=train_dl,
+        train_loader=train_dl,
         device=device,
         epochs=args.warmup_epochs,
         lr=args.warmup_lr,
@@ -331,13 +310,15 @@ def main():
         weight_decay=args.warmup_weight_decay,
         label_smoothing=args.warmup_label_smoothing,
         max_batches_per_epoch=args.max_batches_per_epoch,
+        logger=logger,
     )
 
     preview_dl = train_dl if args.preview_split == "train" else test_dl
     x, _ = next(iter(preview_dl))
     x = x.to(device)
 
-    target_module = getattr(model, args.cam_layer)
+    selected_layer_name, target_module = resolve_cam_target_module(model, args.cam_layer)
+    logger.info(f"CAM target layer resolved to '{selected_layer_name}'")
     cam_runner = GradCAM(model, target_module)
 
     out_dir = args.out_dir

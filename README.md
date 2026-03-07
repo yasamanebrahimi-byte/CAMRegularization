@@ -1,156 +1,133 @@
-# Research Question Definition
+# CAMRegularization
 
-## Complete Question
+CAM-guided masking experiments for image classification. This repo trains CNNs with one of four masking strategies and compares generalization:
 
-Dropout regularization consists of dropping selected neurons (in the hidden layers and input layer) during various stages of training a neural network. This has the effect of forcing more of the network to be active, and can improve accuracy, reduce overfitting, and so on. For CNNs, a somewhat analogous technique is cutout regularization, where selected parts of the image are blocked out, forcing the model to learn based on parts of the image that might otherwise be ignored. Typically, dropouts and cutouts are selected at random. However, a recent paper considered a clever use of heatmaps (based on Class Activation Mappings, or CAM) to determine which areas of an image a CNN is focusing most attention on, and then applied cutouts to those “hot” areas. This is a more intelligent and focused approach, as compared to random cutouts, and it should be more effective in the sense of reducing training time and potentially improving the results. For a project, we would want to implement such a heatmap technique, and conduct extensive experiments to determine how models trained based on “heatmap cutouts” compare to analogous models trained on random cutouts and models trained with no cutouts. These experiments could involve any type of dataset (there are many good malware datasets that would be appropriate, for example).
+- `none`: no masking
+- `random`: random cutout
+- `cam_high`: mask high-saliency regions
+- `cam_low`: mask low-saliency regions
 
-## Summary
+The project supports baseline training, grid-based hyperparameter tuning, greedy mask tuning, and Optuna mask tuning.
 
-- Dropout regularization randomly drops neurons to prevent overtraining
-- CNN equivalent is cutout regularization
-  - CNNs are best for images
-- New technique: instead of cutout being random, we can use heatmaps
-  - Find which areas of an image the CNN is focusing on, and cut those out
+## Module Responsibilities
 
-# Literature Review
+This project is intentionally organized so each file has a narrow role.
 
-Reference paper: https://www.sciencedirect.com/science/article/pii/S2214212625001000
+- `train.py`: end-to-end training entry point and training loop orchestration.
+- `engine.py`: core epoch-level routines (`train_one_epoch`, `evaluate`, `warmup_model`).
+- `cam_masking.py`: GradCAM generation and masking operations.
+- `dataset_registry.py`: dataset loading and dataset-specific metadata.
+- `model_registry.py`: model construction and model-specific defaults.
+- `utils.py`: pure utility helpers (seed, metrics, shared parameter/context transforms).
+- `IOutils.py`: argument parsing, run directory setup, and JSON/CSV persistence helpers.
+- `graphics.py`: plotting and visualization helpers (metrics, tuning plots, CAM preview panels).
+- `tune.py`: base hyperparameter grid search.
+- `mask_tune.py`: full mask-parameter grid search (optionally per masking mode).
+- `greedy_tune.py`: greedy stage-wise mask-parameter search.
+- `tune_optuna.py`: Optuna multi-fidelity mask tuning.
 
-## Datasets
+## Typical Use Cases
 
-- MalImg
-- Big2015
-- VX-Zoo
+### 1) Train a single baseline model
 
-## Background
-
-- Malware visualization converts malware binaries into images so CNNs can classify them
-- This approach achieves high accuracy, but has poor replicability
-- CNN classifiers are also black-box classifiers, so low explicability
-- A saliency map is a visualization that shows which parts of an input most influenced a model’s prediction
-- Saliency maps can highlight image regions that influence prediction, but their interpretation is subjective and not standardized
-
-## Methodology
-
-1. Datasets
-   - The authors use three datasets to ensure robustness and generalization
-     - MalImg and Big2015 as standard benchmark datasets
-     - VX-Zoo for generalizing to newer malware
-2. CNN Models
-   - The authors re-implemented 6 CNNs from cited papers
-   - Missing or unclear hyperparameters in original papers are inferred or tuned empirically
-     - Custom CNN
-     - VGG16
-     - ResNet50
-     - IMCFN (modified VGG16)
-     - DenseNet121
-     - EfficientNet-B0
-3. Model Interpretation
-   - Explainability is studied using Class Activation Maps (CAMs)
-     - GradCAM: standard gradient-weighted saliency maps
-     - HiResCAM: higher-resolution variant that preserves feature importance
-   - Sample-level heatmaps are generated and aggregated into cumulative heatmaps per malware family
-   - Analyzed whether different CNNs focus on different image regions when classifying the same family or not
-4. Comparisons
-   - To compare explainability across models, the authors use:
-     - Structural Similarity Index (SSIM) to measure similarity between cumulative heatmaps
-     - Cumulative-SSIM (new metric) to compare how consistently different CNNs explain the same malware family
-   - This allows ranking CNNs not just by accuracy, but by stability and consistency of explanations
-5. Masking Strategy (Performance)
-   - Explainability is actively exploited via a masking technique
-   - The heatmaps of two CNNs are merged via logical OR
-   - Regions deemed **unimportant** (below a threshold) are masked out
-   - The classifier is forced to focus on relevant regions only
-6. ViT as a Validation Classifier
-   - The masked datasets are used to train a ViT to avoid CNNs explaining CNNs
-   - Improved ViT performance shows that explainability insights are transferable
-
-# Project Outline
-
-## Datasets
-
-- CIFAR-100 for classification, many classes
-- CIFAR-10 as a sanity check dataset
-
-## Methodology
-
-1. Datasets
-   - Could use multiple datasets for robustness and generalization
-2. CNN Models
-   - Five or six standard CNN models for comparability, including pretrained models
-     - ResNet-18
-     - WideResNet-28-10
-     - DenseNet-121
-     - EfficientNet-B0
-     - ConvNeXt-Tiny
-   - Models are trained using identical hyperparameters across all conditions in order to isolate the effect of the masking
-   - A warm-up phase with no masking to set the saliency estimates
-3. Model Interpretation
-   - Use CAM and HiResCAM during training to guide the masking decisions
-   - Implementation note: CAMs are computed online from the model's current weights during training (not precomputed before training)
-4. Masking Strategies
-   - No masking and random masking (control)
-   - Denoising with CAMs
-   - Regions with low saliency are masked, similar to referenced paper
-   - Regularization with CAMs (similar to dropout)
-   - Regions with high saliency are masked so model focuses on ignored features
-   - All masking strategies:
-     - Mask the same fraction of image area
-     - Use identical mask shapes and fill values
-     - Are evaluated across multiple masking strengths (e.g., 10%, 20%)
-   - Warm-up behavior:
-     - CAM masking (`cam_high`, `cam_low`) is applied only after `mask_warmup_epochs`
-     - During warm-up epochs, training runs without masking to stabilize saliency estimates
-5. Metrics
-   - Models could be compared using
-     - Accuracy
-     - Learning curves and convergence speed
-     - Steps or epochs required to reach a target performance
-   - Robustness can be tested using
-     - Multiple random seeds
-     - Mean plus/minus standard deviation
-6. Research Questions
-   - A direct empirical comparison between:
-     - Saliency-guided masking of unimportant regions
-     - Saliency-guided masking of important regions
-     - Random masking
-     - No masking
-   - Evidence that CAMs can be used as training signals
-   - Insights for when the CAM-guided regularization could improve generalization
-
-# Running Optuna Mask Tuning
-
-Use `tune_optuna.py` to optimize masking hyperparameters with:
-
-- objective = best validation accuracy (`best_val_acc`)
-- pruning of weak trials (Hyperband)
-- multi-fidelity training (short budget first, then promote promising trials)
-
-Warm-up search space note:
-
-- Current tuning scripts use non-zero CAM masking warm-up candidates (`15`, `30`) to preserve an explicit no-masking phase before CAM-guided cutout.
-
-Supported masking modes:
-
-- `all`
-- `random`
-- `cam_high`
-- `cam_low`
-
-Automatic number of trials by masking mode:
-
-- `all` -> 100
-- `cam_high` or `cam_low` -> 64
-- `random` -> 32
-
-Example (single masking mode):
+Use when you want one run with fixed hyperparameters.
 
 ```bash
-python tune_optuna.py --dataset cifar100 --model resnet18 --masking_type cam_high
+python train.py --dataset cifar100 --model resnet18 --masking none --run_name baseline
 ```
 
-Example (all parser arguments):
+Artifacts:
+
+- `runs/<model>/<dataset>/<run_name>/config.json`
+- `runs/<model>/<dataset>/<run_name>/metrics.csv`
+- `runs/<model>/<dataset>/<run_name>/metrics_plot.png`
+
+### 2) Compare masking strategies directly
+
+Use when you want an apples-to-apples comparison between `none`, `random`, `cam_high`, and `cam_low`.
+
+Example runs:
 
 ```bash
-python tune_optuna.py --dataset cifar100 --model resnet18 --runs_root ./runs --n_jobs 1 --masking_type all --min_resource_epochs 15 --max_resource_epochs 100 --reduction_factor 2
+python train.py --masking none
+python train.py --masking random --mask_prob 0.75 --mask_area 0.2 --mask_block 8
+python train.py --masking cam_high --mask_warmup_epochs 15 --cam_layer auto
+python train.py --masking cam_low  --mask_warmup_epochs 15 --cam_layer auto
 ```
+
+### 3) Tune base (non-mask) hyperparameters
+
+Use when you want strong baseline training settings before mask tuning.
+
+```bash
+python tune.py --dataset cifar100 --model resnet18 --runs_root ./runs
+```
+
+Output:
+
+- `runs/<model>_<dataset>/tuning_results/tuning_results.json`
+- `runs/<model>_<dataset>/tuning_results/ranked_by_val.csv`
+- tuning summary plots
+
+### 4) Tune mask hyperparameters with full grid search
+
+Use when exhaustive mask-search coverage is preferred.
+
+```bash
+python mask_tune.py --dataset cifar100 --model resnet18 --masking_type all
+```
+
+To tune only one masking mode:
+
+```bash
+python mask_tune.py --masking_type cam_high
+```
+
+### 5) Tune mask hyperparameters with greedy search
+
+Use when you need lower compute than full grid search.
+
+```bash
+python greedy_tune.py --dataset cifar100 --model resnet18 --masking_type all
+```
+
+### 6) Tune mask hyperparameters with Optuna
+
+Use when you want adaptive search + pruning.
+
+```bash
+python tune_optuna.py --dataset cifar100 --model resnet18 --runs_root ./runs --n_jobs 1
+```
+
+Optional controls:
+
+- `--masking_type {all,random,cam_high,cam_low}`
+- `--min_resource_epochs`
+- `--max_resource_epochs`
+- `--reduction_factor`
+
+## Configuration Notes
+
+- CAM masking (`cam_high` and `cam_low`) is delayed until `mask_warmup_epochs`.
+- `val_split > 0` enables validation tracking and best-val model selection logic.
+- Reported training metrics include top-1 accuracy and macro F1.
+
+## Visualization
+
+To generate mask preview panels:
+
+```bash
+python graphics.py --dataset cifar100 --model resnet18 --preview_split test --out_dir ./mask_images
+```
+
+This writes panel images for `none`, `random`, `cam_high`, and `cam_low` to the chosen output directory.
+
+## Environment
+
+- Python 3.10+
+- PyTorch
+- pandas
+- matplotlib
+- Optuna (required only for `tune_optuna.py`)
+
+If Optuna is not installed, base training and non-Optuna scripts still work.
