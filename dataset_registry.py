@@ -17,7 +17,7 @@ from logger import get_logger
 DatasetLoaderFunc = Callable[..., Tuple[DataLoader, Optional[DataLoader], DataLoader]]
 
 logger = get_logger(__name__)
-KAGGLE_API_TOKEN = "KGAT_b9cda71d7565a5dd59748f52ea14fd41"
+KAGGLE_API_TOKEN = "KGAT_5944f37e07ad4aef74d5a89f1a0bce45"
 
 
 class _ImagePathDataset(Dataset):
@@ -80,6 +80,46 @@ class _MalwareBytesDataset(Dataset):
         return image, target
 
 
+class _MalwareFeatureCsvDataset(Dataset):
+    def __init__(self, samples: List[Tuple[List[float], int]], image_size: int = 224, transform=None):
+        self.image_size = image_size
+        self.transform = transform
+        self.max_pixels = image_size * image_size
+        self.samples: List[Tuple[bytes, int]] = [
+            (self._feature_row_to_bytes(feature_values), target)
+            for feature_values, target in samples
+        ]
+
+    def _feature_row_to_bytes(self, feature_values: List[float]) -> bytes:
+        if not feature_values:
+            return bytes([0] * self.max_pixels)
+
+        row_min = min(feature_values)
+        row_max = max(feature_values)
+        if row_max > row_min:
+            scale = 255.0 / (row_max - row_min)
+            encoded = [int((value - row_min) * scale) for value in feature_values]
+        else:
+            encoded = [0 for _ in feature_values]
+
+        if len(encoded) >= self.max_pixels:
+            encoded = encoded[:self.max_pixels]
+        else:
+            encoded.extend([0] * (self.max_pixels - len(encoded)))
+        return bytes(encoded)
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int):
+        image_bytes, target = self.samples[index]
+        image = Image.frombytes("L", (self.image_size, self.image_size), image_bytes)
+        image = image.convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, target
+
+
 def _resolve_existing_path(*candidates: str) -> Optional[str]:
     for candidate in candidates:
         if candidate and os.path.isdir(candidate):
@@ -87,44 +127,78 @@ def _resolve_existing_path(*candidates: str) -> Optional[str]:
     return None
 
 
-def _find_microsoft_malware_root(search_root: Path) -> Optional[Path]:
+def _find_microsoft_malware_mirror_root(search_root: Path) -> Optional[Path]:
     if not search_root.exists() or not search_root.is_dir():
         return None
 
-    direct_labels = search_root / "trainLabels.csv"
-    direct_train = search_root / "train"
-    if direct_labels.is_file() and direct_train.is_dir():
+    direct_csv = search_root / "train" / "LargeTrain.csv"
+    if direct_csv.is_file():
         return search_root
 
-    # Common extracted directory names first (fast path)
-    common_names = [
-        "malware-classification",
-        "malware_classification",
-        "microsoft-malware-classification",
-        "MicrosoftMalwareClassification",
-        "big2015",
+    common_candidates = [
+        search_root / "malwaremicrosoftbig",
+        search_root / "Dataset",
+        search_root / "Dataset" / "Dataset",
     ]
-    for name in common_names:
-        candidate = search_root / name
-        if (candidate / "trainLabels.csv").is_file() and (candidate / "train").is_dir():
+    for candidate in common_candidates:
+        if (candidate / "train" / "LargeTrain.csv").is_file():
             return candidate
 
-    # Fallback: shallow recursive scan to tolerate nested extraction folders.
-    # Keep depth bounded to avoid expensive full-disk scans.
-    max_depth = 3
-    for labels_file in search_root.rglob("trainLabels.csv"):
+    max_depth = 5
+    for train_csv in search_root.rglob("LargeTrain.csv"):
         try:
-            rel_parts = labels_file.relative_to(search_root).parts
+            rel_parts = train_csv.relative_to(search_root).parts
         except ValueError:
             continue
         if len(rel_parts) > (max_depth + 1):
             continue
-
-        candidate_root = labels_file.parent
-        if (candidate_root / "train").is_dir():
+        candidate_root = train_csv.parent.parent
+        if candidate_root.is_dir():
             return candidate_root
 
     return None
+
+
+def _load_microsoft_malware_mirror_samples(csv_root: Path) -> List[Tuple[List[float], int]]:
+    train_csv = csv_root / "train" / "LargeTrain.csv"
+    if not train_csv.is_file():
+        raise FileNotFoundError(f"Expected mirror training CSV at '{train_csv}'.")
+
+    samples: List[Tuple[List[float], int]] = []
+    with open(train_csv, "r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise ValueError(f"Training CSV '{train_csv}' has no header.")
+
+        feature_names = [name for name in reader.fieldnames if name and name != "Class"]
+        if not feature_names:
+            raise ValueError(f"Training CSV '{train_csv}' has no feature columns.")
+
+        for row in reader:
+            class_token = (row.get("Class") or "").strip()
+            if not class_token:
+                continue
+            try:
+                target = int(float(class_token)) - 1
+            except ValueError:
+                continue
+            if target < 0:
+                continue
+
+            feature_values: List[float] = []
+            for name in feature_names:
+                value = (row.get(name) or "").strip()
+                if not value:
+                    feature_values.append(0.0)
+                    continue
+                try:
+                    feature_values.append(float(value))
+                except ValueError:
+                    feature_values.append(0.0)
+
+            samples.append((feature_values, target))
+
+    return samples
 
 
 def _build_kaggle_auth_env(token: str) -> Dict[str, str]:
@@ -294,98 +368,6 @@ def _ensure_kaggle_dataset_available(
             f"{dataset_label} download completed, but no valid class-subfolder directory was found under data/."
         )
     return existing
-
-
-def _ensure_kaggle_competition_available(
-    competition_label: str,
-    data_dir: str,
-    competition_slug: str,
-    local_root_candidates: List[str],
-) -> str:
-    existing = None
-    for candidate in local_root_candidates:
-        if not candidate:
-            continue
-        discovered = _find_microsoft_malware_root(Path(candidate))
-        if discovered is not None:
-            existing = str(discovered)
-            break
-    if existing is not None:
-        return existing
-
-    data_path = Path(data_dir)
-    data_path.mkdir(parents=True, exist_ok=True)
-
-    logger.info("%s not found locally. Downloading Kaggle competition '%s'...", competition_label, competition_slug)
-    cmd_candidates = [
-        [
-            "kaggle",
-            "competitions",
-            "download",
-            "-c",
-            competition_slug,
-            "-p",
-            str(data_path),
-            "--force",
-        ],
-        [
-            sys.executable,
-            "-m",
-            "kaggle.cli",
-            "competitions",
-            "download",
-            "-c",
-            competition_slug,
-            "-p",
-            str(data_path),
-            "--force",
-        ],
-    ]
-
-    last_error = None
-    for cmd in cmd_candidates:
-        try:
-            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            last_error = None
-            break
-        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-            last_error = exc
-
-    if last_error is not None:
-        raise RuntimeError(
-            "Kaggle competition download failed. Configure Kaggle CLI credentials and accept competition rules."
-        ) from last_error
-
-    zip_candidates = sorted(data_path.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for zip_path in zip_candidates:
-        try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(data_path)
-        except zipfile.BadZipFile:
-            continue
-
-    # Re-check explicit local candidates first
-    existing = None
-    for candidate in local_root_candidates:
-        if not candidate:
-            continue
-        discovered = _find_microsoft_malware_root(Path(candidate))
-        if discovered is not None:
-            existing = str(discovered)
-            break
-    if existing is not None:
-        return existing
-
-    # Fallback: discover competition root by required files.
-    roots = [data_path]
-    roots.extend([p for p in data_path.iterdir() if p.is_dir()])
-    for root in roots:
-        if (root / "train").is_dir() and (root / "trainLabels.csv").is_file():
-            return str(root)
-
-    raise FileNotFoundError(
-        f"{competition_label} download completed, but expected train/ and trainLabels.csv were not found under '{data_path}'."
-    )
 
 
 def _split_train_val_test_indices(
@@ -715,31 +697,28 @@ def _malware_classification_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
-    competition_slug = "malware-classification"
+    mirror_dataset_slug = "muhammad4hmed/malwaremicrosoftbig"
     root = Path(data_dir)
-    discovered_root = _find_microsoft_malware_root(root)
-    comp_root = _ensure_kaggle_competition_available(
-        competition_label="Microsoft Malware Classification",
-        data_dir=data_dir,
-        competition_slug=competition_slug,
-        local_root_candidates=[
-            str(discovered_root) if discovered_root is not None else "",
-            str(root / "malware-classification"),
-            str(root / "malware_classification"),
-            str(root / "microsoft-malware-classification"),
-            str(root / "big2015"),
-            str(root),
-        ],
-    )
+    mirror_root = _find_microsoft_malware_mirror_root(root)
+    if mirror_root is None:
+        mirror_download_root = _ensure_kaggle_dataset_available(
+            dataset_label="Microsoft Malware Classification mirror",
+            data_dir=data_dir,
+            kaggle_dataset=mirror_dataset_slug,
+            local_dir_candidates=[
+                str(root / "malwaremicrosoftbig"),
+                str(root / "malwaremicrosoftbig" / "Dataset"),
+                str(root / "malwaremicrosoftbig" / "Dataset" / "Dataset"),
+                str(root / "Dataset" / "Dataset"),
+            ],
+            archive_filename="malwaremicrosoftbig.zip",
+            kaggle_api_token=KAGGLE_API_TOKEN,
+        )
+        mirror_root = _find_microsoft_malware_mirror_root(Path(mirror_download_root))
+        if mirror_root is None:
+            mirror_root = _find_microsoft_malware_mirror_root(root)
 
-    comp_root_path = Path(comp_root)
-    discovered_after_download = _find_microsoft_malware_root(comp_root_path)
-    if discovered_after_download is not None:
-        comp_root_path = discovered_after_download
-
-    labels_csv = comp_root_path / "trainLabels.csv"
-    train_dir = comp_root_path / "train"
-    if not labels_csv.is_file() or not train_dir.is_dir():
+    if mirror_root is None:
         has_malimg = (root / "malimg_dataset").is_dir()
         hint = (
             "Detected 'malimg_dataset' under data_dir; if that is your intended dataset, use --dataset malimg. "
@@ -747,25 +726,15 @@ def _malware_classification_loader(
             else ""
         )
         raise FileNotFoundError(
-            f"Invalid Microsoft Malware Classification structure at '{comp_root_path}'. "
-            "Expected trainLabels.csv and train/. "
+            "Unable to prepare Microsoft Malware Classification mirror dataset. "
+            "Expected train/LargeTrain.csv under the extracted mirror structure. "
             f"Current --data_dir is '{root}'. {hint}"
-            "Otherwise point --data_dir to the folder that contains trainLabels.csv and train/."
         )
 
-    labeled_samples: List[Tuple[str, int]] = []
-    with open(labels_csv, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            sample_id = row["Id"].strip()
-            cls = int(row["Class"]) - 1
-            bytes_path = train_dir / f"{sample_id}.bytes"
-            if bytes_path.is_file():
-                labeled_samples.append((str(bytes_path), cls))
-
-    if not labeled_samples:
+    csv_feature_samples = _load_microsoft_malware_mirror_samples(mirror_root)
+    if not csv_feature_samples:
         raise FileNotFoundError(
-            f"No labeled .bytes files found under '{train_dir}'."
+            f"No labeled rows were loaded from mirror CSV under '{mirror_root}'."
         )
 
     eval_split = val_split if (val_split and val_split > 0.0) else 0.1
@@ -775,13 +744,6 @@ def _malware_classification_loader(
     test_split = kwargs.get("test_split", eval_split)
     if test_split <= 0.0:
         test_split = eval_split
-
-    train_idx, val_idx, test_idx = _split_train_val_test_indices(
-        n_items=len(labeled_samples),
-        val_ratio=eval_split,
-        test_ratio=test_split,
-        seed=seed,
-    )
 
     image_size = int(kwargs.get("image_size", 224))
     mean = (0.485, 0.456, 0.406)
@@ -796,8 +758,17 @@ def _malware_classification_loader(
         T.Normalize(mean, std),
     ])
 
-    full_train_ds = _MalwareBytesDataset(labeled_samples, image_size=image_size, transform=train_tfms)
-    full_eval_ds = _MalwareBytesDataset(labeled_samples, image_size=image_size, transform=test_tfms)
+    all_samples_count = len(csv_feature_samples)
+
+    train_idx, val_idx, test_idx = _split_train_val_test_indices(
+        n_items=all_samples_count,
+        val_ratio=eval_split,
+        test_ratio=test_split,
+        seed=seed,
+    )
+
+    full_train_ds = _MalwareFeatureCsvDataset(csv_feature_samples, image_size=image_size, transform=train_tfms)
+    full_eval_ds = _MalwareFeatureCsvDataset(csv_feature_samples, image_size=image_size, transform=test_tfms)
 
     train_ds = Subset(full_train_ds, train_idx)
     val_ds = Subset(full_eval_ds, val_idx)
