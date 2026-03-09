@@ -11,6 +11,7 @@ from torchvision.models import (
     resnet18,
     resnet34,
     resnet50,
+    vit_b_16,
     vgg16_bn,
 )
 from typing import Callable, Dict, Any
@@ -71,6 +72,12 @@ def _efficientnet_b0_builder(num_classes: int, **kwargs) -> nn.Module:
     return model
 
 
+def _vit_b_16_builder(num_classes: int, input_size: int = 224, **kwargs) -> nn.Module:
+    model = vit_b_16(weights=None, image_size=input_size)
+    model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+    return model
+
+
 # Registry of available models
 # Key: model name, Value: {"builder": builder_fn, "default_input_size": expected_size}
 MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -104,6 +111,10 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "efficientnet_b0": {
         "builder": _efficientnet_b0_builder,
+        "default_input_size": 224,
+    },
+    "vit_b_16": {
+        "builder": _vit_b_16_builder,
         "default_input_size": 224,
     },
 }

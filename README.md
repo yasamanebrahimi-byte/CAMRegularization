@@ -21,6 +21,7 @@ Registered models (from `model_registry.py`):
 - `mobilenet_v3_small`
 - `mobilenet_v3_large`
 - `efficientnet_b0`
+- `vit_b_16`
 
 ### Recommended model starters
 
@@ -40,6 +41,8 @@ Use these as practical defaults before tuning:
   - `--lr 0.05 --weight_decay 1e-4 --epochs 120 --batch_size 128 --scheduler cosine --warmup_epochs 5`
 - `efficientnet_b0`
   - `--lr 0.03 --weight_decay 1e-4 --epochs 120 --batch_size 64 --scheduler cosine --warmup_epochs 5`
+- `vit_b_16`
+  - `--lr 0.01 --weight_decay 1e-4 --epochs 120 --batch_size 64 --scheduler cosine --warmup_epochs 5`
 
 For CAM masking (`cam_high`, `cam_low`), start with:
 
@@ -163,6 +166,7 @@ Use when you want to generate and evaluate external HiResCAM-masked dataset vari
 ```bash
 python comparison.py --dataset cifar100 --model resnet18 --input_models resnet18 resnet34
 ```
+
 - `--reduction_factor`
 
 ## Configuration Notes
