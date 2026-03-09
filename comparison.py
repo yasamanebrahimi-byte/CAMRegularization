@@ -69,6 +69,62 @@ from utils import infer_input_size_from_loader, set_seed
 
 VARIANTS = ["original", "random", "low_saliency", "high_saliency"]
 
+DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs.json")
+
+
+# ---------------------------------------------------------------------------
+# Config loading and resolution
+# ---------------------------------------------------------------------------
+
+
+def _load_config(config_path: str) -> Dict[str, Any]:
+    """Load the JSON configuration file. Returns empty dict if file not found."""
+    if not os.path.isfile(config_path):
+        return {}
+    with open(config_path, "r") as f:
+        return json.load(f)
+
+
+def _resolve_training_args(
+    cli_args: argparse.Namespace,
+    config: Dict[str, Any],
+    model: str,
+    dataset: str,
+) -> argparse.Namespace:
+    """Build a resolved Namespace by layering config on top of CLI args.
+
+    Resolution order (later wins):
+        CLI defaults -> config["defaults"] -> config["model_defaults"][model]
+        -> config["dataset_defaults"][dataset]
+        -> config["overrides"]["model::dataset"]
+    """
+    resolved = argparse.Namespace(**vars(cli_args))
+    if not config:
+        return resolved
+
+    # Layer 1: global defaults from config
+    for key, value in config.get("defaults", {}).items():
+        if hasattr(resolved, key):
+            setattr(resolved, key, value)
+
+    # Layer 2: model-specific defaults
+    for key, value in config.get("model_defaults", {}).get(model, {}).items():
+        if hasattr(resolved, key):
+            setattr(resolved, key, value)
+
+    # Layer 3: dataset-specific defaults
+    for key, value in config.get("dataset_defaults", {}).get(dataset, {}).items():
+        if hasattr(resolved, key):
+            setattr(resolved, key, value)
+
+    # Layer 4: model + dataset overrides
+    override_key = f"{model}::{dataset}"
+    for key, value in config.get("overrides", {}).get(override_key, {}).items():
+        if hasattr(resolved, key):
+            setattr(resolved, key, value)
+
+    return resolved
+
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -113,6 +169,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--low_threshold", type=float, default=0.3)
     p.add_argument("--high_threshold", type=float, default=0.7)
 
+    # Config file
+    p.add_argument(
+        "--config",
+        type=str,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to configs.json with per-model/dataset hyperparameters",
+    )
+
     return p
 
 
@@ -122,18 +186,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def train_input_models(
-    cli_args, logger
+    cli_args, config: Dict[str, Any], logger
 ) -> List[Tuple[str, nn.Module]]:
     """Train each input model on the dataset and return (name, model) pairs."""
     trained: List[Tuple[str, nn.Module]] = []
 
     for model_name in cli_args.input_models:
+        resolved = _resolve_training_args(cli_args, config, model_name, cli_args.dataset)
         logger.info(f"\n{'='*60}")
         logger.info(f"Training input model: {model_name}")
+        logger.info(
+            f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
+            f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
+            f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
+        )
         logger.info(f"{'='*60}")
 
         params = namespace_to_train_params(
-            cli_args,
+            resolved,
             model=model_name,
             dataset=cli_args.dataset,
             out_dir=cli_args.out_dir,
@@ -441,6 +511,7 @@ def _build_variant_loaders(
 
 def train_output_on_variant(
     cli_args,
+    config: Dict[str, Any],
     variant: str,
     variant_root: Path,
     original_test_dl: DataLoader,
@@ -450,62 +521,69 @@ def train_output_on_variant(
     logger,
 ) -> Dict[str, Any]:
     """Train the output model on *variant* training data, evaluate on the original test set."""
+    resolved = _resolve_training_args(cli_args, config, cli_args.output_model, cli_args.dataset)
+
     logger.info(f"\n{'='*60}")
-    logger.info(f"Training output model ({cli_args.output_model}) on variant: {variant}")
+    logger.info(f"Training output model ({resolved.output_model}) on variant: {variant}")
+    logger.info(
+        f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
+        f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
+        f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
+    )
     logger.info(f"{'='*60}")
 
     variant_dir = variant_root / variant
     train_dl, val_dl, _ = _build_variant_loaders(
         variant_dir,
-        cli_args.dataset,
-        cli_args.batch_size,
-        cli_args.num_workers,
-        cli_args.val_split,
-        cli_args.seed,
+        resolved.dataset,
+        resolved.batch_size,
+        resolved.num_workers,
+        resolved.val_split,
+        resolved.seed,
     )
 
-    model = get_model(cli_args.output_model, num_classes=num_classes, input_size=input_size).to(device)
-    criterion = nn.CrossEntropyLoss(label_smoothing=cli_args.label_smoothing)
+    model = get_model(resolved.output_model, num_classes=num_classes, input_size=input_size).to(device)
+    criterion = nn.CrossEntropyLoss(label_smoothing=resolved.label_smoothing)
     optimizer = optim.SGD(
         model.parameters(),
-        lr=cli_args.lr,
-        momentum=cli_args.momentum,
-        weight_decay=cli_args.weight_decay,
-        nesterov=cli_args.nesterov,
+        lr=resolved.lr,
+        momentum=resolved.momentum,
+        weight_decay=resolved.weight_decay,
+        nesterov=resolved.nesterov,
     )
 
     # Scheduler
-    if cli_args.scheduler == "multistep":
-        ms = [int(x) for x in cli_args.milestones.split(",") if x.strip()]
-        main_sched = optim.lr_scheduler.MultiStepLR(optimizer, milestones=ms, gamma=cli_args.gamma)
+    if resolved.scheduler == "multistep":
+        ms = [int(x) for x in resolved.milestones.split(",") if x.strip()]
+        main_sched = optim.lr_scheduler.MultiStepLR(optimizer, milestones=ms, gamma=resolved.gamma)
     else:
         main_sched = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=max(1, cli_args.epochs - cli_args.warmup_epochs), eta_min=cli_args.min_lr
+            optimizer, T_max=max(1, resolved.epochs - resolved.warmup_epochs), eta_min=resolved.min_lr
         )
 
-    if cli_args.warmup_epochs > 0:
-        warmup_sched = optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-3, total_iters=cli_args.warmup_epochs)
+    if resolved.warmup_epochs > 0:
+        warmup_sched = optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-3, total_iters=resolved.warmup_epochs)
         scheduler = optim.lr_scheduler.SequentialLR(
-            optimizer, schedulers=[warmup_sched, main_sched], milestones=[cli_args.warmup_epochs]
+            optimizer, schedulers=[warmup_sched, main_sched], milestones=[resolved.warmup_epochs]
         )
     else:
         scheduler = main_sched
 
-    scaler = torch.amp.GradScaler(enabled=(cli_args.amp and device.type == "cuda"))
+    scaler = torch.amp.GradScaler(enabled=(resolved.amp and device.type == "cuda"))
 
-    run_dir = make_run_dir(cli_args.out_dir, f"output_{variant}")
+    run_dir = make_run_dir(resolved.out_dir, f"output_{variant}")
     metrics_csv = os.path.join(run_dir, "metrics.csv")
     header = ["epoch", "lr", "train_loss", "train_acc1", "train_f1",
               "eval_loss", "eval_acc1", "eval_f1", "eval_split"]
     append_csv(metrics_csv, [], header=header, mode="w")
 
     best = 0.0
-    for epoch in range(cli_args.epochs):
+    for epoch in range(resolved.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
         tr_loss, tr_a1, tr_f1 = train_one_epoch(
             model, train_dl, criterion, optimizer,
             scaler if scaler.is_enabled() else None,
-            device, log_every=cli_args.log_every,
+            device, log_every=resolved.log_every,
         )
 
         if val_dl is not None:
@@ -603,6 +681,13 @@ def main():
         f"Output model '{args.output_model}' must differ from all input models."
     )
 
+    # ── Load per-model/dataset config ─────────────────────────────────────
+    config = _load_config(args.config)
+    if config:
+        print(f"Loaded hyperparameter config from {args.config}")
+    else:
+        print(f"No config file found at {args.config} — using CLI defaults for all models")
+
     # ── Setup ─────────────────────────────────────────────────────────────
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -620,7 +705,7 @@ def main():
     num_classes = get_num_classes(args.dataset)
 
     # ── Step 1: train input models ────────────────────────────────────────
-    trained_models = train_input_models(args, logger)
+    trained_models = train_input_models(args, config, logger)
 
     # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─────
     logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
@@ -687,7 +772,7 @@ def main():
     for variant in VARIANTS:
         try:
             result = train_output_on_variant(
-                args, variant, variant_root, orig_test_dl,
+                args, config, variant, variant_root, orig_test_dl,
                 num_classes, input_size, device, logger,
             )
             comparison_results[variant] = result

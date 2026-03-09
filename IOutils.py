@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import time
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from dataset_registry import get_available_datasets
