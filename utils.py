@@ -1,6 +1,7 @@
 import random
 import torch
-from typing import Any, Dict, Optional
+from PIL import Image
+from typing import Any, Dict, Optional, Tuple
 
 # Default configuration constants
 DEFAULT_DATASET = "cifar100"
@@ -42,6 +43,21 @@ def apply_training_context(
 
     return resolved
 
+def denormalize_tensor(tensor: torch.Tensor, mean: Tuple, std: Tuple) -> torch.Tensor:
+    m = torch.tensor(mean, device=tensor.device, dtype=tensor.dtype)
+    s = torch.tensor(std, device=tensor.device, dtype=tensor.dtype)
+    if tensor.ndim == 4:
+        m = m[None, :, None, None]
+        s = s[None, :, None, None]
+    elif tensor.ndim == 3:
+        m = m[:, None, None]
+        s = s[:, None, None]
+    return tensor * s + m
+
+
+def tensor_to_pil_image(tensor: torch.Tensor) -> Image.Image:
+    arr = tensor.clamp(0, 1).mul(255).byte().permute(1, 2, 0).cpu().numpy()
+    return Image.fromarray(arr, "RGB")
 
 def infer_input_size_from_loader(loader, fallback_size: int) -> int:
     try:

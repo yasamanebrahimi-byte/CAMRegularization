@@ -51,7 +51,7 @@ from dataset_registry import (
     infer_num_classes_from_loader,
 )
 from engine import evaluate, train_one_epoch
-from graphics import plot_metrics, denormalize_tensor, tensor_to_pil_image
+from graphics import plot_metrics
 from IOutils import (
     append_csv,
     build_args_from_params,
@@ -62,10 +62,10 @@ from IOutils import (
     add_data_loading_args,
     add_training_hparam_args,
 )
-from logger import SimpleLogger, get_logger
+from logger import get_logger
 from model_registry import get_model
-from train import build_optimizer, train_with_config
-from utils import infer_input_size_from_loader, set_seed
+from train import train_with_config
+from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
 VARIANTS = ["original", "random", "low_saliency", "high_saliency"]
 

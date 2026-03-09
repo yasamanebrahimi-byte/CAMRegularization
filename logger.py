@@ -1,5 +1,6 @@
 import logging
 import sys
+import io
 from pathlib import Path
 from typing import Optional
 
@@ -21,7 +22,7 @@ def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") ->
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    fh = logging.FileHandler(path, mode=mode)
+    fh = logging.FileHandler(path, mode=mode, encoding="utf-8")
     fh.setLevel(logging.INFO)
     fh.setFormatter(file_formatter)
     logger.addHandler(fh)
@@ -54,10 +55,23 @@ def set_global_log_file(path: Path, mode: str = "a", console: bool = True) -> No
                         obj.removeHandler(h)
 
 
+def _utf8_stdout_stream():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        return sys.stdout
+    except Exception:
+        pass
+
+    try:
+        return io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    except Exception:
+        return sys.stdout
+
+
 def _ensure_console_handler(logger: logging.Logger) -> None:
     if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
         console_formatter = logging.Formatter("%(message)s")
-        ch = logging.StreamHandler(sys.stdout)
+        ch = logging.StreamHandler(_utf8_stdout_stream())
         ch.setLevel(logging.INFO)
         ch.setFormatter(console_formatter)
         logger.addHandler(ch)

@@ -2,9 +2,12 @@
     "_description": "Recommended hyperparameters for the CAM Masking Comparison Pipeline. Resolution order: defaults < model_defaults < dataset_defaults < overrides[model::dataset]. Only parameters that differ from the layer below need to be specified.",
 
     "defaults": {
+        "optimizer": "sgd",
         "lr": 0.1,
         "momentum": 0.9,
         "weight_decay": 5e-4,
+        "adamw_betas": [0.9, 0.999],
+        "adamw_eps": 1e-8,
         "scheduler": "cosine",
         "warmup_epochs": 5,
         "min_lr": 1e-5,
@@ -62,11 +65,13 @@
             "nesterov": true
         },
         "vit_b_16": {
-            "lr": 0.01,
+            "optimizer": "adamw",
+            "lr": 0.0005,
             "weight_decay": 0.05,
             "warmup_epochs": 10,
             "label_smoothing": 0.1,
-            "nesterov": false
+            "nesterov": false,
+            "min_lr": 1e-6
         }
     },
 
@@ -113,17 +118,17 @@
             "batch_size": 64
         },
         "vit_b_16::cifar100": {
-            "lr": 0.005,
-            "warmup_epochs": 15,
+            "lr": 0.0003,
+            "warmup_epochs": 20,
             "epochs": 300
         },
         "vit_b_16::tiny_imagenet": {
-            "lr": 0.005,
-            "warmup_epochs": 15,
+            "lr": 0.0003,
+            "warmup_epochs": 20,
             "epochs": 300
         },
         "vit_b_16::cub200": {
-            "lr": 0.005,
+            "lr": 0.0001,
             "warmup_epochs": 10,
             "epochs": 150
         },
