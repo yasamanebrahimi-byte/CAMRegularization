@@ -14,7 +14,7 @@ from IOutils import (
     add_tuning_runtime_args,
 )
 from utils import DEFAULT_DATASET, DEFAULT_MODEL, apply_training_context
-from graphics import plot_tuning_results, print_summary
+from graphics import print_summary
 from logger import get_logger
 from train import train_with_config
 
@@ -189,7 +189,6 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
 
     logger.info(f"\nTuning complete! Results saved to {results_file}")
     print_summary(tuning_dir, results)
-    plot_tuning_results(results, tuning_dir)
 
     successful = [r for r in results if r.get("status") == "success"]
     if not successful:
