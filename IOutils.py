@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 import time
 import os
-import torch
 from typing import Any, Dict, List, Optional
 
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
@@ -68,38 +67,54 @@ def add_tuning_runtime_args(parser: argparse.ArgumentParser) -> argparse.Argumen
     parser.add_argument("--epochs", type=int, default=150, help="Training epochs per run")
     return parser
 
+
+def add_data_loading_args(
+    parser: argparse.ArgumentParser,
+    *,
+    data_dir_default: str = "./data",
+    batch_size_default: int = 128,
+    num_workers_default: int = 2,
+    val_split_default: float = 0.1,
+) -> argparse.ArgumentParser:
+    parser.add_argument("--data_dir", type=str, default=data_dir_default)
+    parser.add_argument("--batch_size", type=int, default=batch_size_default)
+    parser.add_argument("--num_workers", type=int, default=num_workers_default)
+    parser.add_argument("--val_split", type=non_negative_float, default=val_split_default)
+    return parser
+
+
+def add_training_hparam_args(
+    parser: argparse.ArgumentParser,
+    *,
+    epochs_default: int = 100,
+    lr_default: float = 0.1,
+    momentum_default: float = 0.9,
+    weight_decay_default: float = 5e-4,
+) -> argparse.ArgumentParser:
+    parser.add_argument("--epochs", type=int, default=epochs_default)
+    parser.add_argument("--lr", type=float, default=lr_default)
+    parser.add_argument("--momentum", type=float, default=momentum_default)
+    parser.add_argument("--weight_decay", type=float, default=weight_decay_default)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--log_every", type=int, default=100)
+    parser.add_argument("--run_name", type=str, default="")
+    parser.add_argument("--min_lr", type=float, default=1e-5)
+    parser.add_argument("--gamma", type=float, default=0.1)
+    parser.add_argument("--milestones", type=str, default="60,80")
+    parser.add_argument("--label_smoothing", type=float, default=0.0)
+    parser.add_argument("--scheduler", type=str, choices=["multistep", "cosine"], default="cosine")
+    parser.add_argument("--warmup_epochs", type=int, default=5)
+    parser.add_argument("--nesterov", action="store_true", default=False)
+    parser.add_argument("--amp", action="store_true", default=False)
+    return parser
+
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
     add_dataset_model_args(p, default_dataset=DEFAULT_DATASET, default_model=DEFAULT_MODEL)
-    p.add_argument("--data_dir",    type=str,   default="./data")
-    p.add_argument("--out_dir",     type=str,   default="./runs")
-    # Training hyperparameters
-    p.add_argument("--epochs",      type=int,   default=100)
-    p.add_argument("--batch_size",  type=int,   default=128)
-    p.add_argument("--num_workers", type=int,   default=2)
-    p.add_argument("--lr",          type=float, default=0.1)
-    p.add_argument("--momentum",    type=float, default=0.9)
-    p.add_argument("--weight_decay",type=float, default=5e-4)
-    p.add_argument("--seed",        type=int,   default=42)
-    p.add_argument("--log_every",   type=int,   default=100)
-    p.add_argument("--run_name",    type=str,   default="")
-    p.add_argument("--val_split",   type=non_negative_float, default=0.1)
-    p.add_argument("--min_lr",      type=float, default=1e-5)
-    p.add_argument("--gamma",       type=float, default=0.1)
-    p.add_argument("--milestones",  type=str,   default="60,80")
-    p.add_argument("--label_smoothing", type=float, default=0.0)
-    p.add_argument("--scheduler",       type=str,   choices=["multistep","cosine"], default="cosine")
-    p.add_argument("--warmup_epochs",   type=int,   default=5)
-    p.add_argument("--nesterov",        action="store_true",    default=False)
-    p.add_argument("--amp",             action="store_true",    default=False)
-    # --- CAM-guided cutout ---
-    p.add_argument("--masking",     type=str,   choices=["none","random","cam_high","cam_low"], default="none")
-    p.add_argument("--mask_warmup_epochs",  type=int,   default=15)
-    p.add_argument("--mask_prob",   type=float, default=0.75)
-    p.add_argument("--mask_area",   type=float, default=0.2)
-    p.add_argument("--mask_block",  type=int,   default=8)
-    p.add_argument("--cam_layer",   type=str,   default="auto", help="CAM layer path or 'auto'")
+    add_data_loading_args(p)
+    p.add_argument("--out_dir", type=str, default="./runs")
+    add_training_hparam_args(p)
     return p
 
 def make_run_dir(out_dir, run_name):
@@ -120,21 +135,64 @@ def append_csv(path, row, header=None, mode="a"):
         if row:  # Only write row if it's not empty
             f.write(",".join(str(x) for x in row) + "\n")
 
-def save_ckpt(path, model, optimizer, epoch, best_acc, extra=None):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    state = {
-        "model": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "epoch": epoch,
-        "best_acc": best_acc,
-    }
-    if extra is not None:
-        state.update(extra)
-    torch.save(state, path)
-
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+TRAIN_ARG_FIELDS = (
+    "dataset",
+    "model",
+    "data_dir",
+    "out_dir",
+    "epochs",
+    "batch_size",
+    "num_workers",
+    "lr",
+    "momentum",
+    "weight_decay",
+    "seed",
+    "log_every",
+    "val_split",
+    "min_lr",
+    "gamma",
+    "milestones",
+    "label_smoothing",
+    "scheduler",
+    "warmup_epochs",
+    "nesterov",
+    "amp",
+)
+
+
+def namespace_to_train_params(
+    source: Any,
+    *,
+    model: Optional[str] = None,
+    dataset: Optional[str] = None,
+    out_dir: Optional[str] = None,
+    run_name: str = "",
+) -> Dict[str, Any]:
+    params: Dict[str, Any] = {}
+    for field in TRAIN_ARG_FIELDS:
+        if hasattr(source, field):
+            params[field] = getattr(source, field)
+
+    if model is not None:
+        params["model"] = model
+    if dataset is not None:
+        params["dataset"] = dataset
+    if out_dir is not None:
+        params["out_dir"] = out_dir
+
+    params["run_name"] = run_name
+    return params
+
+
+def init_run_dir_with_config(out_dir: str, run_name: str, config: Dict[str, Any]) -> str:
+    run_dir = make_run_dir(out_dir, run_name)
+    write_json(os.path.join(run_dir, "config.json"), config)
+    return run_dir
 
 def build_args_from_params(params):
     """Convert a params dict to an argparse.Namespace object that train_with_config expects."""
@@ -167,36 +225,3 @@ def prepare_run_from_params(
     return args, run_dir
 
 
-def normalize_masking_type(
-    masking_type: Optional[str],
-    valid_masking_values: List[str],
-    all_value: str = "all",
-) -> Optional[str]:
-    if masking_type in {None, all_value}:
-        return None
-
-    if masking_type not in valid_masking_values:
-        valid = ", ".join([all_value, *valid_masking_values])
-        raise ValueError(f"Invalid masking_type '{masking_type}'. Expected one of: {valid}")
-
-    return masking_type
-
-
-def format_mask_run_name(
-    base_params: Dict[str, Any],
-    mask_params: Dict[str, Any],
-    dataset: str,
-    model: str,
-    prefix: str,
-) -> str:
-    base_name = (
-        f"{prefix}_{model}_{dataset}_ep{base_params['epochs']}_bs{base_params['batch_size']}_"
-        f"lr{base_params['lr']}_wd{float(base_params['weight_decay']):.0e}_"
-        f"ls{base_params['label_smoothing']}_wu{base_params['warmup_epochs']}"
-    )
-
-    return (
-        f"{base_name}_mask{mask_params['masking']}_mwu{mask_params['mask_warmup_epochs']}_"
-        f"mp{mask_params['mask_prob']}_ma{mask_params['mask_area']}_"
-        f"mb{mask_params['mask_block']}_cl{mask_params['cam_layer']}"
-    )

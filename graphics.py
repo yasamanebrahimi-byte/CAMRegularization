@@ -6,9 +6,11 @@ from logger import get_logger
 import os
 import argparse
 import torch
-from cam_masking import GradCAM, apply_cam_cutout, apply_random_cutout, resolve_cam_target_module
+from PIL import Image
+from cam_masking import HiResCAM, resolve_cam_target_module
 from engine import warmup_model
 from utils import set_seed, infer_input_size_from_loader
+from IOutils import add_dataset_model_args, add_data_loading_args
 
 logger = get_logger(__name__)
 
@@ -17,40 +19,36 @@ def unnormalize(x):
     x_max = x.amax(dim=(2, 3), keepdim=True)
     return (x - x_min) / (x_max - x_min + 1e-6)
 
+
+def denormalize_tensor(tensor: torch.Tensor, mean: Tuple, std: Tuple) -> torch.Tensor:
+    m = torch.tensor(mean, device=tensor.device, dtype=tensor.dtype)
+    s = torch.tensor(std, device=tensor.device, dtype=tensor.dtype)
+    if tensor.ndim == 4:
+        m = m[None, :, None, None]
+        s = s[None, :, None, None]
+    elif tensor.ndim == 3:
+        m = m[:, None, None]
+        s = s[:, None, None]
+    return tensor * s + m
+
+
+def tensor_to_pil_image(tensor: torch.Tensor) -> Image.Image:
+    arr = tensor.clamp(0, 1).mul(255).byte().permute(1, 2, 0).cpu().numpy()
+    return Image.fromarray(arr, "RGB")
+
 @torch.no_grad()
 def to_img(x):  # [3,H,W] in 0..1
     x = x.clamp(0, 1).permute(1,2,0).cpu().numpy()
     return x
 
 
-def _apply_mask(mode, x, model, cam_runner, area, block):
-    if mode == "random":
-        return apply_random_cutout(x, area_frac=area, block=block, fill=0.0), None
-    if mode in ("cam_high", "cam_low"):
+def _apply_mask(mode, x, model, cam_runner):
+    if mode in ("cam_high", "cam_low", "heatmap"):
         model.eval()
         x_cam = x.detach().requires_grad_(True)
         cam = cam_runner.cam(x_cam)
-        cam_mode = "high" if mode == "cam_high" else "low"
-        xm = apply_cam_cutout(
-            x,
-            cam.detach(),
-            area_frac=area,
-            block=block,
-            fill=0.0,
-            mode=cam_mode,
-        )
-        return xm, cam
+        return x, cam
     return x, None
-
-
-def _build_cam_masked(x0, xm, cam):
-    if cam is None:
-        return None
-    eps = 1e-8
-    mask2d = (xm - x0).abs().sum(dim=1) > eps
-    cam_masked = cam[:, 0].detach().clone()
-    cam_masked[mask2d] = 1.0
-    return cam_masked
 
 
 def _show_panel(ax, image, title, **imshow_kwargs):
@@ -61,41 +59,36 @@ def _show_panel(ax, image, title, **imshow_kwargs):
         ax.set_title(title)
     ax.axis("off")
 
-def save_one(mode, out_dir, x, model, cam_runner, area=0.3, block=8):
+def save_one(mode, out_dir, x, model, cam_runner):
     os.makedirs(out_dir, exist_ok=True)
 
     x0 = x.clone()
-    xm, cam = _apply_mask(mode, x, model, cam_runner, area, block)
+    _, cam = _apply_mask(mode, x, model, cam_runner)
 
     # unnormalize for viewing
     x0_vis = unnormalize(x0)
-    xm_vis = unnormalize(xm)
-
-    cam_masked = _build_cam_masked(x0, xm, cam)
 
     # save first 8 samples as a grid-like panel (matplotlib)
     B = min(8, x.size(0))
     
-    # Determine number of columns based on mode
-    num_cols = 2 if mode in ("random", "none") else 4
-    fig, axes = plt.subplots(B, num_cols, figsize=(7 if num_cols == 2 else 13, 2 * B))
+    # Show original + HiResCAM heatmap
+    num_cols = 2
+    fig, axes = plt.subplots(B, num_cols, figsize=(7, 2 * B))
     if B == 1:
         axes = axes.reshape(1, -1)
 
     for i in range(B):
         _show_panel(axes[i, 0], to_img(x0_vis[i]), "original")
-        _show_panel(axes[i, 1], to_img(xm_vis[i]), "masked")
-
-        if num_cols == 4:
-            cam_img = cam[i, 0].detach().cpu().numpy() if cam is not None else None
-            cam_masked_img = cam_masked[i].detach().cpu().numpy() if cam_masked is not None else None
-            _show_panel(axes[i, 2], cam_img, "CAM", vmin=0, vmax=1)
-            _show_panel(axes[i, 3], cam_masked_img, "CAM w/ mask", vmin=0, vmax=1)
+        if cam is not None:
+            cam_img = cam[i, 0].detach().cpu().numpy()
+            _show_panel(axes[i, 1], cam_img, "HiResCAM", vmin=0, vmax=1)
+        else:
+            axes[i, 1].axis("off")
 
     plt.tight_layout()
     path = os.path.join(out_dir, f"{mode}_panel.png")
     plt.savefig(path, dpi=150)
-    logger.info(f"Saved {mode} mask visualization to {path}")
+    logger.info(f"Saved {mode} visualization to {path}")
     plt.close()
 
 
@@ -108,13 +101,15 @@ def _setup_subplot(ax, xlabel, ylabel, title):
 
 
 def _build_parser():
-    p = argparse.ArgumentParser("CAM Mask Visualization")
-    p.add_argument("--dataset", type=str, default="cifar100")
-    p.add_argument("--data_dir", type=str, default="./data")
-    p.add_argument("--model", type=str, default="resnet18")
-    p.add_argument("--batch_size", type=int, default=128)
-    p.add_argument("--num_workers", type=int, default=0)
-    p.add_argument("--val_split", type=float, default=0.15)
+    p = argparse.ArgumentParser("HiResCAM Visualization")
+    add_dataset_model_args(p, default_dataset="cifar100", default_model="resnet18")
+    add_data_loading_args(
+        p,
+        data_dir_default="./data",
+        batch_size_default=128,
+        num_workers_default=0,
+        val_split_default=0.15,
+    )
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--preview_split", type=str, choices=["train", "test"], default="test")
     p.add_argument("--warmup_epochs", type=int, default=15)
@@ -126,8 +121,6 @@ def _build_parser():
                    help="Limit warmup batches per epoch for faster preview (0 = full epoch).")
     p.add_argument("--cam_layer", type=str, default="auto")
     p.add_argument("--out_dir", type=str, default="./mask_images")
-    p.add_argument("--area", type=float, default=0.15)
-    p.add_argument("--block", type=int, default=6)
     return p
 
 
@@ -319,11 +312,10 @@ def main():
 
     selected_layer_name, target_module = resolve_cam_target_module(model, args.cam_layer)
     logger.info(f"CAM target layer resolved to '{selected_layer_name}'")
-    cam_runner = GradCAM(model, target_module)
+    cam_runner = HiResCAM(model, target_module)
 
     out_dir = args.out_dir
-    for mode in ["none", "random", "cam_high", "cam_low"]:
-        save_one(mode, out_dir, x, model, cam_runner, area=args.area, block=args.block)
+    save_one("heatmap", out_dir, x, model, cam_runner)
 
 
 if __name__ == "__main__":

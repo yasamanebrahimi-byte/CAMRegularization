@@ -12,9 +12,8 @@ from dataset_registry import (
     infer_num_classes_from_loader,
 )
 from engine import train_one_epoch, evaluate
-from cam_masking import GradCAM, resolve_cam_target_module
 from utils import set_seed, infer_input_size_from_loader
-from IOutils import build_parser, make_run_dir, write_json, append_csv
+from IOutils import build_parser, append_csv, init_run_dir_with_config
 from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
 import time
@@ -29,7 +28,7 @@ def build_optimizer(args, model):
         nesterov = args.nesterov
     )
 
-def train_with_config(args, run_dir=None, logger=None):
+def train_with_config(args, run_dir=None, logger=None, return_model=False):
     logger = logger or SimpleLogger()
     set_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -37,19 +36,6 @@ def train_with_config(args, run_dir=None, logger=None):
 
     effective_batch_size = int(args.batch_size)
     default_input_size = get_default_input_size(args.dataset)
-    if (
-        device == "cuda"
-        and args.masking in {"cam_high", "cam_low"}
-        and default_input_size >= 224
-        and effective_batch_size > 32
-    ):
-        logger.info(
-            "Reducing batch_size from %s to 32 for CAM masking on %spx inputs to reduce CUDA OOM risk.",
-            effective_batch_size,
-            default_input_size,
-        )
-        effective_batch_size = 32
-        args.batch_size = effective_batch_size
     
     # Load dataset using registry
     dataset_kwargs = {
@@ -66,32 +52,6 @@ def train_with_config(args, run_dir=None, logger=None):
     num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
     input_size = infer_input_size_from_loader(train_dl, get_default_input_size(args.dataset))
     model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
-    cam_runner = None
-    masking_cfg = None
-
-    if args.masking != "none":
-        effective_mask_warmup_epochs = args.mask_warmup_epochs
-        if args.masking in {"cam_high", "cam_low"} and effective_mask_warmup_epochs <= 0:
-            effective_mask_warmup_epochs = max(1, args.warmup_epochs)
-            logger.info(
-                "mask_warmup_epochs <= 0 is not recommended for CAM masking; "
-                f"using {effective_mask_warmup_epochs} instead."
-            )
-
-        if args.masking in {"cam_high", "cam_low"}:
-            selected_layer_name, target_module = resolve_cam_target_module(model, args.cam_layer)
-            cam_runner = GradCAM(model, target_module)
-            logger.info(f"CAM target layer resolved to '{selected_layer_name}'")
-
-        masking_cfg = {
-            "strategy": args.masking,             # none/random/cam_high/cam_low
-            "warmup_epochs": effective_mask_warmup_epochs,
-            "prob": args.mask_prob,
-            "area": args.mask_area,
-            "block": args.mask_block,
-            "cam_layer": args.cam_layer,
-        }
-        logger.info(f"Masking enabled: {masking_cfg}")
 
     logger.info(f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes}")
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
@@ -127,7 +87,6 @@ def train_with_config(args, run_dir=None, logger=None):
             model, train_dl, criterion, optimizer,
             scaler if scaler.is_enabled() else None,
             device, log_every=args.log_every,
-            epoch=epoch, masking_cfg=masking_cfg, cam_runner=cam_runner
         )
 
         if val_dl is not None:
@@ -171,20 +130,22 @@ def train_with_config(args, run_dir=None, logger=None):
     if metrics_csv is not None and run_dir is not None:
         plot_metrics(metrics_csv, run_dir)
     
-    return {
+    result = {
         "final_test_acc1": final_test_acc1,
         "final_test_f1": final_test_f1,
         "best_val_acc": best,
         "final_test_loss": final_test_loss
     }
+    if return_model:
+        return result, model
+    return result
 
 
 def main():
     args = build_parser().parse_args()
 
     # saving results (creates run dir) and setup per-run logging
-    run_dir = make_run_dir(args.out_dir, args.run_name)
-    write_json(os.path.join(run_dir, "config.json"), vars(args))
+    run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
 
     # create centralized log directory and a unique log file for this run
     log_root = Path.cwd() / "log"

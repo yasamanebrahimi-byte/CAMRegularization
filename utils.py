@@ -60,18 +60,6 @@ def infer_input_size_from_loader(loader, fallback_size: int) -> int:
 def accuracy_top1(logits, targets):
     return (logits.argmax(dim=1) == targets).float().mean().item()
 
-@torch.no_grad()
-def macro_f1_score(logits, targets):
-    """Compute macro F1 for a batch using all classes present in logits."""
-    num_classes = int(logits.size(1))
-    if num_classes <= 0:
-        return 0.0
-
-    preds = logits.argmax(dim=1)
-    encoded = targets * num_classes + preds
-    conf = torch.bincount(encoded, minlength=num_classes * num_classes).reshape(num_classes, num_classes)
-    return macro_f1_from_confusion(conf)
-
 
 @torch.no_grad()
 def macro_f1_from_confusion(confusion_matrix: torch.Tensor) -> float:

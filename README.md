@@ -105,16 +105,13 @@ This project is intentionally organized so each file has a narrow role.
 
 - `train.py`: end-to-end training entry point and training loop orchestration.
 - `engine.py`: core epoch-level routines (`train_one_epoch`, `evaluate`, `warmup_model`).
-- `cam_masking.py`: GradCAM generation and masking operations.
+- `cam_masking.py`: HiResCAM generation and CAM target layer resolution.
 - `dataset_registry.py`: dataset loading and dataset-specific metadata.
 - `model_registry.py`: model construction and model-specific defaults.
 - `utils.py`: pure utility helpers (seed, metrics, shared parameter/context transforms).
 - `IOutils.py`: argument parsing, run directory setup, and JSON/CSV persistence helpers.
 - `graphics.py`: plotting and visualization helpers (metrics, tuning plots, CAM preview panels).
 - `tune.py`: base hyperparameter grid search.
-- `mask_tune.py`: full mask-parameter grid search (optionally per masking mode).
-- `greedy_tune.py`: greedy stage-wise mask-parameter search.
-- `tune_optuna.py`: Optuna multi-fidelity mask tuning.
 
 ## Typical Use Cases
 
@@ -159,41 +156,13 @@ Output:
 - `runs/<model>_<dataset>/tuning_results/ranked_by_val.csv`
 - tuning summary plots
 
-### 4) Tune mask hyperparameters with full grid search
+### 4) Compare CAM masking variants
 
-Use when exhaustive mask-search coverage is preferred.
-
-```bash
-python mask_tune.py --dataset cifar100 --model resnet18 --masking_type all
-```
-
-To tune only one masking mode:
+Use when you want to generate and evaluate external HiResCAM-masked dataset variants.
 
 ```bash
-python mask_tune.py --masking_type cam_high
+python comparison.py --dataset cifar100 --model resnet18 --input_models resnet18 resnet34
 ```
-
-### 5) Tune mask hyperparameters with greedy search
-
-Use when you need lower compute than full grid search.
-
-```bash
-python greedy_tune.py --dataset cifar100 --model resnet18 --masking_type all
-```
-
-### 6) Tune mask hyperparameters with Optuna
-
-Use when you want adaptive search + pruning.
-
-```bash
-python tune_optuna.py --dataset cifar100 --model resnet18 --runs_root ./runs --n_jobs 1
-```
-
-Optional controls:
-
-- `--masking_type {all,random,cam_high,cam_low}`
-- `--min_resource_epochs`
-- `--max_resource_epochs`
 - `--reduction_factor`
 
 ## Configuration Notes

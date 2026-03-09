@@ -72,7 +72,7 @@ def cartesian_product(grid: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
     return combos
 
 
-def format_run_name(all_params: Dict[str, Any], fixed_params: Dict[str, Any], dataset: str, model: str) -> str:
+def format_run_name(all_params: Dict[str, Any], dataset: str, model: str) -> str:
     wd = float(all_params["weight_decay"])
     return (
         f"tune_{model}_{dataset}_ep{all_params['epochs']}_bs{all_params['batch_size']}_lr{all_params['lr']}"
@@ -138,7 +138,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
 
     optimal_params = load_optimal_config_params(cfg, logger=logger)
     if optimal_params is not None:
-        run_name = format_run_name(optimal_params, FIXED_PARAMS, cfg.dataset, cfg.model)
+        run_name = format_run_name(optimal_params, cfg.dataset, cfg.model)
         logger.info(
             f"Found {OPTIMAL_CONFIG_PATH}; running a single training configuration for {cfg.model} on {cfg.dataset}"
         )
@@ -170,7 +170,7 @@ def tune_hyperparameters(cfg: TuningConfig = TuningConfig()) -> Optional[Dict[st
                 epochs=cfg.epochs,
             )
 
-            run_name = format_run_name(all_params, FIXED_PARAMS, cfg.dataset, cfg.model)
+            run_name = format_run_name(all_params, cfg.dataset, cfg.model)
 
             logger.info(f"[{idx}/{len(combos)}] Running: {run_name}")
 

@@ -780,31 +780,43 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
         "loader": _cifar100_loader,
         "num_classes": 100,
         "default_input_size": 32,
+        "mean": (0.5071, 0.4867, 0.4408),
+        "std": (0.2675, 0.2565, 0.2761),
     },
     "tiny_imagenet": {
         "loader": _tiny_imagenet_loader,
         "num_classes": 200,
         "default_input_size": 64,
+        "mean": (0.4802, 0.4481, 0.3975),
+        "std": (0.2302, 0.2265, 0.2262),
     },
     "cub200": {
         "loader": _cub200_loader,
         "num_classes": 200,
         "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
     },
     "malimg": {
         "loader": _malimg_loader,
         "num_classes": 25,
         "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
     },
     "malware_classification": {
         "loader": _malware_classification_loader,
         "num_classes": 9,
         "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
     },
     "big2015": {
         "loader": _malware_classification_loader,
         "num_classes": 9,
         "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
     },
 }
 
@@ -891,6 +903,18 @@ def get_default_input_size(dataset_name: str) -> int:
             f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
         )
     return int(DATASET_REGISTRY[dataset_name]["default_input_size"])
+
+
+def get_normalization_params(dataset_name: str) -> Tuple[Tuple[float, ...], Tuple[float, ...]]:
+    """Return (mean, std) normalization parameters for the given dataset."""
+    if dataset_name not in DATASET_REGISTRY:
+        raise ValueError(
+            f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
+        )
+    info = DATASET_REGISTRY[dataset_name]
+    mean = info.get("mean", (0.485, 0.456, 0.406))
+    std = info.get("std", (0.229, 0.224, 0.225))
+    return mean, std
 
 def get_available_datasets() -> list:
     return list(DATASET_REGISTRY.keys())
