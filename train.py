@@ -50,7 +50,7 @@ def train_with_config(args, run_dir=None, logger=None, return_model=False):
     
     inferred_num_classes = infer_num_classes_from_loader(train_dl)
     num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
-    input_size = infer_input_size_from_loader(train_dl, get_default_input_size(args.dataset))
+    input_size = infer_input_size_from_loader(train_dl, default_input_size)
     model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
 
     logger.info(f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes}")
