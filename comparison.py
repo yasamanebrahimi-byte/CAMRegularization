@@ -35,8 +35,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 import torchvision
 import torchvision.transforms as T
 from PIL import Image
@@ -50,12 +48,8 @@ from dataset_registry import (
     get_num_classes,
     infer_num_classes_from_loader,
 )
-from engine import evaluate, train_one_epoch
-from graphics import plot_metrics
 from IOutils import (
-    append_csv,
     build_args_from_params,
-    make_run_dir,
     write_json,
     namespace_to_train_params,
     init_run_dir_with_config,
@@ -63,7 +57,6 @@ from IOutils import (
     add_training_hparam_args,
 )
 from logger import get_logger
-from model_registry import get_model
 from train import train_with_config
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
@@ -520,7 +513,7 @@ def train_output_on_variant(
     device: torch.device,
     logger,
 ) -> Dict[str, Any]:
-    """Train the output model on *variant* training data, evaluate on the original test set."""
+    """Train output model via train_with_config on variant train data, evaluate on original test set."""
     resolved = _resolve_training_args(cli_args, config, cli_args.output_model, cli_args.dataset)
 
     logger.info(f"\n{'='*60}")
@@ -530,96 +523,49 @@ def train_output_on_variant(
         f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
         f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
     )
+    logger.info("  Eval split during training is forced to original test for fair comparability")
     logger.info(f"{'='*60}")
 
     variant_dir = variant_root / variant
-    train_dl, val_dl, _ = _build_variant_loaders(
+    train_dl, _, _ = _build_variant_loaders(
         variant_dir,
         resolved.dataset,
         resolved.batch_size,
         resolved.num_workers,
-        resolved.val_split,
+        0.0,
         resolved.seed,
     )
 
-    model = get_model(resolved.output_model, num_classes=num_classes, input_size=input_size).to(device)
-    criterion = nn.CrossEntropyLoss(label_smoothing=resolved.label_smoothing)
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=resolved.lr,
-        momentum=resolved.momentum,
-        weight_decay=resolved.weight_decay,
-        nesterov=resolved.nesterov,
+    params = namespace_to_train_params(
+        resolved,
+        model=resolved.output_model,
+        dataset=resolved.dataset,
+        out_dir=cli_args.out_dir,
+        run_name=f"output_{variant}",
+    )
+    args = build_args_from_params(params)
+    run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
+
+    result = train_with_config(
+        args,
+        run_dir=run_dir,
+        logger=logger,
+        train_dl=train_dl,
+        val_dl=None,
+        test_dl=original_test_dl,
     )
 
-    # Scheduler
-    if resolved.scheduler == "multistep":
-        ms = [int(x) for x in resolved.milestones.split(",") if x.strip()]
-        main_sched = optim.lr_scheduler.MultiStepLR(optimizer, milestones=ms, gamma=resolved.gamma)
-    else:
-        main_sched = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=max(1, resolved.epochs - resolved.warmup_epochs), eta_min=resolved.min_lr
-        )
-
-    if resolved.warmup_epochs > 0:
-        warmup_sched = optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-3, total_iters=resolved.warmup_epochs)
-        scheduler = optim.lr_scheduler.SequentialLR(
-            optimizer, schedulers=[warmup_sched, main_sched], milestones=[resolved.warmup_epochs]
-        )
-    else:
-        scheduler = main_sched
-
-    scaler = torch.amp.GradScaler(enabled=(resolved.amp and device.type == "cuda"))
-
-    run_dir = make_run_dir(resolved.out_dir, f"output_{variant}")
-    metrics_csv = os.path.join(run_dir, "metrics.csv")
-    header = ["epoch", "lr", "train_loss", "train_acc1", "train_f1",
-              "eval_loss", "eval_acc1", "eval_f1", "eval_split"]
-    append_csv(metrics_csv, [], header=header, mode="w")
-
-    best = 0.0
-    for epoch in range(resolved.epochs):
-        lr_now = optimizer.param_groups[0]["lr"]
-        tr_loss, tr_a1, tr_f1 = train_one_epoch(
-            model, train_dl, criterion, optimizer,
-            scaler if scaler.is_enabled() else None,
-            device, log_every=resolved.log_every,
-        )
-
-        if val_dl is not None:
-            ev_loss, ev_a1, ev_f1 = evaluate(model, val_dl, criterion, device)
-            split = "val"
-            metric = ev_a1
-        else:
-            ev_loss, ev_a1, ev_f1 = evaluate(model, original_test_dl, criterion, device)
-            split = "test"
-            metric = ev_a1
-
-        append_csv(metrics_csv, [
-            epoch + 1, f"{lr_now:.8f}",
-            f"{tr_loss:.6f}", f"{tr_a1:.6f}", f"{tr_f1:.6f}",
-            f"{ev_loss:.6f}", f"{ev_a1:.6f}", f"{ev_f1:.6f}", split,
-        ])
-
-        if metric > best:
-            best = metric
-
-        scheduler.step()
-
-    # Final evaluation on the original test set (fair comparison)
-    te_loss, te_a1, te_f1 = evaluate(model, original_test_dl, criterion, device)
     logger.info(
-        f"Variant [{variant}] done — test acc {te_a1*100:.2f}%, "
-        f"test F1 {te_f1*100:.2f}%, test loss {te_loss:.4f}"
+        f"Variant [{variant}] done — test acc {result['final_test_acc1']*100:.2f}%, "
+        f"test F1 {result['final_test_f1']*100:.2f}%, test loss {result['final_test_loss']:.4f}"
     )
-    plot_metrics(metrics_csv, run_dir)
 
     return {
         "variant": variant,
-        "final_test_acc1": te_a1,
-        "final_test_f1": te_f1,
-        "final_test_loss": te_loss,
-        "best_val_acc": best,
+        "final_test_acc1": result["final_test_acc1"],
+        "final_test_f1": result["final_test_f1"],
+        "final_test_loss": result["final_test_loss"],
+        "best_val_acc": result["best_val_acc"],
     }
 
 

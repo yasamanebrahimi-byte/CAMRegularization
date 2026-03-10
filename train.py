@@ -28,7 +28,15 @@ def build_optimizer(args, model):
         nesterov = args.nesterov
     )
 
-def train_with_config(args, run_dir=None, logger=None, return_model=False):
+def train_with_config(
+    args,
+    run_dir=None,
+    logger=None,
+    return_model=False,
+    train_dl=None,
+    val_dl=None,
+    test_dl=None,
+):
     logger = logger or SimpleLogger()
     set_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -36,17 +44,18 @@ def train_with_config(args, run_dir=None, logger=None, return_model=False):
 
     effective_batch_size = int(args.batch_size)
     default_input_size = get_default_input_size(args.dataset)
-    
-    # Load dataset using registry
-    dataset_kwargs = {
-        "val_split": args.val_split,
-        "seed": args.seed,
-    }
 
-    train_dl, val_dl, test_dl = get_dataset_loaders(
-        args.dataset, args.data_dir, effective_batch_size, args.num_workers,
-        **dataset_kwargs,
-    )
+    # Load dataset using registry unless explicit loaders are provided
+    if train_dl is None or test_dl is None:
+        dataset_kwargs = {
+            "val_split": args.val_split,
+            "seed": args.seed,
+        }
+
+        train_dl, val_dl, test_dl = get_dataset_loaders(
+            args.dataset, args.data_dir, effective_batch_size, args.num_workers,
+            **dataset_kwargs,
+        )
     
     inferred_num_classes = infer_num_classes_from_loader(train_dl)
     num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
