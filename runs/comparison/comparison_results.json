@@ -1,30 +1,30 @@
 {
   "high_saliency": {
-    "best_val_acc": 0.6480914519892799,
-    "final_test_acc1": 0.0435546875,
-    "final_test_f1": 0.025201594457030296,
-    "final_test_loss": 7.482435375452042,
+    "best_val_acc": 0.9702524145444235,
+    "final_test_acc1": 0.6970279365777969,
+    "final_test_f1": 0.38503652811050415,
+    "final_test_loss": 1.4697495996952057,
     "variant": "high_saliency"
   },
   "low_saliency": {
-    "best_val_acc": 0.8023824625545077,
-    "final_test_acc1": 0.68212890625,
-    "final_test_f1": 0.678295910358429,
-    "final_test_loss": 1.3384191334247588,
+    "best_val_acc": 0.9688279231389364,
+    "final_test_acc1": 0.6383670195937157,
+    "final_test_f1": 0.4646783471107483,
+    "final_test_loss": 1.6409459859132767,
     "variant": "low_saliency"
   },
   "original": {
-    "best_val_acc": 0.7658420138888888,
-    "final_test_acc1": 0.76357421875,
-    "final_test_f1": 0.7583228945732117,
-    "final_test_loss": 1.0185609471052885,
+    "best_val_acc": 0.9740362564722697,
+    "final_test_acc1": 0.9573515951633453,
+    "final_test_f1": 0.8838636875152588,
+    "final_test_loss": 0.8546336591243744,
     "variant": "original"
   },
   "random": {
-    "best_val_acc": 0.7329321503639221,
-    "final_test_acc1": 0.723828125,
-    "final_test_f1": 0.7206509113311768,
-    "final_test_loss": 1.2189932588487864,
+    "best_val_acc": 0.9581664204597473,
+    "final_test_acc1": 0.34490223973989487,
+    "final_test_f1": 0.23172399401664734,
+    "final_test_loss": 2.545402944087982,
     "variant": "random"
   }
 }
