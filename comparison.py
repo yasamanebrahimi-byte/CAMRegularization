@@ -692,14 +692,12 @@ def main():
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    log_root = Path.cwd() / "log"
-    log_root.mkdir(parents=True, exist_ok=True)
+    os.makedirs(args.out_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_path = log_root / f"comparison_{args.dataset}_{timestamp}.log"
+    log_path = Path(args.out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=True)
     logger.info(f"Comparison pipeline | device={device} | args={json.dumps(vars(args), sort_keys=True)}")
 
-    os.makedirs(args.out_dir, exist_ok=True)
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
     num_classes = get_num_classes(args.dataset)
