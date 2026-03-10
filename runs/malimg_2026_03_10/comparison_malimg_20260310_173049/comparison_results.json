@@ -1,0 +1,14 @@
+{
+  "resnet18": {
+    "high_saliency": null,
+    "low_saliency": null,
+    "original": null,
+    "random": null
+  },
+  "vit_b_16": {
+    "high_saliency": null,
+    "low_saliency": null,
+    "original": null,
+    "random": null
+  }
+}
