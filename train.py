@@ -147,12 +147,10 @@ def main():
     # saving results (creates run dir) and setup per-run logging
     run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
 
-    # create centralized log directory and a unique log file for this run
-    log_root = Path.cwd() / "log"
-    log_root.mkdir(parents=True, exist_ok=True)
+    # create a unique log file inside this run directory
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     run_name_for_log = Path(run_dir).name.replace(",", "-")
-    log_path = log_root / f"{run_name_for_log}_{timestamp}.log"
+    log_path = Path(run_dir) / f"{run_name_for_log}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=False)
 
     logger.info(f"Run parameters: {json.dumps(vars(args), sort_keys=True)}")

@@ -692,11 +692,18 @@ def main():
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    os.makedirs(args.out_dir, exist_ok=True)
+    base_out_dir = args.out_dir
+    run_name = args.run_name.strip() if getattr(args, "run_name", "") else ""
+    if not run_name:
+        run_name = f"comparison_{args.dataset}_{time.strftime('%Y%m%d_%H%M%S')}"
+
+    run_dir = init_run_dir_with_config(base_out_dir, run_name, vars(args))
+    args.out_dir = run_dir
+
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_path = Path(args.out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
+    log_path = Path(run_dir) / f"comparison_{args.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=True)
-    logger.info(f"Comparison pipeline | device={device} | args={json.dumps(vars(args), sort_keys=True)}")
+    logger.info(f"Comparison pipeline | device={device} | run_dir={run_dir} | args={json.dumps(vars(args), sort_keys=True)}")
 
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
@@ -780,7 +787,7 @@ def main():
             comparison_results[variant] = None
 
     # ── Step 6: save and display comparison ───────────────────────────────
-    results_path = os.path.join(args.out_dir, "comparison_results.json")
+    results_path = os.path.join(run_dir, "comparison_results.json")
     write_json(results_path, comparison_results)
     logger.info(f"\nResults saved to {results_path}")
 
