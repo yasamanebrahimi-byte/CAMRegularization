@@ -7,10 +7,10 @@ dataset variants:
 
     1) original   – unchanged images
     2) random     – one fixed random mask per image (budget-matched to CAM masks)
-    3) low_saliency  – hide pixels where merged HiResCAM <= 0.3
-    4) high_saliency – hide pixels where merged HiResCAM >= 0.7
+    3) low_saliency  – hide pixels where merged HiResCAM <= threshold
+    4) high_saliency – hide pixels where merged HiResCAM >= (1 - threshold)
 
-A separate *output* model is then trained on each variant and evaluated on the
+A set of *output* models is then trained on each variant and evaluated on the
 *original* test set so the comparison is fair.  Accuracy, weighted-F1 and loss are
 reported side by side at the end.
 
@@ -18,7 +18,7 @@ Usage example
 ─────────────
     python comparison.py \\
         --input_models resnet18 resnet34 \\
-        --output_model resnet50 \\
+        --output_models resnet50 resnet32 \\
         --dataset cifar100 \\
         --epochs 100 --batch_size 128
 """
@@ -26,7 +26,6 @@ Usage example
 import argparse
 import json
 import os
-import random
 import time
 import traceback
 from pathlib import Path
@@ -137,10 +136,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Names of input models to train and generate HiResCAMs from (e.g. resnet18 resnet34)",
     )
     p.add_argument(
-        "--output_model",
-        type=str,
+        "--output_models",
+        nargs="+",
         required=True,
-        help="Name of the downstream output model to evaluate on the masked datasets",
+        help="Names of downstream output models to evaluate on the masked datasets",
     )
 
     # Dataset
@@ -152,15 +151,14 @@ def _build_parser() -> argparse.ArgumentParser:
         num_workers_default=2,
         val_split_default=0.1,
     )
-    p.add_argument("--out_dir", type=str, default="./runs/comparison")
+    p.add_argument("--out_dir", type=str, default=None)
 
     # Training hyper-parameters (shared by input and output training)
     add_training_hparam_args(p, epochs_default=100, lr_default=0.1, momentum_default=0.9, weight_decay_default=5e-4)
 
     # CAM
     p.add_argument("--cam_layer", type=str, default="auto")
-    p.add_argument("--low_threshold", type=float, default=0.3)
-    p.add_argument("--high_threshold", type=float, default=0.7)
+    p.add_argument("--threshold", type=float, default=0.3)
 
     # Config file
     p.add_argument(
@@ -367,8 +365,7 @@ def generate_and_save_variants(
     std: Tuple,
     device: torch.device,
     cam_layer: str,
-    low_thr: float,
-    high_thr: float,
+    threshold: float,
     seed: int,
     logger,
 ) -> None:
@@ -402,22 +399,20 @@ def generate_and_save_variants(
             pil_orig = tensor_to_pil_image(img_01)
             pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
 
-            # 2) Low saliency — hide pixels where cam <= low_thr
-            low_mask = (cam_i <= low_thr).float()  # 1 where to hide
+            # 2) Low saliency — hide pixels where cam <= threshold
+            low_mask = (cam_i <= threshold).float()  # 1 where to hide
             img_low = img_01 * (1 - low_mask)
             tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
 
-            # 3) High saliency — hide pixels where cam >= high_thr
-            high_mask = (cam_i >= high_thr).float()
+            # 3) High saliency — hide pixels where cam >= (1 - threshold)
+            high_mask = (cam_i >= (1.0 - threshold)).float()
             img_high = img_01 * (1 - high_mask)
             tensor_to_pil_image(img_high).save(str(variant_root / "high_saliency" / split / cls_name / fname))
 
-            # 4) Random — match budget (average of low + high mask counts)
-            low_count = int(low_mask.sum().item())
-            high_count = int(high_mask.sum().item())
-            random_budget = int(round((low_count + high_count) / 2))
+            # 4) Random — mask same percentage as threshold
             H, W = cam_i.shape
             total_pixels = H * W
+            random_budget = int(round(threshold * total_pixels))
             random_budget = min(random_budget, total_pixels)
             flat_indices = rng.choice(total_pixels, size=random_budget, replace=False)
             random_mask = torch.zeros(H * W)
@@ -505,8 +500,10 @@ def _build_variant_loaders(
 def train_output_on_variant(
     cli_args,
     config: Dict[str, Any],
+    output_model: str,
     variant: str,
     variant_root: Path,
+    results_root: Path,
     original_test_dl: DataLoader,
     num_classes: int,
     input_size: int,
@@ -514,10 +511,10 @@ def train_output_on_variant(
     logger,
 ) -> Dict[str, Any]:
     """Train output model via train_with_config on variant train data, evaluate on original test set."""
-    resolved = _resolve_training_args(cli_args, config, cli_args.output_model, cli_args.dataset)
+    resolved = _resolve_training_args(cli_args, config, output_model, cli_args.dataset)
 
     logger.info(f"\n{'='*60}")
-    logger.info(f"Training output model ({resolved.output_model}) on variant: {variant}")
+    logger.info(f"Training output model ({output_model}) on variant: {variant}")
     logger.info(
         f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
         f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
@@ -538,17 +535,19 @@ def train_output_on_variant(
 
     params = namespace_to_train_params(
         resolved,
-        model=resolved.output_model,
+        model=output_model,
         dataset=resolved.dataset,
-        out_dir=cli_args.out_dir,
-        run_name=f"output_{variant}",
+        out_dir=str(results_root / output_model / variant),
+        run_name=f"output_{output_model}_{variant}",
     )
     args = build_args_from_params(params)
-    run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
+    run_dir = Path(results_root) / output_model / variant
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_json(str(run_dir / "config.json"), vars(args))
 
     result = train_with_config(
         args,
-        run_dir=run_dir,
+        run_dir=str(run_dir),
         logger=logger,
         train_dl=train_dl,
         val_dl=None,
@@ -561,6 +560,7 @@ def train_output_on_variant(
     )
 
     return {
+        "output_model": output_model,
         "variant": variant,
         "final_test_acc1": result["final_test_acc1"],
         "final_test_f1": result["final_test_f1"],
@@ -574,40 +574,40 @@ def train_output_on_variant(
 # ---------------------------------------------------------------------------
 
 
-def print_comparison(results: Dict[str, Dict[str, Any]], logger) -> None:
-    """Pretty-print a comparison table of variant results."""
-    logger.info(f"\n{'='*72}")
-    logger.info("COMPARISON RESULTS")
-    logger.info(f"{'='*72}")
-    logger.info(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
-    logger.info(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
-    for variant in VARIANTS:
-        r = results.get(variant)
-        if r is None:
-            logger.info(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
-        else:
-            acc = f"{r['final_test_acc1']*100:.2f}%"
-            f1 = f"{r['final_test_f1']*100:.2f}%"
-            loss = f"{r['final_test_loss']:.4f}"
-            logger.info(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
-    logger.info(f"{'='*72}")
+def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> None:
+    """Pretty-print per-output-model comparison tables of variant results."""
+    for output_model, model_results in results.items():
+        logger.info(f"\n{'='*72}")
+        logger.info(f"COMPARISON RESULTS — output model: {output_model}")
+        logger.info(f"{'='*72}")
+        logger.info(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
+        logger.info(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
+        for variant in VARIANTS:
+            r = model_results.get(variant)
+            if r is None:
+                logger.info(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
+            else:
+                acc = f"{r['final_test_acc1']*100:.2f}%"
+                f1 = f"{r['final_test_f1']*100:.2f}%"
+                loss = f"{r['final_test_loss']:.4f}"
+                logger.info(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
+        logger.info(f"{'='*72}")
 
-    # Also print to console (logger alone may go only to file)
-    print(f"\n{'='*72}")
-    print("COMPARISON RESULTS")
-    print(f"{'='*72}")
-    print(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
-    print(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
-    for variant in VARIANTS:
-        r = results.get(variant)
-        if r is None:
-            print(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
-        else:
-            acc = f"{r['final_test_acc1']*100:.2f}%"
-            f1 = f"{r['final_test_f1']*100:.2f}%"
-            loss = f"{r['final_test_loss']:.4f}"
-            print(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
-    print(f"{'='*72}")
+        print(f"\n{'='*72}")
+        print(f"COMPARISON RESULTS — output model: {output_model}")
+        print(f"{'='*72}")
+        print(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
+        print(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
+        for variant in VARIANTS:
+            r = model_results.get(variant)
+            if r is None:
+                print(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
+            else:
+                acc = f"{r['final_test_acc1']*100:.2f}%"
+                f1 = f"{r['final_test_f1']*100:.2f}%"
+                loss = f"{r['final_test_loss']:.4f}"
+                print(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
+        print(f"{'='*72}")
 
 
 # ---------------------------------------------------------------------------
@@ -623,9 +623,15 @@ def main():
     assert len(set(args.input_models)) == len(args.input_models), (
         "All input models must be distinct."
     )
-    assert args.output_model not in args.input_models, (
-        f"Output model '{args.output_model}' must differ from all input models."
+    assert len(args.output_models) > 0, "At least one output model is required."
+    assert len(set(args.output_models)) == len(args.output_models), (
+        "All output models must be distinct."
     )
+    overlap = set(args.output_models).intersection(set(args.input_models))
+    assert len(overlap) == 0, (
+        f"Output models {sorted(overlap)} must differ from all input models."
+    )
+    assert 0.0 <= args.threshold <= 1.0, "--threshold must be in [0, 1]."
 
     # ── Load per-model/dataset config ─────────────────────────────────────
     config = _load_config(args.config)
@@ -638,7 +644,11 @@ def main():
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    base_out_dir = args.out_dir
+    if args.out_dir:
+        base_out_dir = args.out_dir
+    else:
+        date_tag = time.strftime("%Y_%m_%d")
+        base_out_dir = os.path.join("./runs", f"{args.dataset}_{date_tag}")
     run_name = args.run_name.strip() if getattr(args, "run_name", "") else ""
     if not run_name:
         run_name = f"comparison_{args.dataset}_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -690,8 +700,7 @@ def main():
             std=std,
             device=device,
             cam_layer=args.cam_layer,
-            low_thr=args.low_threshold,
-            high_thr=args.high_threshold,
+            threshold=args.threshold,
             seed=args.seed,
             logger=logger,
         )
@@ -718,19 +727,32 @@ def main():
     if inferred is not None:
         num_classes = inferred
 
-    # ── Step 5: train output model on each variant ────────────────────────
+    # ── Step 5: train each output model on each variant ───────────────────
     comparison_results: Dict[str, Dict[str, Any]] = {}
-    for variant in VARIANTS:
-        try:
-            result = train_output_on_variant(
-                args, config, variant, variant_root, orig_test_dl,
-                num_classes, input_size, device, logger,
-            )
-            comparison_results[variant] = result
-        except Exception as exc:
-            logger.error(f"Training on variant '{variant}' failed: {exc}")
-            logger.error(traceback.format_exc())
-            comparison_results[variant] = None
+    output_results_root = Path(base_out_dir)
+    for output_model in args.output_models:
+        comparison_results[output_model] = {}
+        logger.info(f"\nStarting output model sweep: {output_model}")
+        for variant in VARIANTS:
+            try:
+                result = train_output_on_variant(
+                    args=args,
+                    config=config,
+                    output_model=output_model,
+                    variant=variant,
+                    variant_root=variant_root,
+                    results_root=output_results_root,
+                    original_test_dl=orig_test_dl,
+                    num_classes=num_classes,
+                    input_size=input_size,
+                    device=device,
+                    logger=logger,
+                )
+                comparison_results[output_model][variant] = result
+            except Exception as exc:
+                logger.error(f"Training output model '{output_model}' on variant '{variant}' failed: {exc}")
+                logger.error(traceback.format_exc())
+                comparison_results[output_model][variant] = None
 
     # ── Step 6: save and display comparison ───────────────────────────────
     results_path = os.path.join(run_dir, "comparison_results.json")
