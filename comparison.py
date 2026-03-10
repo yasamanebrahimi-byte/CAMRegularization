@@ -653,13 +653,14 @@ def main():
     if not run_name:
         run_name = f"comparison_{args.dataset}_{time.strftime('%Y%m%d_%H%M%S')}"
 
-    run_dir = init_run_dir_with_config(base_out_dir, run_name, vars(args))
-    args.out_dir = run_dir
+    Path(base_out_dir).mkdir(parents=True, exist_ok=True)
+    write_json(str(Path(base_out_dir) / "comparison_config.json"), vars(args))
+    args.out_dir = base_out_dir
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_path = Path(run_dir) / f"comparison_{args.dataset}_{timestamp}.log"
+    log_path = Path(base_out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=False)
-    logger.info(f"Comparison pipeline | device={device} | run_dir={run_dir} | args={json.dumps(vars(args), sort_keys=True)}")
+    logger.info(f"Comparison pipeline | device={device} | out_dir={base_out_dir} | args={json.dumps(vars(args), sort_keys=True)}")
 
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
@@ -736,7 +737,7 @@ def main():
         for variant in VARIANTS:
             try:
                 result = train_output_on_variant(
-                    args=args,
+                    cli_args=args,
                     config=config,
                     output_model=output_model,
                     variant=variant,
@@ -755,7 +756,7 @@ def main():
                 comparison_results[output_model][variant] = None
 
     # ── Step 6: save and display comparison ───────────────────────────────
-    results_path = os.path.join(run_dir, "comparison_results.json")
+    results_path = os.path.join(base_out_dir, "comparison_results.json")
     write_json(results_path, comparison_results)
     logger.info(f"\nResults saved to {results_path}")
 
