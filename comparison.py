@@ -658,7 +658,7 @@ def main():
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     log_path = Path(run_dir) / f"comparison_{args.dataset}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_path, console=True)
+    logger = get_logger(__name__, log_file=log_path, console=False)
     logger.info(f"Comparison pipeline | device={device} | run_dir={run_dir} | args={json.dumps(vars(args), sort_keys=True)}")
 
     mean, std = get_normalization_params(args.dataset)
