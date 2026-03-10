@@ -27,7 +27,7 @@ def plot_metrics(metrics_csv, run_dir):
     if {"train_f1", "eval_f1"}.issubset(df.columns):
         ax.plot(df["epoch"], df["train_f1"] * 100, "b--", linewidth=2, label="Train F1")
         ax.plot(df["epoch"], df["eval_f1"] * 100,  "r--", linewidth=2, label="Eval F1")
-        _setup_subplot(ax, "Epoch", "Score (%)", "Macro F1 (Train vs Eval)")
+        _setup_subplot(ax, "Epoch", "Score (%)", "Weighted F1 (Train vs Eval)")
     else:
         ax.axis("off")
     ax = axes[1, 1]

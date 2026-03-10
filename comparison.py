@@ -11,7 +11,7 @@ dataset variants:
     4) high_saliency – hide pixels where merged HiResCAM >= 0.7
 
 A separate *output* model is then trained on each variant and evaluated on the
-*original* test set so the comparison is fair.  Accuracy, macro-F1 and loss are
+*original* test set so the comparison is fair.  Accuracy, weighted-F1 and loss are
 reported side by side at the end.
 
 Usage example

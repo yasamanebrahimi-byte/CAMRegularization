@@ -173,7 +173,7 @@ python comparison.py --dataset cifar100 --model resnet18 --input_models resnet18
 
 - CAM masking (`cam_high` and `cam_low`) is delayed until `mask_warmup_epochs`.
 - `val_split > 0` enables validation tracking and best-val model selection logic.
-- Reported training metrics include top-1 accuracy and macro F1.
+- Reported training metrics include top-1 accuracy and weighted F1.
 
 ## Visualization
 
