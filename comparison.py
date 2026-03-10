@@ -26,8 +26,10 @@ Usage example
 import argparse
 import json
 import os
+import shutil
 import time
 import traceback
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -62,6 +64,66 @@ from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 VARIANTS = ["original", "random", "low_saliency", "high_saliency"]
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs.json")
+
+
+# ---------------------------------------------------------------------------
+# Variant zip caching helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_variant_zip_name(dataset: str, input_models: List[str]) -> str:
+    """Build a canonical zip filename from dataset and input model names.
+
+    Models are sorted alphabetically so the name is order-independent.
+    Example: malimg_densenet121_efficientnet_b0.zip
+    """
+    sorted_models = sorted(input_models)
+    return f"{dataset}_{'_'.join(sorted_models)}.zip"
+
+
+def _find_cached_variant_zip(data_dir: str, dataset: str, input_models: List[str]) -> Optional[Path]:
+    """Check if a cached variant zip exists in *data_dir* for the given
+    dataset / input-model combination (order-independent).  Returns the
+    Path to the zip if found, else None."""
+    zip_name = _build_variant_zip_name(dataset, input_models)
+    zip_path = Path(data_dir) / zip_name
+    if zip_path.is_file():
+        return zip_path
+    return None
+
+
+def _zip_variant_directory(variant_root: Path, data_dir: str, dataset: str,
+                           input_models: List[str], logger) -> Path:
+    """Compress the entire *variant_root* directory into a zip archive
+    stored in *data_dir* and return its path."""
+    zip_name = _build_variant_zip_name(dataset, input_models)
+    zip_path = Path(data_dir) / zip_name
+    logger.info(f"Zipping variant directory {variant_root} → {zip_path}")
+
+    with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
+        for file in sorted(variant_root.rglob("*")):
+            if file.is_file():
+                arcname = file.relative_to(variant_root.parent)
+                zf.write(str(file), str(arcname))
+
+    logger.info(f"Zip created: {zip_path} ({zip_path.stat().st_size / (1024**2):.1f} MB)")
+    return zip_path
+
+
+def _extract_variant_zip(zip_path: Path, data_dir: str, logger) -> Path:
+    """Extract a cached variant zip into *data_dir* and return the
+    variant_root directory (the top-level folder inside the zip)."""
+    logger.info(f"Extracting cached variant zip {zip_path} → {data_dir}")
+    with zipfile.ZipFile(str(zip_path), "r") as zf:
+        zf.extractall(data_dir)
+
+    # The zip was created with arcnames relative to variant_root.parent,
+    # so the top-level directory name is the variant_root folder name.
+    with zipfile.ZipFile(str(zip_path), "r") as zf:
+        top = zf.namelist()[0].split("/")[0]
+    variant_root = Path(data_dir) / top
+    logger.info(f"Extracted variant root: {variant_root}")
+    return variant_root
 
 
 # ---------------------------------------------------------------------------
@@ -666,45 +728,58 @@ def main():
     input_size = get_default_input_size(args.dataset)
     num_classes = get_num_classes(args.dataset)
 
-    # ── Step 1: train input models ────────────────────────────────────────
-    trained_models = train_input_models(args, config, logger)
-
-    # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─────
-    logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
-    train_dl, _, test_dl = get_dataset_loaders(
-        args.dataset, args.data_dir, args.batch_size, args.num_workers,
-        val_split=args.val_split, seed=args.seed,
-    )
-    eval_tfm = _get_eval_transform(args.dataset)
-    eval_train_ds = _get_raw_dataset(train_dl, eval_tfm)
-    eval_test_ds = _get_raw_dataset(test_dl, eval_tfm)
-
-    eval_train_dl = DataLoader(eval_train_ds, batch_size=args.batch_size, shuffle=False,
-                               num_workers=args.num_workers, pin_memory=True)
-    eval_test_dl = DataLoader(eval_test_ds, batch_size=args.batch_size, shuffle=False,
-                              num_workers=args.num_workers, pin_memory=True)
-
-    class_names = _get_class_names(train_dl)
-
-    # ── Step 3: generate and save four dataset variants ───────────────────
+    # ── Check for cached variant zip ───────────────────────────────────────
+    cached_zip = _find_cached_variant_zip(args.data_dir, args.dataset, args.input_models)
     variant_root = Path(args.data_dir) / f"comparison_{args.dataset}"
-    logger.info(f"\nSaving variant datasets to {variant_root}")
 
-    for split_name, dl in [("train", eval_train_dl), ("test", eval_test_dl)]:
-        generate_and_save_variants(
-            trained_models=trained_models,
-            dataloader=dl,
-            split=split_name,
-            variant_root=variant_root,
-            class_names=class_names,
-            mean=mean,
-            std=std,
-            device=device,
-            cam_layer=args.cam_layer,
-            threshold=args.threshold,
-            seed=args.seed,
-            logger=logger,
+    if cached_zip is not None:
+        logger.info(f"\nFound cached variant zip: {cached_zip}")
+        logger.info("Skipping input model training and variant generation.")
+        print(f"Found cached variant zip: {cached_zip} — skipping input training & CAM generation")
+        variant_root = _extract_variant_zip(cached_zip, args.data_dir, logger)
+    else:
+        # ── Step 1: train input models ────────────────────────────────────
+        trained_models = train_input_models(args, config, logger)
+
+        # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─
+        logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
+        train_dl, _, test_dl = get_dataset_loaders(
+            args.dataset, args.data_dir, args.batch_size, args.num_workers,
+            val_split=args.val_split, seed=args.seed,
         )
+        eval_tfm = _get_eval_transform(args.dataset)
+        eval_train_ds = _get_raw_dataset(train_dl, eval_tfm)
+        eval_test_ds = _get_raw_dataset(test_dl, eval_tfm)
+
+        eval_train_dl = DataLoader(eval_train_ds, batch_size=args.batch_size, shuffle=False,
+                                   num_workers=args.num_workers, pin_memory=True)
+        eval_test_dl = DataLoader(eval_test_ds, batch_size=args.batch_size, shuffle=False,
+                                  num_workers=args.num_workers, pin_memory=True)
+
+        class_names = _get_class_names(train_dl)
+
+        # ── Step 3: generate and save four dataset variants ───────────────
+        logger.info(f"\nSaving variant datasets to {variant_root}")
+
+        for split_name, dl in [("train", eval_train_dl), ("test", eval_test_dl)]:
+            generate_and_save_variants(
+                trained_models=trained_models,
+                dataloader=dl,
+                split=split_name,
+                variant_root=variant_root,
+                class_names=class_names,
+                mean=mean,
+                std=std,
+                device=device,
+                cam_layer=args.cam_layer,
+                threshold=args.threshold,
+                seed=args.seed,
+                logger=logger,
+            )
+
+        # ── Zip the variant directory for future reuse ────────────────────
+        _zip_variant_directory(variant_root, args.data_dir, args.dataset,
+                               args.input_models, logger)
 
     # ── Step 4: build the original test loader for fair evaluation ────────
     #    (all variants are evaluated on the *same* original test set)
