@@ -1,0 +1,70 @@
+{
+  "resnet18": {
+    "high_saliency": {
+      "best_val_acc": 0.9099444001913071,
+      "final_test_acc1": 0.8698433339595795,
+      "final_test_f1": 0.8574782609939575,
+      "final_test_loss": 0.5027351528406143,
+      "output_model": "resnet18",
+      "variant": "high_saliency"
+    },
+    "low_saliency": {
+      "best_val_acc": 0.9519004076719284,
+      "final_test_acc1": 0.9226035326719284,
+      "final_test_f1": 0.9036335945129395,
+      "final_test_loss": 0.29330408247187734,
+      "output_model": "resnet18",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.9846591800451279,
+      "final_test_acc1": 0.9843129813671112,
+      "final_test_f1": 0.9784574508666992,
+      "final_test_loss": 0.05661842074187007,
+      "output_model": "resnet18",
+      "variant": "original"
+    },
+    "random": {
+      "best_val_acc": 0.5887535065412521,
+      "final_test_acc1": 0.14873718470335007,
+      "final_test_f1": 0.12501958012580872,
+      "final_test_loss": 11.724268138408661,
+      "output_model": "resnet18",
+      "variant": "random"
+    }
+  },
+  "vit_b_16": {
+    "high_saliency": {
+      "best_val_acc": 0.8207051903009415,
+      "final_test_acc1": 0.7601583153009415,
+      "final_test_f1": 0.7011414170265198,
+      "final_test_loss": 1.401474416255951,
+      "output_model": "vit_b_16",
+      "variant": "high_saliency"
+    },
+    "low_saliency": {
+      "best_val_acc": 0.7888868153095245,
+      "final_test_acc1": 0.5857928246259689,
+      "final_test_f1": 0.5601996779441833,
+      "final_test_loss": 1.7497670650482178,
+      "output_model": "vit_b_16",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.9751157313585281,
+      "final_test_acc1": 0.9586743414402008,
+      "final_test_f1": 0.954696774482727,
+      "final_test_loss": 0.8052523136138916,
+      "output_model": "vit_b_16",
+      "variant": "original"
+    },
+    "random": {
+      "best_val_acc": 0.3565073162317276,
+      "final_test_acc1": 0.025106440065428615,
+      "final_test_f1": 0.018211187794804573,
+      "final_test_loss": 3.0369221568107605,
+      "output_model": "vit_b_16",
+      "variant": "random"
+    }
+  }
+}
