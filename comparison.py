@@ -33,7 +33,6 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
@@ -61,7 +60,7 @@ from logger import get_logger
 from train import train_with_config
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
-VARIANTS = ["original", "random", "low_saliency", "high_saliency"]
+VARIANTS = ["original", "low_saliency"]
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs.json")
 
@@ -428,10 +427,9 @@ def generate_and_save_variants(
     device: torch.device,
     cam_layer: str,
     threshold: float,
-    seed: int,
     logger,
 ) -> None:
-    """Generate and save all four dataset variants for one split (train or test)."""
+    """Generate and save two dataset variants for one split (train or test)."""
     logger.info(f"Generating {split} variants → {variant_root}")
 
     # Create output directories
@@ -440,7 +438,6 @@ def generate_and_save_variants(
             (variant_root / variant / split / cls_name).mkdir(parents=True, exist_ok=True)
 
     global_idx = 0
-    rng = np.random.RandomState(seed)
 
     for batch_idx, (images, labels) in enumerate(dataloader):
         images = images.to(device)
@@ -465,23 +462,6 @@ def generate_and_save_variants(
             low_mask = (cam_i <= threshold).float()  # 1 where to hide
             img_low = img_01 * (1 - low_mask)
             tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
-
-            # 3) High saliency — hide pixels where cam >= (1 - threshold)
-            high_mask = (cam_i >= (1.0 - threshold)).float()
-            img_high = img_01 * (1 - high_mask)
-            tensor_to_pil_image(img_high).save(str(variant_root / "high_saliency" / split / cls_name / fname))
-
-            # 4) Random — mask same percentage as threshold
-            H, W = cam_i.shape
-            total_pixels = H * W
-            random_budget = int(round(threshold * total_pixels))
-            random_budget = min(random_budget, total_pixels)
-            flat_indices = rng.choice(total_pixels, size=random_budget, replace=False)
-            random_mask = torch.zeros(H * W)
-            random_mask[flat_indices] = 1.0
-            random_mask = random_mask.view(H, W)
-            img_rand = img_01 * (1 - random_mask)
-            tensor_to_pil_image(img_rand).save(str(variant_root / "random" / split / cls_name / fname))
 
             global_idx += 1
 
@@ -773,7 +753,6 @@ def main():
                 device=device,
                 cam_layer=args.cam_layer,
                 threshold=args.threshold,
-                seed=args.seed,
                 logger=logger,
             )
 
