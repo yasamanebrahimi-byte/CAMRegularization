@@ -87,33 +87,70 @@ def train_with_config(
     metrics_csv = None
     if run_dir is not None:
         metrics_csv = os.path.join(run_dir, "metrics.csv")
-        header = ["epoch", "lr", "train_loss", "train_acc1", "train_f1", "eval_loss", "eval_acc1", "eval_f1", "eval_split"]
+        header = [
+            "epoch",
+            "lr",
+            "train_loss",
+            "train_acc1",
+            "train_precision",
+            "train_recall",
+            "train_f1",
+            "eval_loss",
+            "eval_acc1",
+            "eval_precision",
+            "eval_recall",
+            "eval_f1",
+            "eval_split",
+        ]
         append_csv(metrics_csv, [], header=header, mode="w")  # write mode to replace existing file
 
     for epoch in range(args.epochs):
         lr_now = optimizer.param_groups[0]["lr"]
         logger.info(f"\nEpoch {epoch+1}/{args.epochs} | lr {lr_now:.6f}")
 
-        tr_loss, tr_a1, tr_f1 = train_one_epoch(
+        tr_loss, tr_a1, tr_prec, tr_rec, tr_f1 = train_one_epoch(
             model, train_dl, criterion, optimizer,
             scaler if scaler.is_enabled() else None,
             device, log_every=args.log_every,
         )
 
         if val_dl is not None:
-            ev_loss, ev_a1, ev_f1 = evaluate(model, val_dl, criterion, device)
+            ev_loss, ev_a1, ev_prec, ev_rec, ev_f1 = evaluate(model, val_dl, criterion, device)
             split = "val"
             metric = ev_a1
         else:
-            ev_loss, ev_a1, ev_f1 = evaluate(model, test_dl, criterion, device)
+            ev_loss, ev_a1, ev_prec, ev_rec, ev_f1 = evaluate(model, test_dl, criterion, device)
             split = "test"
             metric = ev_a1
 
-        logger.info(f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% f1 {tr_f1*100:.2f}%")
-        logger.info(f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% f1 {ev_f1*100:.2f}%")
+        logger.info(
+            f"Train: loss {tr_loss:.4f} acc1 {tr_a1*100:.2f}% "
+            f"precision {tr_prec*100:.2f}% recall {tr_rec*100:.2f}% f1 {tr_f1*100:.2f}%"
+        )
+        logger.info(
+            f"{split.title()}:   loss {ev_loss:.4f} acc1 {ev_a1*100:.2f}% "
+            f"precision {ev_prec*100:.2f}% recall {ev_rec*100:.2f}% f1 {ev_f1*100:.2f}%"
+        )
 
         if metrics_csv is not None:
-            append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_f1:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_f1:.6f}",split])
+            append_csv(
+                metrics_csv,
+                [
+                    epoch + 1,
+                    f"{lr_now:.8f}",
+                    f"{tr_loss:.6f}",
+                    f"{tr_a1:.6f}",
+                    f"{tr_prec:.6f}",
+                    f"{tr_rec:.6f}",
+                    f"{tr_f1:.6f}",
+                    f"{ev_loss:.6f}",
+                    f"{ev_a1:.6f}",
+                    f"{ev_prec:.6f}",
+                    f"{ev_rec:.6f}",
+                    f"{ev_f1:.6f}",
+                    split,
+                ],
+            )
 
         if best_state_dict is None or metric > best:
             best = metric
@@ -124,22 +161,32 @@ def train_with_config(
 
     # final test with best
     final_test_acc1 = None
+    final_test_precision = None
+    final_test_recall = None
     final_test_f1 = None
     final_test_loss = None
     if best_state_dict is not None:
         model.load_state_dict(best_state_dict)
         logger.info("Loaded best checkpoint weights for final test evaluation.")
     model.to(device)
-    te_loss, te_a1, te_f1 = evaluate(model, test_dl, criterion, device)
+    te_loss, te_a1, te_prec, te_rec, te_f1 = evaluate(model, test_dl, criterion, device)
     final_test_acc1 = te_a1
+    final_test_precision = te_prec
+    final_test_recall = te_rec
     final_test_f1 = te_f1
     final_test_loss = te_loss
     logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% f1 {te_f1*100:.2f}%")
+    logger.info(
+        f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% "
+        f"precision {te_prec*100:.2f}% recall {te_rec*100:.2f}% f1 {te_f1*100:.2f}%"
+    )
     
     # Print final results to console
     print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% f1 {te_f1*100:.2f}%")
+    print(
+        f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}% "
+        f"precision {te_prec*100:.2f}% recall {te_rec*100:.2f}% f1 {te_f1*100:.2f}%"
+    )
     
     # Generate plots if we saved metrics
     if metrics_csv is not None and run_dir is not None:
@@ -147,6 +194,8 @@ def train_with_config(
     
     result = {
         "final_test_acc1": final_test_acc1,
+        "final_test_precision": final_test_precision,
+        "final_test_recall": final_test_recall,
         "final_test_f1": final_test_f1,
         "best_val_acc": best,
         "final_test_loss": final_test_loss

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils import accuracy_top1, weighted_f1_from_confusion
+from utils import accuracy_top1, macro_precision_recall_f1_from_confusion
 
 def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_every):
     model.train()
@@ -35,8 +35,8 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, log_eve
         running_loss += loss.item()
         running_acc1 += acc1
         # Per-batch progress logging removed to keep console/log concise
-    f1 = weighted_f1_from_confusion(confusion) if confusion is not None else 0.0
-    return running_loss / len(loader), running_acc1 / len(loader), f1
+    precision, recall, f1 = macro_precision_recall_f1_from_confusion(confusion) if confusion is not None else (0.0, 0.0, 0.0)
+    return running_loss / len(loader), running_acc1 / len(loader), precision, recall, f1
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
@@ -57,5 +57,5 @@ def evaluate(model, loader, criterion, device):
 
         loss_sum += loss.item()
         acc1_sum += accuracy_top1(logits, y)
-    f1 = weighted_f1_from_confusion(confusion) if confusion is not None else 0.0
-    return loss_sum / len(loader), acc1_sum / len(loader), f1
+    precision, recall, f1 = macro_precision_recall_f1_from_confusion(confusion) if confusion is not None else (0.0, 0.0, 0.0)
+    return loss_sum / len(loader), acc1_sum / len(loader), precision, recall, f1

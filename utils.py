@@ -78,17 +78,21 @@ def accuracy_top1(logits, targets):
 
 
 @torch.no_grad()
-def weighted_f1_from_confusion(confusion_matrix: torch.Tensor) -> float:
-    """Compute weighted F1 from a [C, C] confusion matrix."""
+def macro_precision_recall_f1_from_confusion(confusion_matrix: torch.Tensor) -> Tuple[float, float, float]:
+    """Compute macro precision, macro recall, and macro F1 from a [C, C] confusion matrix."""
     conf = confusion_matrix.float()
     if conf.numel() == 0:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
     tp = conf.diag()
     fp = conf.sum(dim=0) - tp
     fn = conf.sum(dim=1) - tp
-    denom = (2 * tp + fp + fn).clamp_min(1e-12)
-    f1_per_class = (2 * tp) / denom
-    support = conf.sum(dim=1)
-    total_support = support.sum().clamp_min(1e-12)
-    return ((f1_per_class * support).sum() / total_support).item()
+
+    precision_per_class = tp / (tp + fp).clamp_min(1e-12)
+    recall_per_class = tp / (tp + fn).clamp_min(1e-12)
+    f1_per_class = (2 * precision_per_class * recall_per_class) / (precision_per_class + recall_per_class).clamp_min(1e-12)
+
+    precision = precision_per_class.mean().item()
+    recall = recall_per_class.mean().item()
+    f1 = f1_per_class.mean().item()
+    return precision, recall, f1
