@@ -54,6 +54,15 @@ def _load_config(config_path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
+def _datetime_tags() -> Dict[str, str]:
+    """Centralized datetime strings used for directory and file naming."""
+    return {
+        "year_month": time.strftime("%Y_%m"),
+        "day": time.strftime("%d"),
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+    }
+
+
 def _resolve_training_args(
     cli_args: argparse.Namespace,
     config: Dict[str, Any],
@@ -307,26 +316,18 @@ def _get_raw_dataset(dataloader: DataLoader, eval_transform):
 @torch.no_grad()
 def _compute_merged_cam_batch(
     images: torch.Tensor,
-    trained_models: List[TrainedModel],
-    device: torch.device,
-    cam_layer: str,
+    cam_runners: List[HiResCAM],
 ) -> torch.Tensor:
     """Compute per-image merged HiResCAM across all input models.
 
     Returns merged CAM: [B, H, W] in [0, 1].
     """
     merged = None
-    for _, model in trained_models:
-        model.eval()
-        _, target_module = resolve_cam_target_module(model, cam_layer)
-        cam_runner = HiResCAM(model, target_module)
-
+    for cam_runner in cam_runners:
         # HiResCAM.cam needs gradients enabled
         with torch.enable_grad():
-            x = images.detach().clone().requires_grad_(True).to(device)
+            x = images.detach().clone().requires_grad_(True)
             cam = cam_runner.cam(x)  # [B, 1, H, W]
-
-        cam_runner.close()
         cam = cam[:, 0].detach()  # [B, H, W]
 
         if merged is None:
@@ -335,6 +336,22 @@ def _compute_merged_cam_batch(
             merged = torch.max(merged, cam)  # OR-style merge
 
     return merged  # [B, H, W] in [0, 1]
+
+
+def _build_cam_runners(trained_models: List[TrainedModel], cam_layer: str) -> List[HiResCAM]:
+    """Build HiResCAM runners once and reuse them across batches."""
+    cam_runners: List[HiResCAM] = []
+    for _, model in trained_models:
+        model.eval()
+        _, target_module = resolve_cam_target_module(model, cam_layer)
+        cam_runners.append(HiResCAM(model, target_module))
+    return cam_runners
+
+
+def _close_cam_runners(cam_runners: List[HiResCAM]) -> None:
+    """Release hooks/resources held by HiResCAM runners."""
+    for cam_runner in cam_runners:
+        cam_runner.close()
 
 
 def generate_and_save_variants(
@@ -359,35 +376,39 @@ def generate_and_save_variants(
             (variant_root / variant / split / cls_name).mkdir(parents=True, exist_ok=True)
 
     global_idx = 0
+    cam_runners = _build_cam_runners(trained_models, cam_layer)
+    try:
+        for batch_idx, (images, labels) in enumerate(dataloader):
+            images = images.to(device, non_blocking=True)
+            merged_cam = _compute_merged_cam_batch(images, cam_runners)
 
-    for batch_idx, (images, labels) in enumerate(dataloader):
-        images = images.to(device)
-        merged_cam = _compute_merged_cam_batch(images, trained_models, device, cam_layer)
+            # Denormalize for saving
+            denorm = denormalize_tensor(images.cpu(), mean, std)
+            merged_cam_cpu = merged_cam.cpu()
 
-        # Denormalize for saving
-        denorm = denormalize_tensor(images.cpu(), mean, std)
+            B = images.size(0)
+            for i in range(B):
+                img_01 = denorm[i]  # [C, H, W] in ~[0,1]
+                cam_i = merged_cam_cpu[i]  # [H, W] in [0,1]
+                label = labels[i].item()
+                cls_name = class_names[label]
+                fname = f"img_{global_idx:06d}.png"
 
-        B = images.size(0)
-        for i in range(B):
-            img_01 = denorm[i]  # [C, H, W] in ~[0,1]
-            cam_i = merged_cam[i].cpu()  # [H, W] in [0,1]
-            label = labels[i].item()
-            cls_name = class_names[label]
-            fname = f"img_{global_idx:06d}.png"
+                # 1) Original
+                pil_orig = tensor_to_pil_image(img_01)
+                pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
 
-            # 1) Original
-            pil_orig = tensor_to_pil_image(img_01)
-            pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
+                # 2) Low saliency — hide pixels where cam <= threshold
+                low_mask = (cam_i <= threshold).float()  # 1 where to hide
+                img_low = img_01 * (1 - low_mask)
+                tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
 
-            # 2) Low saliency — hide pixels where cam <= threshold
-            low_mask = (cam_i <= threshold).float()  # 1 where to hide
-            img_low = img_01 * (1 - low_mask)
-            tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
+                global_idx += 1
 
-            global_idx += 1
-
-        if (batch_idx + 1) % 10 == 0 or (batch_idx + 1) == len(dataloader):
-            logger.info(f"  [{split}] processed {global_idx} images …")
+            if (batch_idx + 1) % 10 == 0 or (batch_idx + 1) == len(dataloader):
+                logger.info(f"  [{split}] processed {global_idx} images …")
+    finally:
+        _close_cam_runners(cam_runners)
 
     logger.info(f"  [{split}] saved {global_idx} images for all {len(VARIANTS)} variants")
 
@@ -567,6 +588,7 @@ def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> N
 
 def main():
     args = _build_parser().parse_args()
+    tags = _datetime_tags()
 
     # ── Assertions ────────────────────────────────────────────────────────
     assert len(args.input_models) > 0, "At least one input model is required."
@@ -597,13 +619,12 @@ def main():
     if args.out_dir:
         base_out_dir = args.out_dir
     else:
-        date_tag = time.strftime("%Y_%m_%d")
-        base_out_dir = os.path.join("./runs", f"{args.dataset}_{date_tag}")
+        base_out_dir = os.path.join("./runs", f"{args.dataset}_{tags['year_month']}", tags["day"])
     Path(base_out_dir).mkdir(parents=True, exist_ok=True)
     write_json(str(Path(base_out_dir) / "comparison_config.json"), vars(args))
     args.out_dir = base_out_dir
 
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    timestamp = tags["timestamp"]
     log_path = Path(base_out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=False)
     logger.info(f"Comparison pipeline | device={device} | out_dir={base_out_dir} | args={json.dumps(vars(args), sort_keys=True)}")
@@ -612,7 +633,7 @@ def main():
     input_size = get_default_input_size(args.dataset)
 
     # ── Variant output directory ────────────────────────────────────────────
-    variant_root = Path(args.data_dir) / f"comparison_{args.dataset}"
+    variant_root = Path(args.data_dir) / f"comparison_{args.dataset}_{tags['year_month']}" / tags["day"]
 
     # ── Step 1: train input models ────────────────────────────────────────
     trained_models = train_input_models(args, config, logger)

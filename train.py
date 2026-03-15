@@ -3,6 +3,7 @@ import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from copy import deepcopy
 
 from model_registry import get_model
 from dataset_registry import (
@@ -82,6 +83,7 @@ def train_with_config(
     scaler = torch.amp.GradScaler(enabled=(args.amp and device == "cuda"))
 
     best = 0.0
+    best_state_dict = None
     metrics_csv = None
     if run_dir is not None:
         metrics_csv = os.path.join(run_dir, "metrics.csv")
@@ -113,8 +115,9 @@ def train_with_config(
         if metrics_csv is not None:
             append_csv(metrics_csv,[epoch+1,f"{lr_now:.8f}",f"{tr_loss:.6f}",f"{tr_a1:.6f}",f"{tr_f1:.6f}",f"{ev_loss:.6f}",f"{ev_a1:.6f}",f"{ev_f1:.6f}",split])
 
-        if metric > best:
+        if best_state_dict is None or metric > best:
             best = metric
+            best_state_dict = deepcopy(model.state_dict())
             logger.info(f"saved best: {best*100:.2f}%")
 
         scheduler.step()
@@ -123,6 +126,9 @@ def train_with_config(
     final_test_acc1 = None
     final_test_f1 = None
     final_test_loss = None
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+        logger.info("Loaded best checkpoint weights for final test evaluation.")
     model.to(device)
     te_loss, te_a1, te_f1 = evaluate(model, test_dl, criterion, device)
     final_test_acc1 = te_a1
