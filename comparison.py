@@ -491,15 +491,18 @@ def train_output_on_variant(
     original_test_dl: DataLoader,
     logger,
 ) -> Dict[str, Any]:
-    """Train output model via train_with_config on variant train data, evaluate on original test set."""
+    """Train output model on a variant train split and evaluate on the configured test split."""
     resolved = _resolve_training_args(cli_args, config, output_model, cli_args.dataset)
 
     _log_resolved_hparams(logger, scope="output", model_name=f"{output_model} [{variant}]", resolved=resolved)
     logger.info(f"  Validation during training uses variant split with val_split={resolved.val_split}")
-    logger.info("  Final test remains on original test split for fair comparability")
+    if variant == "low_saliency":
+        logger.info("  Final test uses low_saliency variant test split")
+    else:
+        logger.info("  Final test remains on original test split for fair comparability")
 
     variant_dir = variant_root / variant
-    train_dl, val_dl, _ = _build_variant_loaders(
+    train_dl, val_dl, variant_test_dl = _build_variant_loaders(
         variant_dir,
         resolved.dataset,
         resolved.batch_size,
@@ -507,6 +510,9 @@ def train_output_on_variant(
         resolved.val_split,
         resolved.seed,
     )
+
+    # Evaluate low_saliency on its own test split; keep original variant on the shared original test split.
+    eval_test_dl = variant_test_dl if variant == "low_saliency" else original_test_dl
 
     params = namespace_to_train_params(
         resolved,
@@ -526,7 +532,7 @@ def train_output_on_variant(
         logger=logger,
         train_dl=train_dl,
         val_dl=val_dl,
-        test_dl=original_test_dl,
+        test_dl=eval_test_dl,
     )
 
     logger.info(
