@@ -1,35 +1,8 @@
-"""
-comparison.py — HiResCAM Masking Comparison Pipeline
-
-Trains *i* input CNN models on a dataset, computes per-image HiResCAM heatmaps,
-merges them with an element-wise-max (logical OR-style), and generates four
-dataset variants:
-
-    1) original   – unchanged images
-    2) random     – one fixed random mask per image (budget-matched to CAM masks)
-    3) low_saliency  – hide pixels where merged HiResCAM <= threshold
-    4) high_saliency – hide pixels where merged HiResCAM >= (1 - threshold)
-
-A set of *output* models is then trained on each variant and evaluated on the
-*original* test set so the comparison is fair.  Accuracy, weighted-F1 and loss are
-reported side by side at the end.
-
-Usage example
-─────────────
-    python comparison.py \\
-        --input_models resnet18 resnet34 \\
-        --output_models resnet50 resnet32 \\
-        --dataset cifar100 \\
-        --epochs 100 --batch_size 128
-"""
-
 import argparse
 import json
 import os
-import shutil
 import time
 import traceback
-import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -45,7 +18,6 @@ from dataset_registry import (
     get_dataset_loaders,
     get_default_input_size,
     get_normalization_params,
-    get_num_classes,
     infer_num_classes_from_loader,
 )
 from IOutils import (
@@ -61,68 +33,12 @@ from train import train_with_config
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
 VARIANTS = ["original", "low_saliency"]
+HEADER_WIDTH = 60
+TABLE_WIDTH = 72
+METRICS_BATCH_SIZE = 256
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs.json")
-
-
-# ---------------------------------------------------------------------------
-# Variant zip caching helpers
-# ---------------------------------------------------------------------------
-
-
-def _build_variant_zip_name(dataset: str, input_models: List[str]) -> str:
-    """Build a canonical zip filename from dataset and input model names.
-
-    Models are sorted alphabetically so the name is order-independent.
-    Example: malimg_densenet121_efficientnet_b0.zip
-    """
-    sorted_models = sorted(input_models)
-    return f"{dataset}_{'_'.join(sorted_models)}.zip"
-
-
-def _find_cached_variant_zip(data_dir: str, dataset: str, input_models: List[str]) -> Optional[Path]:
-    """Check if a cached variant zip exists in *data_dir* for the given
-    dataset / input-model combination (order-independent).  Returns the
-    Path to the zip if found, else None."""
-    zip_name = _build_variant_zip_name(dataset, input_models)
-    zip_path = Path(data_dir) / zip_name
-    if zip_path.is_file():
-        return zip_path
-    return None
-
-
-def _zip_variant_directory(variant_root: Path, data_dir: str, dataset: str,
-                           input_models: List[str], logger) -> Path:
-    """Compress the entire *variant_root* directory into a zip archive
-    stored in *data_dir* and return its path."""
-    zip_name = _build_variant_zip_name(dataset, input_models)
-    zip_path = Path(data_dir) / zip_name
-    logger.info(f"Zipping variant directory {variant_root} → {zip_path}")
-
-    with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
-        for file in sorted(variant_root.rglob("*")):
-            if file.is_file():
-                arcname = file.relative_to(variant_root.parent)
-                zf.write(str(file), str(arcname))
-
-    logger.info(f"Zip created: {zip_path} ({zip_path.stat().st_size / (1024**2):.1f} MB)")
-    return zip_path
-
-
-def _extract_variant_zip(zip_path: Path, data_dir: str, logger) -> Path:
-    """Extract a cached variant zip into *data_dir* and return the
-    variant_root directory (the top-level folder inside the zip)."""
-    logger.info(f"Extracting cached variant zip {zip_path} → {data_dir}")
-    with zipfile.ZipFile(str(zip_path), "r") as zf:
-        zf.extractall(data_dir)
-
-    # The zip was created with arcnames relative to variant_root.parent,
-    # so the top-level directory name is the variant_root folder name.
-    with zipfile.ZipFile(str(zip_path), "r") as zf:
-        top = zf.namelist()[0].split("/")[0]
-    variant_root = Path(data_dir) / top
-    logger.info(f"Extracted variant root: {variant_root}")
-    return variant_root
+TrainedModel = Tuple[str, nn.Module]
 
 
 # ---------------------------------------------------------------------------
@@ -237,22 +153,27 @@ def _build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 
+def _log_resolved_hparams(logger, scope: str, model_name: str, resolved: argparse.Namespace) -> None:
+    """Log resolved hyperparameters in a consistent format."""
+    logger.info(f"\n{'=' * HEADER_WIDTH}")
+    logger.info(f"Training {scope} model: {model_name}")
+    logger.info(
+        f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
+        f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
+        f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
+    )
+    logger.info(f"{'=' * HEADER_WIDTH}")
+
+
 def train_input_models(
     cli_args, config: Dict[str, Any], logger
-) -> List[Tuple[str, nn.Module]]:
+) -> List[TrainedModel]:
     """Train each input model on the dataset and return (name, model) pairs."""
-    trained: List[Tuple[str, nn.Module]] = []
+    trained: List[TrainedModel] = []
 
     for model_name in cli_args.input_models:
         resolved = _resolve_training_args(cli_args, config, model_name, cli_args.dataset)
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Training input model: {model_name}")
-        logger.info(
-            f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
-            f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
-            f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
-        )
-        logger.info(f"{'='*60}")
+        _log_resolved_hparams(logger, scope="input", model_name=model_name, resolved=resolved)
 
         params = namespace_to_train_params(
             resolved,
@@ -386,7 +307,7 @@ def _get_raw_dataset(dataloader: DataLoader, eval_transform):
 @torch.no_grad()
 def _compute_merged_cam_batch(
     images: torch.Tensor,
-    trained_models: List[Tuple[str, nn.Module]],
+    trained_models: List[TrainedModel],
     device: torch.device,
     cam_layer: str,
 ) -> torch.Tensor:
@@ -417,7 +338,7 @@ def _compute_merged_cam_batch(
 
 
 def generate_and_save_variants(
-    trained_models: List[Tuple[str, nn.Module]],
+    trained_models: List[TrainedModel],
     dataloader: DataLoader,
     split: str,
     variant_root: Path,
@@ -468,7 +389,7 @@ def generate_and_save_variants(
         if (batch_idx + 1) % 10 == 0 or (batch_idx + 1) == len(dataloader):
             logger.info(f"  [{split}] processed {global_idx} images …")
 
-    logger.info(f"  [{split}] saved {global_idx} images for all 4 variants")
+    logger.info(f"  [{split}] saved {global_idx} images for all {len(VARIANTS)} variants")
 
 
 # ---------------------------------------------------------------------------
@@ -529,10 +450,10 @@ def _build_variant_loaders(
 
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                           num_workers=num_workers, pin_memory=True)
-    test_dl = DataLoader(test_ds, batch_size=256, shuffle=False,
+    test_dl = DataLoader(test_ds, batch_size=METRICS_BATCH_SIZE, shuffle=False,
                          num_workers=num_workers, pin_memory=True)
     val_dl = (
-        DataLoader(val_ds, batch_size=256, shuffle=False, num_workers=num_workers, pin_memory=True)
+        DataLoader(val_ds, batch_size=METRICS_BATCH_SIZE, shuffle=False, num_workers=num_workers, pin_memory=True)
         if val_ds is not None
         else None
     )
@@ -547,31 +468,22 @@ def train_output_on_variant(
     variant_root: Path,
     results_root: Path,
     original_test_dl: DataLoader,
-    num_classes: int,
-    input_size: int,
-    device: torch.device,
     logger,
 ) -> Dict[str, Any]:
     """Train output model via train_with_config on variant train data, evaluate on original test set."""
     resolved = _resolve_training_args(cli_args, config, output_model, cli_args.dataset)
 
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Training output model ({output_model}) on variant: {variant}")
-    logger.info(
-        f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
-        f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
-        f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
-    )
-    logger.info("  Eval split during training is forced to original test for fair comparability")
-    logger.info(f"{'='*60}")
+    _log_resolved_hparams(logger, scope="output", model_name=f"{output_model} [{variant}]", resolved=resolved)
+    logger.info(f"  Validation during training uses variant split with val_split={resolved.val_split}")
+    logger.info("  Final test remains on original test split for fair comparability")
 
     variant_dir = variant_root / variant
-    train_dl, _, _ = _build_variant_loaders(
+    train_dl, val_dl, _ = _build_variant_loaders(
         variant_dir,
         resolved.dataset,
         resolved.batch_size,
         resolved.num_workers,
-        0.0,
+        resolved.val_split,
         resolved.seed,
     )
 
@@ -592,7 +504,7 @@ def train_output_on_variant(
         run_dir=str(run_dir),
         logger=logger,
         train_dl=train_dl,
-        val_dl=None,
+        val_dl=val_dl,
         test_dl=original_test_dl,
     )
 
@@ -616,40 +528,36 @@ def train_output_on_variant(
 # ---------------------------------------------------------------------------
 
 
+def _format_variant_row(variant: str, result: Optional[Dict[str, Any]]) -> str:
+    if result is None:
+        return f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}"
+    acc = f"{result['final_test_acc1'] * 100:.2f}%"
+    f1 = f"{result['final_test_f1'] * 100:.2f}%"
+    loss = f"{result['final_test_loss']:.4f}"
+    return f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}"
+
+
+def _render_comparison_table_lines(output_model: str, model_results: Dict[str, Any]) -> List[str]:
+    lines = [
+        f"\n{'=' * TABLE_WIDTH}",
+        f"COMPARISON RESULTS — output model: {output_model}",
+        f"{'=' * TABLE_WIDTH}",
+        f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}",
+        f"{'-' * 18} {'-' * 10} {'-' * 10} {'-' * 10}",
+    ]
+    for variant in VARIANTS:
+        lines.append(_format_variant_row(variant, model_results.get(variant)))
+    lines.append(f"{'=' * TABLE_WIDTH}")
+    return lines
+
+
 def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> None:
     """Pretty-print per-output-model comparison tables of variant results."""
     for output_model, model_results in results.items():
-        logger.info(f"\n{'='*72}")
-        logger.info(f"COMPARISON RESULTS — output model: {output_model}")
-        logger.info(f"{'='*72}")
-        logger.info(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
-        logger.info(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
-        for variant in VARIANTS:
-            r = model_results.get(variant)
-            if r is None:
-                logger.info(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
-            else:
-                acc = f"{r['final_test_acc1']*100:.2f}%"
-                f1 = f"{r['final_test_f1']*100:.2f}%"
-                loss = f"{r['final_test_loss']:.4f}"
-                logger.info(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
-        logger.info(f"{'='*72}")
-
-        print(f"\n{'='*72}")
-        print(f"COMPARISON RESULTS — output model: {output_model}")
-        print(f"{'='*72}")
-        print(f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}")
-        print(f"{'-'*18} {'-'*10} {'-'*10} {'-'*10}")
-        for variant in VARIANTS:
-            r = model_results.get(variant)
-            if r is None:
-                print(f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}")
-            else:
-                acc = f"{r['final_test_acc1']*100:.2f}%"
-                f1 = f"{r['final_test_f1']*100:.2f}%"
-                loss = f"{r['final_test_loss']:.4f}"
-                print(f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}")
-        print(f"{'='*72}")
+        lines = _render_comparison_table_lines(output_model, model_results)
+        for line in lines:
+            logger.info(line)
+            print(line)
 
 
 # ---------------------------------------------------------------------------
@@ -691,10 +599,6 @@ def main():
     else:
         date_tag = time.strftime("%Y_%m_%d")
         base_out_dir = os.path.join("./runs", f"{args.dataset}_{date_tag}")
-    run_name = args.run_name.strip() if getattr(args, "run_name", "") else ""
-    if not run_name:
-        run_name = f"comparison_{args.dataset}_{time.strftime('%Y%m%d_%H%M%S')}"
-
     Path(base_out_dir).mkdir(parents=True, exist_ok=True)
     write_json(str(Path(base_out_dir) / "comparison_config.json"), vars(args))
     args.out_dir = base_out_dir
@@ -706,59 +610,47 @@ def main():
 
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
-    num_classes = get_num_classes(args.dataset)
 
-    # ── Check for cached variant zip ───────────────────────────────────────
-    cached_zip = _find_cached_variant_zip(args.data_dir, args.dataset, args.input_models)
+    # ── Variant output directory ────────────────────────────────────────────
     variant_root = Path(args.data_dir) / f"comparison_{args.dataset}"
 
-    if cached_zip is not None:
-        logger.info(f"\nFound cached variant zip: {cached_zip}")
-        logger.info("Skipping input model training and variant generation.")
-        print(f"Found cached variant zip: {cached_zip} — skipping input training & CAM generation")
-        variant_root = _extract_variant_zip(cached_zip, args.data_dir, logger)
-    else:
-        # ── Step 1: train input models ────────────────────────────────────
-        trained_models = train_input_models(args, config, logger)
+    # ── Step 1: train input models ────────────────────────────────────────
+    trained_models = train_input_models(args, config, logger)
 
-        # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─
-        logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
-        train_dl, _, test_dl = get_dataset_loaders(
-            args.dataset, args.data_dir, args.batch_size, args.num_workers,
-            val_split=args.val_split, seed=args.seed,
+    # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─────
+    logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
+    train_dl, _, test_dl = get_dataset_loaders(
+        args.dataset, args.data_dir, args.batch_size, args.num_workers,
+        val_split=args.val_split, seed=args.seed,
+    )
+    eval_tfm = _get_eval_transform(args.dataset)
+    eval_train_ds = _get_raw_dataset(train_dl, eval_tfm)
+    eval_test_ds = _get_raw_dataset(test_dl, eval_tfm)
+
+    eval_train_dl = DataLoader(eval_train_ds, batch_size=args.batch_size, shuffle=False,
+                               num_workers=args.num_workers, pin_memory=True)
+    eval_test_dl = DataLoader(eval_test_ds, batch_size=args.batch_size, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=True)
+
+    class_names = _get_class_names(train_dl)
+
+    # ── Step 3: generate and save dataset variants ────────────────────────
+    logger.info(f"\nSaving variant datasets to {variant_root}")
+
+    for split_name, dl in [("train", eval_train_dl), ("test", eval_test_dl)]:
+        generate_and_save_variants(
+            trained_models=trained_models,
+            dataloader=dl,
+            split=split_name,
+            variant_root=variant_root,
+            class_names=class_names,
+            mean=mean,
+            std=std,
+            device=device,
+            cam_layer=args.cam_layer,
+            threshold=args.threshold,
+            logger=logger,
         )
-        eval_tfm = _get_eval_transform(args.dataset)
-        eval_train_ds = _get_raw_dataset(train_dl, eval_tfm)
-        eval_test_ds = _get_raw_dataset(test_dl, eval_tfm)
-
-        eval_train_dl = DataLoader(eval_train_ds, batch_size=args.batch_size, shuffle=False,
-                                   num_workers=args.num_workers, pin_memory=True)
-        eval_test_dl = DataLoader(eval_test_ds, batch_size=args.batch_size, shuffle=False,
-                                  num_workers=args.num_workers, pin_memory=True)
-
-        class_names = _get_class_names(train_dl)
-
-        # ── Step 3: generate and save four dataset variants ───────────────
-        logger.info(f"\nSaving variant datasets to {variant_root}")
-
-        for split_name, dl in [("train", eval_train_dl), ("test", eval_test_dl)]:
-            generate_and_save_variants(
-                trained_models=trained_models,
-                dataloader=dl,
-                split=split_name,
-                variant_root=variant_root,
-                class_names=class_names,
-                mean=mean,
-                std=std,
-                device=device,
-                cam_layer=args.cam_layer,
-                threshold=args.threshold,
-                logger=logger,
-            )
-
-        # ── Zip the variant directory for future reuse ────────────────────
-        _zip_variant_directory(variant_root, args.data_dir, args.dataset,
-                               args.input_models, logger)
 
     # ── Step 4: build the original test loader for fair evaluation ────────
     #    (all variants are evaluated on the *same* original test set)
@@ -771,16 +663,11 @@ def main():
                 T.Normalize(mean, std),
             ]),
         ),
-        batch_size=256,
+        batch_size=METRICS_BATCH_SIZE,
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=True,
     )
-
-    # Infer num_classes from actual saved data
-    inferred = infer_num_classes_from_loader(orig_test_dl)
-    if inferred is not None:
-        num_classes = inferred
 
     # ── Step 5: train each output model on each variant ───────────────────
     comparison_results: Dict[str, Dict[str, Any]] = {}
@@ -798,9 +685,6 @@ def main():
                     variant_root=variant_root,
                     results_root=output_results_root,
                     original_test_dl=orig_test_dl,
-                    num_classes=num_classes,
-                    input_size=input_size,
-                    device=device,
                     logger=logger,
                 )
                 comparison_results[output_model][variant] = result
