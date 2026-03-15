@@ -14,10 +14,9 @@ from dataset_registry import (
 )
 from engine import train_one_epoch, evaluate
 from utils import set_seed, infer_input_size_from_loader
-from IOutils import build_parser, append_csv, init_run_dir_with_config
+from IOutils import build_parser, append_csv, init_run_dir_with_config, build_time_tags
 from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
-import time
 from pathlib import Path
 
 def build_optimizer(args, model):
@@ -212,7 +211,7 @@ def main():
     run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
 
     # create a unique log file inside this run directory
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    timestamp = build_time_tags()["timestamp"]
     run_name_for_log = Path(run_dir).name.replace(",", "-")
     log_path = Path(run_dir) / f"{run_name_for_log}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=False)

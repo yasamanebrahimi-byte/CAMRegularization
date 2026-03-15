@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +26,7 @@ from IOutils import (
     init_run_dir_with_config,
     add_data_loading_args,
     add_training_hparam_args,
+    build_time_tags,
 )
 from logger import get_logger
 from train import train_with_config
@@ -52,15 +52,6 @@ def _load_config(config_path: str) -> Dict[str, Any]:
         return {}
     with open(config_path, "r") as f:
         return json.load(f)
-
-
-def _datetime_tags() -> Dict[str, str]:
-    """Centralized datetime strings used for directory and file naming."""
-    return {
-        "year_month": time.strftime("%Y_%m"),
-        "day": time.strftime("%d"),
-        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
-    }
 
 
 def _resolve_training_args(
@@ -225,9 +216,6 @@ def _get_eval_transform(dataset_name: str):
     """Return a deterministic (no augmentation) transform suitable for CAM generation."""
     input_size = get_default_input_size(dataset_name)
     mean, std = get_normalization_params(dataset_name)
-    if input_size <= 64:
-        # Small images (CIFAR, Tiny-ImageNet): just tensor + norm
-        return T.Compose([T.Resize((input_size, input_size)), T.ToTensor(), T.Normalize(mean, std)])
     return T.Compose([
         T.Resize((input_size, input_size)),
         T.ToTensor(),
@@ -594,7 +582,7 @@ def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> N
 
 def main():
     args = _build_parser().parse_args()
-    tags = _datetime_tags()
+    tags = build_time_tags()
 
     # ── Assertions ────────────────────────────────────────────────────────
     assert len(args.input_models) > 0, "At least one input model is required."

@@ -820,23 +820,22 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
 }
 
-def get_dataset_loaders(dataset_name: str, data_dir: str, batch_size: int, 
-    num_workers: int, **kwargs) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+
+def _get_dataset_info(dataset_name: str) -> Dict[str, Any]:
     if dataset_name not in DATASET_REGISTRY:
         raise ValueError(
             f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
         )
-    
-    dataset_info = DATASET_REGISTRY[dataset_name]
+    return DATASET_REGISTRY[dataset_name]
+
+def get_dataset_loaders(dataset_name: str, data_dir: str, batch_size: int, 
+    num_workers: int, **kwargs) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    dataset_info = _get_dataset_info(dataset_name)
     loader = dataset_info["loader"]
     return loader(data_dir, batch_size, num_workers, **kwargs)
 
 def get_num_classes(dataset_name: str) -> int:
-    if dataset_name not in DATASET_REGISTRY:
-        raise ValueError(
-            f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
-        )
-    return DATASET_REGISTRY[dataset_name]["num_classes"]
+    return _get_dataset_info(dataset_name)["num_classes"]
 
 
 def _infer_num_classes_from_dataset(dataset: Dataset) -> Optional[int]:
@@ -898,20 +897,12 @@ def infer_num_classes_from_loader(loader: DataLoader) -> Optional[int]:
 
 
 def get_default_input_size(dataset_name: str) -> int:
-    if dataset_name not in DATASET_REGISTRY:
-        raise ValueError(
-            f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
-        )
-    return int(DATASET_REGISTRY[dataset_name]["default_input_size"])
+    return int(_get_dataset_info(dataset_name)["default_input_size"])
 
 
 def get_normalization_params(dataset_name: str) -> Tuple[Tuple[float, ...], Tuple[float, ...]]:
     """Return (mean, std) normalization parameters for the given dataset."""
-    if dataset_name not in DATASET_REGISTRY:
-        raise ValueError(
-            f"Dataset '{dataset_name}' not found. Available datasets: {list(DATASET_REGISTRY.keys())}"
-        )
-    info = DATASET_REGISTRY[dataset_name]
+    info = _get_dataset_info(dataset_name)
     mean = info.get("mean", (0.485, 0.456, 0.406))
     std = info.get("std", (0.229, 0.224, 0.225))
     return mean, std

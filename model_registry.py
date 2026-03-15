@@ -120,6 +120,14 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 
+def _get_model_info(model_name: str) -> Dict[str, Any]:
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(
+            f"Model '{model_name}' not found. Available models: {list(MODEL_REGISTRY.keys())}"
+        )
+    return MODEL_REGISTRY[model_name]
+
+
 def get_model(model_name: str, num_classes: int, **kwargs) -> nn.Module:
     """
     Get a model builder by name and instantiate it.
@@ -135,12 +143,7 @@ def get_model(model_name: str, num_classes: int, **kwargs) -> nn.Module:
     Raises:
         ValueError: If model_name is not registered
     """
-    if model_name not in MODEL_REGISTRY:
-        raise ValueError(
-            f"Model '{model_name}' not found. Available models: {list(MODEL_REGISTRY.keys())}"
-        )
-    
-    model_info = MODEL_REGISTRY[model_name]
+    model_info = _get_model_info(model_name)
     builder = model_info["builder"]
     return builder(num_classes=num_classes, **kwargs)
 

@@ -57,17 +57,6 @@ def add_dataset_model_args(parser: argparse.ArgumentParser, default_dataset: str
     )
     return parser
 
-
-def add_tuning_runtime_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("--runs_root", type=str, default="./runs", help="Root directory for runs")
-    parser.add_argument("--data_dir", type=str, default="./data", help="Dataset root directory")
-    parser.add_argument("--val_split", type=float, default=0.1, help="Validation split ratio")
-    parser.add_argument("--batch_size", type=int, default=128, help="Batch size for training runs")
-    parser.add_argument("--num_workers", type=int, default=2, help="Number of dataloader workers")
-    parser.add_argument("--epochs", type=int, default=150, help="Training epochs per run")
-    return parser
-
-
 def add_data_loading_args(
     parser: argparse.ArgumentParser,
     *,
@@ -123,6 +112,14 @@ def make_run_dir(out_dir, run_name):
     run_dir = os.path.join(out_dir, name)
     os.makedirs(run_dir, exist_ok=True)
     return run_dir
+
+
+def build_time_tags() -> Dict[str, str]:
+    return {
+        "year_month": time.strftime("%Y_%m"),
+        "day": time.strftime("%d"),
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+    }
 
 def write_json(path, obj):
     with open(path, "w") as f: json.dump(obj, f, indent=2, sort_keys=True)
@@ -197,31 +194,17 @@ def init_run_dir_with_config(out_dir: str, run_name: str, config: Dict[str, Any]
 def build_args_from_params(params):
     """Convert a params dict to an argparse.Namespace object that train_with_config expects."""
     parser = build_parser()
-    args = parser.parse_args([])  # Parse empty args to get defaults
-    
-    # Override with provided params
+    args = parser.parse_args([])
+
     for key, value in params.items():
         setattr(args, key, value)
-    
+
     return args
 
 
-def prepare_run_from_params(
-    params: Dict[str, Any],
-    *,
-    run_name: str,
-    runs_root: Path,
-    dataset: str,
-    model: str,
-):
-    args = build_args_from_params(params)
-    args.run_name = run_name
-    args.dataset = params.get("dataset", dataset)
-    args.model = params.get("model", model)
-    args.out_dir = str(Path(runs_root) / args.model / args.dataset)
 
-    run_dir = make_run_dir(args.out_dir, args.run_name)
-    write_json(os.path.join(run_dir, "config.json"), vars(args))
-    return args, run_dir
+
+
+
 
 

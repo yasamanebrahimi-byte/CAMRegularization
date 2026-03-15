@@ -1,7 +1,7 @@
 import random
 import torch
 from PIL import Image
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 # Default configuration constants
 DEFAULT_DATASET = "cifar100"
@@ -13,35 +13,6 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-
-def apply_training_context(
-    params: Dict[str, Any],
-    *,
-    dataset: str,
-    model: str,
-    data_dir: Optional[str] = None,
-    val_split: Optional[float] = None,
-    batch_size: Optional[int] = None,
-    num_workers: Optional[int] = None,
-    epochs: Optional[int] = None,
-) -> Dict[str, Any]:
-    resolved = dict(params)
-    resolved["dataset"] = dataset
-    resolved["model"] = model
-
-    if data_dir is not None:
-        resolved["data_dir"] = data_dir
-    if val_split is not None:
-        resolved["val_split"] = val_split
-    if batch_size is not None:
-        resolved["batch_size"] = batch_size
-    if num_workers is not None:
-        resolved["num_workers"] = num_workers
-    if epochs is not None:
-        resolved["epochs"] = epochs
-
-    return resolved
 
 def denormalize_tensor(tensor: torch.Tensor, mean: Tuple, std: Tuple) -> torch.Tensor:
     m = torch.tensor(mean, device=tensor.device, dtype=tensor.dtype)
@@ -75,6 +46,20 @@ def infer_input_size_from_loader(loader, fallback_size: int) -> int:
 @torch.no_grad()
 def accuracy_top1(logits, targets):
     return (logits.argmax(dim=1) == targets).float().mean().item()
+
+
+def update_confusion_matrix(
+    confusion_matrix: Optional[torch.Tensor],
+    targets: torch.Tensor,
+    predictions: torch.Tensor,
+    *,
+    num_classes: int,
+) -> torch.Tensor:
+    if confusion_matrix is None:
+        confusion_matrix = torch.zeros((num_classes, num_classes), dtype=torch.int64, device=targets.device)
+    encoded = targets * num_classes + predictions
+    confusion_matrix += torch.bincount(encoded, minlength=num_classes * num_classes).reshape(num_classes, num_classes)
+    return confusion_matrix
 
 
 @torch.no_grad()
