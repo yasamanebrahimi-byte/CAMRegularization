@@ -1,0 +1,38 @@
+{
+  "densenet121": {
+    "low_saliency": {
+      "best_val_acc": 0.6460444827874502,
+      "final_test_acc1": 0.62109375,
+      "final_test_f1": 0.6119038462638855,
+      "final_test_loss": 1.8582120209932327,
+      "output_model": "densenet121",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.6101140214337243,
+      "final_test_acc1": 0.62294921875,
+      "final_test_f1": 0.6121554970741272,
+      "final_test_loss": 1.7710042506456376,
+      "output_model": "densenet121",
+      "variant": "original"
+    }
+  },
+  "resnet50": {
+    "low_saliency": {
+      "best_val_acc": 0.8095849752426147,
+      "final_test_acc1": 0.7548828125,
+      "final_test_f1": 0.7504324913024902,
+      "final_test_loss": 1.1769959464669228,
+      "output_model": "resnet50",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.7599239879184299,
+      "final_test_acc1": 0.7634765625,
+      "final_test_f1": 0.7583779096603394,
+      "final_test_loss": 1.0310723997652531,
+      "output_model": "resnet50",
+      "variant": "original"
+    }
+  }
+}
