@@ -4,6 +4,7 @@ Each model is registered with metadata about its expected input and number of cl
 """
 import torch.nn as nn
 from torchvision.models import (
+    convnext_tiny,
     densenet121,
     efficientnet_b0,
     mobilenet_v3_large,
@@ -11,6 +12,7 @@ from torchvision.models import (
     resnet18,
     resnet34,
     resnet50,
+    swin_t,
     vit_b_16,
     vgg16_bn,
 )
@@ -78,6 +80,18 @@ def _vit_b_16_builder(num_classes: int, input_size: int = 224, **kwargs) -> nn.M
     return model
 
 
+def _convnext_tiny_builder(num_classes: int, **kwargs) -> nn.Module:
+    model = convnext_tiny(weights=None)
+    model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
+    return model
+
+
+def _swin_t_builder(num_classes: int, **kwargs) -> nn.Module:
+    model = swin_t(weights=None)
+    model.head = nn.Linear(model.head.in_features, num_classes)
+    return model
+
+
 # Registry of available models
 # Key: model name, Value: {"builder": builder_fn, "default_input_size": expected_size}
 MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -115,6 +129,14 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "vit_b_16": {
         "builder": _vit_b_16_builder,
+        "default_input_size": 224,
+    },
+    "convnext_tiny": {
+        "builder": _convnext_tiny_builder,
+        "default_input_size": 224,
+    },
+    "swin_t": {
+        "builder": _swin_t_builder,
         "default_input_size": 224,
     },
 }

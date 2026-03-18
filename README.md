@@ -22,6 +22,8 @@ Registered models (from `model_registry.py`):
 - `mobilenet_v3_large`
 - `efficientnet_b0`
 - `vit_b_16`
+- `convnext_tiny`
+- `swin_t`
 
 ### Recommended model starters
 
@@ -43,6 +45,10 @@ Use these as practical defaults before tuning:
   - `--lr 0.03 --weight_decay 1e-4 --epochs 120 --batch_size 64 --scheduler cosine --warmup_epochs 5`
 - `vit_b_16`
   - `--lr 0.01 --weight_decay 1e-4 --epochs 120 --batch_size 64 --scheduler cosine --warmup_epochs 5`
+- `convnext_tiny`
+  - `--lr 0.005 --weight_decay 1e-4 --epochs 120 --batch_size 64 --scheduler cosine --warmup_epochs 5`
+- `swin_t`
+  - `--lr 0.001 --weight_decay 5e-2 --epochs 120 --batch_size 32 --scheduler cosine --warmup_epochs 5`
 
 For CAM masking (`cam_high`, `cam_low`), start with:
 
@@ -56,6 +62,8 @@ Registered datasets (from `dataset_registry.py`):
 - `cifar100` (100 classes, default size 32)
 - `tiny_imagenet` (200 classes, default size 64)
 - `cub200` (200 classes, default size 224)
+- `imagenette` (10 classes, default size 224)
+- `cifar100_c` (100 classes, default size 32; clean CIFAR-100 train, corrupted test)
 - `malimg` (25 classes, default size 224)
 - `malware_classification` (9 classes, default size 224)
 - `big2015` (alias of `malware_classification`, 9 classes, default size 224)
@@ -71,6 +79,12 @@ Registered datasets (from `dataset_registry.py`):
 - `cub200`
   - Fine-grained classification; usually benefits from longer training.
   - Start with: `--dataset cub200 --model resnet50 --batch_size 32 --epochs 120 --val_split 0.1`
+- `imagenette`
+  - ImageNet-style subset benchmark with automatic download through torchvision.
+  - Start with: `--dataset imagenette --model resnet50 --batch_size 64 --epochs 100 --val_split 0.1`
+- `cifar100_c`
+  - Corruption robustness benchmark setup (default: gaussian_noise severity 5 at test time).
+  - Start with: `--dataset cifar100_c --model resnet18 --batch_size 128 --epochs 100 --val_split 0.1`
 - `malimg`
   - Requires explicit `train/val/test` folder split.
   - Start with: `--dataset malimg --model resnet18 --batch_size 32 --epochs 15 --masking none`
@@ -92,12 +106,15 @@ python train.py --dataset <dataset> --model <model> --data_dir ./data --masking 
 | `cifar100`      | Fast baseline sanity check | `python train.py --dataset cifar100 --model resnet18 --data_dir ./data --epochs 100 --batch_size 128 --val_split 0.1 --masking none --run_name baseline_cifar100`                            |
 | `tiny_imagenet` | Medium-scale baseline      | `python train.py --dataset tiny_imagenet --model resnet18 --data_dir ./data --epochs 120 --batch_size 128 --val_split 0.1 --masking none --run_name baseline_tiny_imagenet`                  |
 | `cub200`        | Fine-grained baseline      | `python train.py --dataset cub200 --model resnet50 --data_dir ./data --epochs 120 --batch_size 32 --val_split 0.1 --masking none --run_name baseline_cub200`                                 |
+| `imagenette`    | ImageNet-style subset      | `python train.py --dataset imagenette --model resnet50 --data_dir ./data --epochs 100 --batch_size 64 --val_split 0.1 --masking none --run_name baseline_imagenette`                         |
+| `cifar100_c`    | Corruption robustness      | `python train.py --dataset cifar100_c --model resnet18 --data_dir ./data --epochs 100 --batch_size 128 --val_split 0.1 --masking none --run_name baseline_cifar100_c`                        |
 | `malimg`        | Malware image baseline     | `python train.py --dataset malimg --model resnet18 --data_dir ./data --epochs 15 --batch_size 32 --masking none --run_name baseline_malimg`                                                  |
 | `malimg`        | CAM-high starter           | `python train.py --dataset malimg --model resnet18 --data_dir ./data --epochs 15 --batch_size 16 --masking cam_high --mask_warmup_epochs 7 --mask_area 0.2 --amp --run_name cam_high_malimg` |
 | `big2015`       | Bytes-to-image starter     | `python train.py --dataset big2015 --model resnet18 --data_dir ./data --epochs 30 --batch_size 32 --val_split 0.1 --masking none --run_name baseline_big2015`                                |
 
 Notes:
 
+- `tiny_imagenet`, `cub200`, `imagenette`, and `cifar100_c` now support cloud-style automatic download/extraction in `--data_dir`.
 - `big2015` / `malware_classification` expects `trainLabels.csv` and `train/` with `.bytes` files under `--data_dir`.
 - `malimg` expects an explicit `train/val/test` split directory.
 - If CAM runs hit CUDA memory limits, reduce `--batch_size` first.

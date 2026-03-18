@@ -6,12 +6,14 @@ import zipfile
 import csv
 import math
 from pathlib import Path
+import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 from typing import Callable, Dict, Any, Tuple, Optional, List
+from torchvision.datasets.utils import download_and_extract_archive
 from logger import get_logger
 
 DatasetLoaderFunc = Callable[..., Tuple[DataLoader, Optional[DataLoader], DataLoader]]
@@ -115,6 +117,68 @@ class _MalwareFeatureCsvDataset(Dataset):
         image_bytes, target = self.samples[index]
         image = Image.frombytes("L", (self.image_size, self.image_size), image_bytes)
         image = image.convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, target
+
+
+class _CIFAR100CDataset(Dataset):
+    def __init__(
+        self,
+        root: str,
+        corruption: str = "gaussian_noise",
+        severity: int = 5,
+        transform=None,
+    ):
+        self.root = Path(root)
+        self.corruption = corruption
+        self.severity = int(severity)
+        self.transform = transform
+
+        if self.severity < 1 or self.severity > 5:
+            raise ValueError(f"CIFAR-100-C severity must be in [1, 5], got {self.severity}.")
+
+        labels_path = self.root / "labels.npy"
+        if not labels_path.exists():
+            raise FileNotFoundError(f"CIFAR-100-C labels not found at '{labels_path}'.")
+
+        labels = np.load(str(labels_path))
+        start = (self.severity - 1) * 10000
+        end = self.severity * 10000
+
+        if self.corruption == "all":
+            corruption_files = [
+                p for p in sorted(self.root.glob("*.npy"))
+                if p.name != "labels.npy"
+            ]
+            if not corruption_files:
+                raise FileNotFoundError(f"No corruption .npy files found under '{self.root}'.")
+
+            chunks = []
+            targets = []
+            for cpath in corruption_files:
+                carr = np.load(str(cpath))
+                chunks.append(carr[start:end])
+                targets.append(labels[start:end])
+            self.images = np.concatenate(chunks, axis=0)
+            self.targets = np.concatenate(targets, axis=0)
+        else:
+            cpath = self.root / f"{self.corruption}.npy"
+            if not cpath.exists():
+                available = [p.stem for p in sorted(self.root.glob("*.npy")) if p.name != "labels.npy"]
+                raise ValueError(
+                    f"Unknown CIFAR-100-C corruption '{self.corruption}'. Available: {available}"
+                )
+            carr = np.load(str(cpath))
+            self.images = carr[start:end]
+            self.targets = labels[start:end]
+
+    def __len__(self) -> int:
+        return len(self.targets)
+
+    def __getitem__(self, index: int):
+        image = Image.fromarray(self.images[index])
+        target = int(self.targets[index])
         if self.transform is not None:
             image = self.transform(image)
         return image, target
@@ -370,6 +434,34 @@ def _ensure_kaggle_dataset_available(
     return existing
 
 
+def _ensure_archive_dataset_available(
+    dataset_label: str,
+    data_dir: str,
+    local_dir_candidates: List[str],
+    source_url: str,
+    filename: str,
+) -> str:
+    existing = _resolve_existing_path(*local_dir_candidates)
+    if existing is not None:
+        return existing
+
+    logger.info("%s not found locally. Downloading from %s", dataset_label, source_url)
+    download_and_extract_archive(
+        url=source_url,
+        download_root=data_dir,
+        extract_root=data_dir,
+        filename=filename,
+        remove_finished=False,
+    )
+
+    existing = _resolve_existing_path(*local_dir_candidates)
+    if existing is None:
+        raise FileNotFoundError(
+            f"{dataset_label} download completed, but expected folders were not found under '{data_dir}'."
+        )
+    return existing
+
+
 def _split_train_val_test_indices(
     n_items: int,
     val_ratio: float,
@@ -489,15 +581,20 @@ def _tiny_imagenet_loader(
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     root = Path(data_dir)
-    tiny_root = _resolve_existing_path(
+    local_candidates = [
         str(root / "tiny-imagenet-200"),
         str(root / "tiny_imagenet"),
         str(root / "tiny-imagenet"),
         data_dir,
-    )
+    ]
+    tiny_root = _resolve_existing_path(*local_candidates)
     if tiny_root is None:
-        raise FileNotFoundError(
-            "Tiny-ImageNet not found. Expected a directory like data/tiny-imagenet-200 with train/ and val/."
+        tiny_root = _ensure_archive_dataset_available(
+            dataset_label="Tiny-ImageNet",
+            data_dir=data_dir,
+            local_dir_candidates=local_candidates,
+            source_url="http://cs231n.stanford.edu/tiny-imagenet-200.zip",
+            filename="tiny-imagenet-200.zip",
         )
 
     mean = (0.4802, 0.4481, 0.3975)
@@ -539,15 +636,20 @@ def _cub200_loader(
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     root = Path(data_dir)
-    cub_root = _resolve_existing_path(
+    local_candidates = [
         str(root / "CUB_200_2011"),
         str(root / "cub200"),
         str(root / "CUB-200-2011"),
         data_dir,
-    )
+    ]
+    cub_root = _resolve_existing_path(*local_candidates)
     if cub_root is None:
-        raise FileNotFoundError(
-            "CUB-200-2011 not found. Expected a directory like data/CUB_200_2011 with metadata txt files and images/."
+        cub_root = _ensure_archive_dataset_available(
+            dataset_label="CUB-200-2011",
+            data_dir=data_dir,
+            local_dir_candidates=local_candidates,
+            source_url="https://data.caltech.edu/records/65de6-vp158/files/CUB_200_2011.tgz?download=1",
+            filename="CUB_200_2011.tgz",
         )
 
     cub_path = Path(cub_root)
@@ -775,6 +877,123 @@ def _malware_classification_loader(
     test_ds = Subset(full_eval_ds, test_idx)
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
+
+def _imagenette_loader(
+    data_dir: str,
+    batch_size: int,
+    num_workers: int,
+    val_split: float = 0.0,
+    seed: int = 42,
+    **kwargs,
+) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    if not hasattr(torchvision.datasets, "Imagenette"):
+        raise RuntimeError(
+            "torchvision.datasets.Imagenette is unavailable in this torchvision version. "
+            "Upgrade torchvision to use the imagenette dataset."
+        )
+
+    imagenette_size = kwargs.get("imagenette_size", "320px")
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    train_tfms = T.Compose([
+        T.Resize(256),
+        T.RandomResizedCrop(224),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+    test_tfms = T.Compose([
+        T.Resize(256),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+
+    train_ds = torchvision.datasets.Imagenette(
+        root=data_dir,
+        split="train",
+        size=imagenette_size,
+        download=True,
+        transform=train_tfms,
+    )
+    train_val_ds = torchvision.datasets.Imagenette(
+        root=data_dir,
+        split="train",
+        size=imagenette_size,
+        download=True,
+        transform=test_tfms,
+    )
+    test_ds = torchvision.datasets.Imagenette(
+        root=data_dir,
+        split="val",
+        size=imagenette_size,
+        download=True,
+        transform=test_tfms,
+    )
+
+    train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
+    return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
+
+
+def _cifar100c_loader(
+    data_dir: str,
+    batch_size: int,
+    num_workers: int,
+    val_split: float = 0.1,
+    seed: int = 42,
+    **kwargs,
+) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    corruption = kwargs.get("corruption", "gaussian_noise")
+    severity = int(kwargs.get("severity", 5))
+
+    cifar100c_root = _ensure_archive_dataset_available(
+        dataset_label="CIFAR-100-C",
+        data_dir=data_dir,
+        local_dir_candidates=[
+            str(Path(data_dir) / "CIFAR-100-C"),
+            str(Path(data_dir) / "cifar-100-c"),
+        ],
+        source_url="https://zenodo.org/records/3555552/files/CIFAR-100-C.tar?download=1",
+        filename="CIFAR-100-C.tar",
+    )
+
+    mean = (0.5071, 0.4867, 0.4408)
+    std = (0.2675, 0.2565, 0.2761)
+    train_tfms = T.Compose([
+        T.RandomCrop(32, padding=4),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+    test_tfms = T.Compose([
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+
+    train_ds = torchvision.datasets.CIFAR100(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=train_tfms,
+    )
+    train_val_ds = torchvision.datasets.CIFAR100(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=test_tfms,
+    )
+    test_ds = _CIFAR100CDataset(
+        root=cifar100c_root,
+        corruption=corruption,
+        severity=severity,
+        transform=test_tfms,
+    )
+
+    train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
+    if val_ds is None:
+        logger.info("CIFAR-100-C run uses clean train split and corruption test split only.")
+    return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
+
 DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     "cifar100": {
         "loader": _cifar100_loader,
@@ -817,6 +1036,20 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
         "default_input_size": 224,
         "mean": (0.485, 0.456, 0.406),
         "std": (0.229, 0.224, 0.225),
+    },
+    "imagenette": {
+        "loader": _imagenette_loader,
+        "num_classes": 10,
+        "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
+    },
+    "cifar100_c": {
+        "loader": _cifar100c_loader,
+        "num_classes": 100,
+        "default_input_size": 32,
+        "mean": (0.5071, 0.4867, 0.4408),
+        "std": (0.2675, 0.2565, 0.2761),
     },
 }
 

@@ -72,6 +72,24 @@
             "label_smoothing": 0.1,
             "nesterov": false,
             "min_lr": 1e-6
+        },
+        "convnext_tiny": {
+            "optimizer": "adamw",
+            "lr": 0.001,
+            "weight_decay": 0.05,
+            "warmup_epochs": 10,
+            "label_smoothing": 0.1,
+            "nesterov": false,
+            "min_lr": 1e-6
+        },
+        "swin_t": {
+            "optimizer": "adamw",
+            "lr": 0.001,
+            "weight_decay": 0.05,
+            "warmup_epochs": 20,
+            "label_smoothing": 0.1,
+            "nesterov": false,
+            "min_lr": 1e-6
         }
     },
 
@@ -90,6 +108,16 @@
             "batch_size": 32,
             "num_workers": 4,
             "epochs": 100
+        },
+        "imagenette": {
+            "batch_size": 64,
+            "num_workers": 4,
+            "epochs": 120
+        },
+        "cifar100_c": {
+            "batch_size": 128,
+            "num_workers": 4,
+            "epochs": 120
         },
         "malimg": {
             "batch_size": 32,
@@ -131,6 +159,11 @@
             "lr": 0.0001,
             "warmup_epochs": 10,
             "epochs": 150
+        },
+        "vit_b_16::imagenette": {
+            "lr": 0.0002,
+            "warmup_epochs": 10,
+            "epochs": 200
         },
         "resnet18::cub200": {
             "lr": 0.01,
