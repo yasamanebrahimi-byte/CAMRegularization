@@ -31,9 +31,10 @@ from IOutils import (
 from graphics import plot_variant_validation_comparison
 from logger import get_logger
 from train import train_with_config
+from engine import evaluate
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
-VARIANTS = ["original", "low_saliency"]
+BASE_VARIANTS = ["original", "low_saliency"]
 HEADER_WIDTH = 60
 TABLE_WIDTH = 72
 METRICS_BATCH_SIZE = 256
@@ -137,6 +138,22 @@ def _build_parser() -> argparse.ArgumentParser:
     # CAM
     p.add_argument("--cam_layer", type=str, default="auto")
     p.add_argument("--threshold", type=float, default=0.3)
+    p.add_argument(
+        "--enable_random_control",
+        action="store_true",
+        help=(
+            "Also generate random_sparsity variants that hide a random set of pixels "
+            "with the same per-image hide ratio as low_saliency masks"
+        ),
+    )
+    p.add_argument(
+        "--enable_shuffled_cam_control",
+        action="store_true",
+        help=(
+            "Also generate shuffled_cam_low_saliency variants where CAM masks are taken "
+            "from different images in the same batch"
+        ),
+    )
 
     # Config file
     p.add_argument(
@@ -147,6 +164,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     return p
+
+
+def _get_enabled_variants(args: argparse.Namespace) -> List[str]:
+    variants = list(BASE_VARIANTS)
+    if args.enable_random_control:
+        variants.append("random_sparsity")
+    if args.enable_shuffled_cam_control:
+        variants.append("shuffled_cam_low_saliency")
+    return variants
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +374,7 @@ def generate_and_save_variants(
     dataloader: DataLoader,
     split: str,
     variant_root: Path,
+    variants: List[str],
     class_names: List[str],
     mean: Tuple,
     std: Tuple,
@@ -356,11 +383,11 @@ def generate_and_save_variants(
     threshold: float,
     logger,
 ) -> None:
-    """Generate and save two dataset variants for one split (train or test)."""
+    """Generate and save all enabled dataset variants for one split (train or test)."""
     logger.info(f"Generating {split} variants → {variant_root}")
 
     # Create output directories
-    for variant in VARIANTS:
+    for variant in variants:
         for cls_name in class_names:
             (variant_root / variant / split / cls_name).mkdir(parents=True, exist_ok=True)
 
@@ -384,13 +411,35 @@ def generate_and_save_variants(
                 fname = f"img_{global_idx:06d}.png"
 
                 # 1) Original
-                pil_orig = tensor_to_pil_image(img_01)
-                pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
+                if "original" in variants:
+                    pil_orig = tensor_to_pil_image(img_01)
+                    pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
 
                 # 2) Low saliency — hide pixels where cam <= threshold
                 low_mask = (cam_i <= threshold).float()  # 1 where to hide
-                img_low = img_01 * (1 - low_mask)
-                tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
+                if "low_saliency" in variants:
+                    img_low = img_01 * (1 - low_mask)
+                    tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
+
+                # 3) Random sparsity control — same hide ratio, random locations
+                if "random_sparsity" in variants:
+                    hide_ratio = float(low_mask.mean().item())
+                    random_mask = (torch.rand_like(low_mask) < hide_ratio).float()
+                    img_random = img_01 * (1 - random_mask)
+                    tensor_to_pil_image(img_random).save(str(variant_root / "random_sparsity" / split / cls_name / fname))
+
+                # 4) Shuffled-CAM control — apply low-saliency mask from another image
+                if "shuffled_cam_low_saliency" in variants:
+                    if B > 1:
+                        shuffled_idx = (i + 1) % B
+                        shuffled_cam = merged_cam_cpu[shuffled_idx]
+                    else:
+                        shuffled_cam = cam_i.flatten()[torch.randperm(cam_i.numel())].view_as(cam_i)
+                    shuffled_low_mask = (shuffled_cam <= threshold).float()
+                    img_shuffled = img_01 * (1 - shuffled_low_mask)
+                    tensor_to_pil_image(img_shuffled).save(
+                        str(variant_root / "shuffled_cam_low_saliency" / split / cls_name / fname)
+                    )
 
                 global_idx += 1
 
@@ -399,7 +448,7 @@ def generate_and_save_variants(
     finally:
         _close_cam_runners(cam_runners)
 
-    logger.info(f"  [{split}] saved {global_idx} images for all {len(VARIANTS)} variants")
+    logger.info(f"  [{split}] saved {global_idx} images for all {len(variants)} variants")
 
 
 # ---------------------------------------------------------------------------
@@ -480,15 +529,15 @@ def train_output_on_variant(
     original_test_dl: DataLoader,
     logger,
 ) -> Dict[str, Any]:
-    """Train output model on a variant train split and evaluate on the configured test split."""
+    """Train output model on one train variant and evaluate across test variants."""
     resolved = _resolve_training_args(cli_args, config, output_model, cli_args.dataset)
 
     _log_resolved_hparams(logger, scope="output", model_name=f"{output_model} [{variant}]", resolved=resolved)
     logger.info(f"  Validation during training uses variant split with val_split={resolved.val_split}")
-    if variant == "low_saliency":
-        logger.info("  Final test uses low_saliency variant test split")
+    if variant == "original":
+        logger.info("  Final test uses original test split")
     else:
-        logger.info("  Final test remains on original test split for fair comparability")
+        logger.info(f"  Final test uses {variant} variant test split")
 
     variant_dir = variant_root / variant
     train_dl, val_dl, variant_test_dl = _build_variant_loaders(
@@ -500,8 +549,8 @@ def train_output_on_variant(
         resolved.seed,
     )
 
-    # Evaluate low_saliency on its own test split; keep original variant on the shared original test split.
-    eval_test_dl = variant_test_dl if variant == "low_saliency" else original_test_dl
+    # Use train-matched test split for the primary metric in this run.
+    eval_test_dl = original_test_dl if variant == "original" else variant_test_dl
 
     params = namespace_to_train_params(
         resolved,
@@ -515,14 +564,47 @@ def train_output_on_variant(
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(str(run_dir / "config.json"), vars(args))
 
-    result = train_with_config(
+    result, trained_output_model = train_with_config(
         args,
         run_dir=str(run_dir),
         logger=logger,
         train_dl=train_dl,
         val_dl=val_dl,
         test_dl=eval_test_dl,
+        return_model=True,
     )
+
+    # Evaluate this trained model on both original and low_saliency test distributions.
+    eval_metrics: Dict[str, Dict[str, float]] = {}
+    criterion = nn.CrossEntropyLoss()
+    model_device = next(trained_output_model.parameters()).device
+
+    candidate_eval_variants = ["original", "low_saliency"]
+    for eval_variant in candidate_eval_variants:
+        eval_variant_dir = variant_root / eval_variant / "test"
+        if not eval_variant_dir.exists():
+            continue
+        _, _, eval_dl = _build_variant_loaders(
+            variant_root / eval_variant,
+            resolved.dataset,
+            resolved.batch_size,
+            resolved.num_workers,
+            resolved.val_split,
+            resolved.seed,
+        )
+        ev_loss, ev_a1 = evaluate(trained_output_model, eval_dl, criterion, str(model_device))
+        eval_metrics[eval_variant] = {
+            "acc1": ev_a1,
+            "loss": ev_loss,
+        }
+
+    # Also evaluate on this variant's own test split for complete bookkeeping.
+    if variant not in eval_metrics:
+        own_loss, own_a1 = evaluate(trained_output_model, variant_test_dl, criterion, str(model_device))
+        eval_metrics[variant] = {
+            "acc1": own_a1,
+            "loss": own_loss,
+        }
 
     logger.info(
         f"Variant [{variant}] done — test acc {result['final_test_acc1']*100:.2f}%, "
@@ -535,6 +617,7 @@ def train_output_on_variant(
         "final_test_acc1": result["final_test_acc1"],
         "final_test_loss": result["final_test_loss"],
         "best_val_acc": result["best_val_acc"],
+        "eval_metrics": eval_metrics,
     }
 
 
@@ -551,7 +634,7 @@ def _format_variant_row(variant: str, result: Optional[Dict[str, Any]]) -> str:
     return f"{variant:<18} {acc:>10} {loss:>10}"
 
 
-def _render_comparison_table_lines(output_model: str, model_results: Dict[str, Any]) -> List[str]:
+def _render_comparison_table_lines(output_model: str, model_results: Dict[str, Any], variants: List[str]) -> List[str]:
     lines = [
         f"\n{'=' * TABLE_WIDTH}",
         f"COMPARISON RESULTS — output model: {output_model}",
@@ -559,16 +642,54 @@ def _render_comparison_table_lines(output_model: str, model_results: Dict[str, A
         f"{'Variant':<18} {'Accuracy':>10} {'Loss':>10}",
         f"{'-' * 18} {'-' * 10} {'-' * 10}",
     ]
-    for variant in VARIANTS:
+    for variant in variants:
         lines.append(_format_variant_row(variant, model_results.get(variant)))
     lines.append(f"{'=' * TABLE_WIDTH}")
     return lines
 
 
-def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> None:
+def _format_cross_eval_lines(output_model: str, model_results: Dict[str, Any]) -> List[str]:
+    train_original = model_results.get("original")
+    train_low = model_results.get("low_saliency")
+
+    if train_original is None or train_low is None:
+        return []
+
+    orig_eval = train_original.get("eval_metrics", {})
+    low_eval = train_low.get("eval_metrics", {})
+    if "original" not in orig_eval or "low_saliency" not in orig_eval:
+        return []
+    if "original" not in low_eval or "low_saliency" not in low_eval:
+        return []
+
+    lines = [
+        f"CROSS-EVAL MATRIX — output model: {output_model}",
+        "{:<22} {:>12} {:>12}".format("Train / Test", "original", "low_saliency"),
+        f"{'-' * 22} {'-' * 12} {'-' * 12}",
+        (
+            f"{'original':<22} "
+            f"{orig_eval['original']['acc1'] * 100:>11.2f}% "
+            f"{orig_eval['low_saliency']['acc1'] * 100:>11.2f}%"
+        ),
+        (
+            f"{'low_saliency':<22} "
+            f"{low_eval['original']['acc1'] * 100:>11.2f}% "
+            f"{low_eval['low_saliency']['acc1'] * 100:>11.2f}%"
+        ),
+        (
+            "Interpretation: train(masked)->test(original) isolates augmentation transfer; "
+            "train(original)->test(masked) isolates preprocessing effect."
+        ),
+        f"{'=' * TABLE_WIDTH}",
+    ]
+    return lines
+
+
+def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger, variants: List[str]) -> None:
     """Pretty-print per-output-model comparison tables of variant results."""
     for output_model, model_results in results.items():
-        lines = _render_comparison_table_lines(output_model, model_results)
+        lines = _render_comparison_table_lines(output_model, model_results, variants)
+        lines.extend(_format_cross_eval_lines(output_model, model_results))
         for line in lines:
             logger.info(line)
             print(line)
@@ -617,6 +738,7 @@ def _generate_validation_comparison_plot(
 def main():
     args = _build_parser().parse_args()
     tags = build_time_tags()
+    enabled_variants = _get_enabled_variants(args)
 
     # ── Assertions ────────────────────────────────────────────────────────
     assert len(args.input_models) > 0, "At least one input model is required."
@@ -656,6 +778,7 @@ def main():
     log_path = Path(base_out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
     logger = get_logger(__name__, log_file=log_path, console=False)
     logger.info(f"Comparison pipeline | device={device} | out_dir={base_out_dir} | args={json.dumps(vars(args), sort_keys=True)}")
+    logger.info(f"Enabled variants: {enabled_variants}")
 
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
@@ -692,6 +815,7 @@ def main():
             dataloader=dl,
             split=split_name,
             variant_root=variant_root,
+            variants=enabled_variants,
             class_names=class_names,
             mean=mean,
             std=std,
@@ -724,7 +848,7 @@ def main():
     for output_model in args.output_models:
         comparison_results[output_model] = {}
         logger.info(f"\nStarting output model sweep: {output_model}")
-        for variant in VARIANTS:
+        for variant in enabled_variants:
             try:
                 result = train_output_on_variant(
                     cli_args=args,
@@ -755,7 +879,7 @@ def main():
     write_json(results_path, comparison_results)
     logger.info(f"\nResults saved to {results_path}")
 
-    print_comparison(comparison_results, logger)
+    print_comparison(comparison_results, logger, enabled_variants)
 
 
 if __name__ == "__main__":

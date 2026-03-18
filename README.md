@@ -161,13 +161,64 @@ Output:
 
 ### 4) Compare CAM masking variants
 
-Use when you want to generate and evaluate external HiResCAM-masked dataset variants.
+Use when you want to train teacher models, generate HiResCAM-masked dataset variants, and train downstream models under a controlled evaluation protocol.
 
 ```bash
-python comparison.py --dataset cifar100 --model resnet18 --input_models resnet18 resnet34
+python comparison.py --dataset cifar100 --input_models resnet18 resnet34 --output_models densenet121 resnet50
 ```
 
-- `--reduction_factor`
+This runs:
+
+- teacher/input training on the original dataset (`--input_models`)
+- variant dataset generation from merged HiResCAM heatmaps
+- downstream/output training (`--output_models`) on each enabled variant
+- cross-distribution evaluation and result export
+
+Default generated variants:
+
+- `original`
+- `low_saliency` (mask where merged CAM `<= --threshold`)
+
+Optional faithfulness controls:
+
+- `--enable_random_control`: adds `random_sparsity` (same per-image mask ratio as `low_saliency`, random pixel locations)
+- `--enable_shuffled_cam_control`: adds `shuffled_cam_low_saliency` (low-saliency masks from CAMs of other images)
+
+Key output files:
+
+- `runs/.../comparison_config.json`
+- `runs/.../comparison_results.json`
+- `runs/.../<output_model>/<variant>/metrics.csv`
+- `runs/.../<output_model>/validation_comparison_plot.png`
+
+## Comparison Protocol (Publishable-Grade)
+
+The comparison pipeline now reports a 2x2 core matrix for each downstream model using `original` and `low_saliency` test sets:
+
+- train(original) -> test(original)
+- train(original) -> test(low_saliency)
+- train(low_saliency) -> test(original)
+- train(low_saliency) -> test(low_saliency)
+
+How to read it:
+
+- `train(low_saliency) -> test(original)` estimates augmentation transfer/generalization.
+- `train(original) -> test(low_saliency)` estimates preprocessing-only effect.
+- If gains appear only when testing on masked images, the effect is likely distribution/preprocessing-driven.
+- If gains persist on `test(original)`, this supports true downstream learning benefit.
+
+The matrix is printed to console/log and saved under each variant's `eval_metrics` in `comparison_results.json`.
+
+## Suggested Research Reporting Checklist
+
+For stronger paper evidence, report at least:
+
+- Multiple datasets (for example `cifar100`, `tiny_imagenet`, one malware dataset)
+- Multiple teacher sets (`1` teacher and aggregated teachers)
+- Multiple downstream architectures
+- Cross-eval matrix above (not just train/test on matched distributions)
+- Faithfulness controls (`random_sparsity`, `shuffled_cam_low_saliency`)
+- Seed sweeps (`>=3` seeds) with mean and standard deviation
 
 ## Configuration Notes
 
