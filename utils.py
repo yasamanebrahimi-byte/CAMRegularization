@@ -1,7 +1,7 @@
 import random
 import torch
 from PIL import Image
-from typing import Optional, Tuple
+from typing import Tuple
 
 # Default configuration constants
 DEFAULT_DATASET = "cifar100"
@@ -46,38 +46,3 @@ def infer_input_size_from_loader(loader, fallback_size: int) -> int:
 @torch.no_grad()
 def accuracy_top1(logits, targets):
     return (logits.argmax(dim=1) == targets).float().mean().item()
-
-
-def update_confusion_matrix(
-    confusion_matrix: Optional[torch.Tensor],
-    targets: torch.Tensor,
-    predictions: torch.Tensor,
-    *,
-    num_classes: int,
-) -> torch.Tensor:
-    if confusion_matrix is None:
-        confusion_matrix = torch.zeros((num_classes, num_classes), dtype=torch.int64, device=targets.device)
-    encoded = targets * num_classes + predictions
-    confusion_matrix += torch.bincount(encoded, minlength=num_classes * num_classes).reshape(num_classes, num_classes)
-    return confusion_matrix
-
-
-@torch.no_grad()
-def macro_precision_recall_f1_from_confusion(confusion_matrix: torch.Tensor) -> Tuple[float, float, float]:
-    """Compute macro precision, macro recall, and macro F1 from a [C, C] confusion matrix."""
-    conf = confusion_matrix.float()
-    if conf.numel() == 0:
-        return 0.0, 0.0, 0.0
-
-    tp = conf.diag()
-    fp = conf.sum(dim=0) - tp
-    fn = conf.sum(dim=1) - tp
-
-    precision_per_class = tp / (tp + fp).clamp_min(1e-12)
-    recall_per_class = tp / (tp + fn).clamp_min(1e-12)
-    f1_per_class = (2 * precision_per_class * recall_per_class) / (precision_per_class + recall_per_class).clamp_min(1e-12)
-
-    precision = precision_per_class.mean().item()
-    recall = recall_per_class.mean().item()
-    f1 = f1_per_class.mean().item()
-    return precision, recall, f1

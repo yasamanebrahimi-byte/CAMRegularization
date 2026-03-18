@@ -188,7 +188,7 @@ def train_input_models(
         result, model = train_with_config(args, run_dir=run_dir, logger=logger, return_model=True)
         logger.info(
             f"Input model {model_name} done — test acc {result['final_test_acc1']*100:.2f}%, "
-            f"test F1 {result['final_test_f1']*100:.2f}%"
+            f"test loss {result['final_test_loss']:.4f}"
         )
         trained.append((model_name, model))
 
@@ -525,14 +525,13 @@ def train_output_on_variant(
 
     logger.info(
         f"Variant [{variant}] done — test acc {result['final_test_acc1']*100:.2f}%, "
-        f"test F1 {result['final_test_f1']*100:.2f}%, test loss {result['final_test_loss']:.4f}"
+        f"test loss {result['final_test_loss']:.4f}"
     )
 
     return {
         "output_model": output_model,
         "variant": variant,
         "final_test_acc1": result["final_test_acc1"],
-        "final_test_f1": result["final_test_f1"],
         "final_test_loss": result["final_test_loss"],
         "best_val_acc": result["best_val_acc"],
     }
@@ -545,11 +544,10 @@ def train_output_on_variant(
 
 def _format_variant_row(variant: str, result: Optional[Dict[str, Any]]) -> str:
     if result is None:
-        return f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>10}"
+        return f"{variant:<18} {'FAILED':>10} {'—':>10}"
     acc = f"{result['final_test_acc1'] * 100:.2f}%"
-    f1 = f"{result['final_test_f1'] * 100:.2f}%"
     loss = f"{result['final_test_loss']:.4f}"
-    return f"{variant:<18} {acc:>10} {f1:>10} {loss:>10}"
+    return f"{variant:<18} {acc:>10} {loss:>10}"
 
 
 def _render_comparison_table_lines(output_model: str, model_results: Dict[str, Any]) -> List[str]:
@@ -557,8 +555,8 @@ def _render_comparison_table_lines(output_model: str, model_results: Dict[str, A
         f"\n{'=' * TABLE_WIDTH}",
         f"COMPARISON RESULTS — output model: {output_model}",
         f"{'=' * TABLE_WIDTH}",
-        f"{'Variant':<18} {'Accuracy':>10} {'F1':>10} {'Loss':>10}",
-        f"{'-' * 18} {'-' * 10} {'-' * 10} {'-' * 10}",
+        f"{'Variant':<18} {'Accuracy':>10} {'Loss':>10}",
+        f"{'-' * 18} {'-' * 10} {'-' * 10}",
     ]
     for variant in VARIANTS:
         lines.append(_format_variant_row(variant, model_results.get(variant)))

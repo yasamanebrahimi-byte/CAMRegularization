@@ -13,7 +13,7 @@ def _setup_subplot(ax, xlabel, ylabel, title):
 
 def plot_metrics(metrics_csv, run_dir):
     df = pd.read_csv(metrics_csv)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     fig.suptitle("Training & Evaluation Metrics", fontsize=16, fontweight="bold")
     ax = axes[0]
     ax.plot(df["epoch"], df["train_loss"], "b-", linewidth=2, label="Train Loss")
@@ -23,13 +23,6 @@ def plot_metrics(metrics_csv, run_dir):
     ax.plot(df["epoch"], df["train_acc1"] * 100, "b-", linewidth=2, label="Train Acc1")
     ax.plot(df["epoch"], df["eval_acc1"] * 100,  "r-", linewidth=2, label="Eval Acc1")
     _setup_subplot(ax, "Epoch", "Accuracy (%)", "Accuracy@1 (Train vs Eval)")
-    ax = axes[2]
-    if {"train_f1", "eval_f1"}.issubset(df.columns):
-        ax.plot(df["epoch"], df["train_f1"] * 100, "b--", linewidth=2, label="Train F1")
-        ax.plot(df["epoch"], df["eval_f1"] * 100,  "r--", linewidth=2, label="Eval F1")
-        _setup_subplot(ax, "Epoch", "Score (%)", "F1 (Train vs Eval)")
-    else:
-        ax.axis("off")
     plt.tight_layout()
     plot_path = os.path.join(run_dir, f"metrics_plot.png")
     plt.savefig(plot_path, dpi=150, bbox_inches="tight")
