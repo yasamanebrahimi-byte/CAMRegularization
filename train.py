@@ -159,7 +159,12 @@ def train_with_config(
     
     # Generate plots if we saved metrics
     if metrics_csv is not None and run_dir is not None:
-        plot_metrics(metrics_csv, run_dir)
+        plot_metrics(
+            metrics_csv,
+            run_dir,
+            model_name=getattr(args, "model", None),
+            dataset_name=getattr(args, "dataset", None),
+        )
     
     result = {
         "final_test_acc1": final_test_acc1,

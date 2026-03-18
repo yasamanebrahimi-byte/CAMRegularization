@@ -28,6 +28,7 @@ from IOutils import (
     add_training_hparam_args,
     build_time_tags,
 )
+from graphics import plot_variant_validation_comparison
 from logger import get_logger
 from train import train_with_config
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
@@ -573,6 +574,41 @@ def print_comparison(results: Dict[str, Dict[str, Dict[str, Any]]], logger) -> N
             print(line)
 
 
+def _generate_validation_comparison_plot(
+    output_model: str,
+    results_root: Path,
+    input_models: List[str],
+    dataset_name: str,
+    logger,
+) -> None:
+    original_metrics_csv = results_root / output_model / "original" / "metrics.csv"
+    low_saliency_metrics_csv = results_root / output_model / "low_saliency" / "metrics.csv"
+    out_png = results_root / output_model / "validation_comparison_plot.png"
+
+    if not original_metrics_csv.exists() or not low_saliency_metrics_csv.exists():
+        logger.warning(
+            f"Skipping validation comparison plot for {output_model}: "
+            f"missing metrics CSV ({original_metrics_csv}, {low_saliency_metrics_csv})"
+        )
+        return
+
+    written = plot_variant_validation_comparison(
+        original_metrics_csv=str(original_metrics_csv),
+        low_saliency_metrics_csv=str(low_saliency_metrics_csv),
+        out_png=str(out_png),
+        output_model_name=output_model,
+        input_models=input_models,
+        dataset_name=dataset_name,
+    )
+    if written:
+        logger.info(f"Saved validation comparison plot: {out_png}")
+    else:
+        logger.warning(
+            f"Skipped validation comparison plot for {output_model}: "
+            "no validation rows found in one or both metrics files"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -705,6 +741,14 @@ def main():
                 logger.error(f"Training output model '{output_model}' on variant '{variant}' failed: {exc}")
                 logger.error(traceback.format_exc())
                 comparison_results[output_model][variant] = None
+
+        _generate_validation_comparison_plot(
+            output_model=output_model,
+            results_root=output_results_root,
+            input_models=args.input_models,
+            dataset_name=args.dataset,
+            logger=logger,
+        )
 
     # ── Step 6: save and display comparison ───────────────────────────────
     results_path = os.path.join(base_out_dir, "comparison_results.json")
