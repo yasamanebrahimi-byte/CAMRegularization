@@ -97,7 +97,7 @@
         "cifar100": {
             "batch_size": 128,
             "num_workers": 4,
-            "epochs": 200
+            "epochs": 75
         },
         "tiny_imagenet": {
             "batch_size": 128,
