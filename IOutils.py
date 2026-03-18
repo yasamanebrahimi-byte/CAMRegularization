@@ -80,10 +80,13 @@ def add_training_hparam_args(
     momentum_default: float = 0.9,
     weight_decay_default: float = 5e-4,
 ) -> argparse.ArgumentParser:
+    parser.add_argument("--optimizer", type=str, choices=["sgd", "adamw"], default="sgd")
     parser.add_argument("--epochs", type=int, default=epochs_default)
     parser.add_argument("--lr", type=float, default=lr_default)
     parser.add_argument("--momentum", type=float, default=momentum_default)
     parser.add_argument("--weight_decay", type=float, default=weight_decay_default)
+    parser.add_argument("--adamw_betas", nargs=2, type=float, default=[0.9, 0.999])
+    parser.add_argument("--adamw_eps", type=float, default=1e-8)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--log_every", type=int, default=100)
     parser.add_argument("--run_name", type=str, default="")
@@ -142,12 +145,15 @@ TRAIN_ARG_FIELDS = (
     "model",
     "data_dir",
     "out_dir",
+    "optimizer",
     "epochs",
     "batch_size",
     "num_workers",
     "lr",
     "momentum",
     "weight_decay",
+    "adamw_betas",
+    "adamw_eps",
     "seed",
     "log_every",
     "val_split",

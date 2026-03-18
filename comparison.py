@@ -185,7 +185,7 @@ def _log_resolved_hparams(logger, scope: str, model_name: str, resolved: argpars
     logger.info(f"\n{'=' * HEADER_WIDTH}")
     logger.info(f"Training {scope} model: {model_name}")
     logger.info(
-        f"  Resolved config → lr={resolved.lr}, wd={resolved.weight_decay}, "
+        f"  Resolved config → opt={resolved.optimizer}, lr={resolved.lr}, wd={resolved.weight_decay}, "
         f"bs={resolved.batch_size}, epochs={resolved.epochs}, "
         f"scheduler={resolved.scheduler}, warmup={resolved.warmup_epochs}"
     )

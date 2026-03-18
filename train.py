@@ -20,13 +20,29 @@ from logger import get_logger, SimpleLogger
 from pathlib import Path
 
 def build_optimizer(args, model):
-    return optim.SGD(
-        model.parameters(),
-        lr = args.lr,
-        momentum = args.momentum,
-        weight_decay = args.weight_decay,
-        nesterov = args.nesterov
-    )
+    optimizer_name = str(getattr(args, "optimizer", "sgd")).lower()
+
+    if optimizer_name == "adamw":
+        betas = tuple(float(x) for x in getattr(args, "adamw_betas", [0.9, 0.999]))
+        eps = float(getattr(args, "adamw_eps", 1e-8))
+        return optim.AdamW(
+            model.parameters(),
+            lr=args.lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=args.weight_decay,
+        )
+
+    if optimizer_name == "sgd":
+        return optim.SGD(
+            model.parameters(),
+            lr=args.lr,
+            momentum=args.momentum,
+            weight_decay=args.weight_decay,
+            nesterov=args.nesterov,
+        )
+
+    raise ValueError(f"Unsupported optimizer '{optimizer_name}'.")
 
 def train_with_config(
     args,
@@ -62,7 +78,10 @@ def train_with_config(
     input_size = infer_input_size_from_loader(train_dl, default_input_size)
     model = get_model(args.model, num_classes=num_classes, input_size=input_size).to(device)
 
-    logger.info(f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes}")
+    logger.info(
+        f"Model: {args.model} | Dataset: {args.dataset} | Classes: {num_classes} | "
+        f"Optimizer: {getattr(args, 'optimizer', 'sgd')}"
+    )
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
 
