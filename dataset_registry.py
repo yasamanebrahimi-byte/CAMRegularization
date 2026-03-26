@@ -462,6 +462,42 @@ def _ensure_archive_dataset_available(
     return existing
 
 
+def _build_tiny_imagenet_val_samples(
+    val_dir: Path,
+    class_to_idx: Dict[str, int],
+) -> List[Tuple[str, int]]:
+    """Build (image_path, class_idx) samples for Tiny-ImageNet val split.
+
+    Tiny-ImageNet official val split is flat (images + val_annotations.txt),
+    so we read annotations instead of relying on ImageFolder class subfolders.
+    """
+    val_images = val_dir / "images"
+    val_annotations = val_dir / "val_annotations.txt"
+    if not val_images.exists() or not val_annotations.exists():
+        raise FileNotFoundError(
+            f"Tiny-ImageNet val split at '{val_dir}' is missing images/ or val_annotations.txt."
+        )
+
+    samples: List[Tuple[str, int]] = []
+    with open(val_annotations, "r", encoding="utf-8") as f:
+        for line in f:
+            row = line.strip().split("\t")
+            if len(row) < 2:
+                continue
+            image_name, class_name = row[0], row[1]
+            if class_name not in class_to_idx:
+                continue
+            image_path = val_images / image_name
+            if image_path.exists():
+                samples.append((str(image_path), class_to_idx[class_name]))
+
+    if not samples:
+        raise FileNotFoundError(
+            f"Tiny-ImageNet val annotations produced no valid samples in '{val_dir}'."
+        )
+    return samples
+
+
 def _split_train_val_test_indices(
     n_items: int,
     val_ratio: float,
@@ -619,7 +655,9 @@ def _tiny_imagenet_loader(
 
     train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
     train_val_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=test_tfms)
-    test_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
+
+    val_samples = _build_tiny_imagenet_val_samples(val_dir, train_ds.class_to_idx)
+    test_ds = _ImagePathDataset(val_samples, transform=test_tfms)
 
     train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
     if val_ds is None:
