@@ -101,8 +101,9 @@
         },
         "tiny_imagenet": {
             "batch_size": 128,
-            "num_workers": 4,
-            "epochs": 200
+            "num_workers": 8,
+            "epochs": 100,
+            "amp": true
         },
         "cub200": {
             "batch_size": 32,
