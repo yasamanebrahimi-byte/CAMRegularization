@@ -1,0 +1,158 @@
+{
+  "densenet121": {
+    "low_saliency": {
+      "best_val_acc": 0.6421657982799742,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.5560546875,
+          "loss": 2.790462589263916
+        },
+        "original": {
+          "acc1": 0.2787109375,
+          "loss": 4.7038166403770445
+        }
+      },
+      "final_test_acc1": 0.5560546875,
+      "final_test_loss": 2.790462589263916,
+      "output_model": "densenet121",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.5424262152777778,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.44892578125,
+          "loss": 3.184836634993553
+        },
+        "original": {
+          "acc1": 0.5353515625,
+          "loss": 2.4427440792322157
+        }
+      },
+      "final_test_acc1": 0.5353515625,
+      "final_test_loss": 2.4427440792322157,
+      "output_model": "densenet121",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.4661458333333333,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.2984375,
+          "loss": 4.3657135486602785
+        },
+        "original": {
+          "acc1": 0.307421875,
+          "loss": 4.363138508796692
+        },
+        "random_sparsity": {
+          "acc1": 0.4439453125,
+          "loss": 3.245357942581177
+        }
+      },
+      "final_test_acc1": 0.4439453125,
+      "final_test_loss": 3.245357942581177,
+      "output_model": "densenet121",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.4797092013888889,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.51767578125,
+          "loss": 2.7192148119211197
+        },
+        "original": {
+          "acc1": 0.4994140625,
+          "loss": 2.643865466117859
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.45751953125,
+          "loss": 2.9542768239974975
+        }
+      },
+      "final_test_acc1": 0.45751953125,
+      "final_test_loss": 2.9542768239974975,
+      "output_model": "densenet121",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  },
+  "resnet34": {
+    "low_saliency": {
+      "best_val_acc": 0.7377387152777778,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.6185546875,
+          "loss": 2.049200031161308
+        },
+        "original": {
+          "acc1": 0.3806640625,
+          "loss": 3.2371882498264313
+        }
+      },
+      "final_test_acc1": 0.6185546875,
+      "final_test_loss": 2.049200031161308,
+      "output_model": "resnet34",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.6565104176600774,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.6064453125,
+          "loss": 1.8648338317871094
+        },
+        "original": {
+          "acc1": 0.653515625,
+          "loss": 1.5384637504816054
+        }
+      },
+      "final_test_acc1": 0.653515625,
+      "final_test_loss": 1.5384637504816054,
+      "output_model": "resnet34",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.6309678819444444,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.5265625,
+          "loss": 2.2669583916664124
+        },
+        "original": {
+          "acc1": 0.47587890625,
+          "loss": 2.5171081334352494
+        },
+        "random_sparsity": {
+          "acc1": 0.60869140625,
+          "loss": 1.8221596091985703
+        }
+      },
+      "final_test_acc1": 0.60869140625,
+      "final_test_loss": 1.8221596091985703,
+      "output_model": "resnet34",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.5954861111111112,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.63310546875,
+          "loss": 1.7339246779680253
+        },
+        "original": {
+          "acc1": 0.6326171875,
+          "loss": 1.6596405655145645
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.58837890625,
+          "loss": 1.8634428203105926
+        }
+      },
+      "final_test_acc1": 0.58837890625,
+      "final_test_loss": 1.8634428203105926,
+      "output_model": "resnet34",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  }
+}
