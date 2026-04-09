@@ -1,0 +1,158 @@
+{
+  "efficientnet_b0": {
+    "low_saliency": {
+      "best_val_acc": 0.5600911461644702,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.5056640625,
+          "loss": 3.36946662068367
+        },
+        "original": {
+          "acc1": 0.36689453125,
+          "loss": 4.500677311420441
+        }
+      },
+      "final_test_acc1": 0.5056640625,
+      "final_test_loss": 3.36946662068367,
+      "output_model": "efficientnet_b0",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.46883680588669246,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.45888671875,
+          "loss": 3.4584070980548858
+        },
+        "original": {
+          "acc1": 0.4689453125,
+          "loss": 3.338323602080345
+        }
+      },
+      "final_test_acc1": 0.4689453125,
+      "final_test_loss": 3.338323602080345,
+      "output_model": "efficientnet_b0",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.4525173612766796,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.37998046875,
+          "loss": 4.33827640414238
+        },
+        "original": {
+          "acc1": 0.36728515625,
+          "loss": 4.351239216327667
+        },
+        "random_sparsity": {
+          "acc1": 0.4341796875,
+          "loss": 3.742256075143814
+        }
+      },
+      "final_test_acc1": 0.4341796875,
+      "final_test_loss": 3.742256075143814,
+      "output_model": "efficientnet_b0",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.4524956602189276,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.47783203125,
+          "loss": 3.343724310398102
+        },
+        "original": {
+          "acc1": 0.45634765625,
+          "loss": 3.3971439480781553
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.44560546875,
+          "loss": 3.545752429962158
+        }
+      },
+      "final_test_acc1": 0.44560546875,
+      "final_test_loss": 3.545752429962158,
+      "output_model": "efficientnet_b0",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  },
+  "vgg16_bn": {
+    "low_saliency": {
+      "best_val_acc": 0.6539930552244186,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.5837890625,
+          "loss": 3.336629682779312
+        },
+        "original": {
+          "acc1": 0.45693359375,
+          "loss": 4.1132240176200865
+        }
+      },
+      "final_test_acc1": 0.5837890625,
+      "final_test_loss": 3.336629682779312,
+      "output_model": "vgg16_bn",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.5766927086644702,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.54599609375,
+          "loss": 3.2956665217876435
+        },
+        "original": {
+          "acc1": 0.56884765625,
+          "loss": 3.0282520920038225
+        }
+      },
+      "final_test_acc1": 0.56884765625,
+      "final_test_loss": 3.0282520920038225,
+      "output_model": "vgg16_bn",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.5629123267200258,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.46572265625,
+          "loss": 4.067949444055557
+        },
+        "original": {
+          "acc1": 0.4529296875,
+          "loss": 4.289609998464584
+        },
+        "random_sparsity": {
+          "acc1": 0.537890625,
+          "loss": 3.4064412891864775
+        }
+      },
+      "final_test_acc1": 0.537890625,
+      "final_test_loss": 3.4064412891864775,
+      "output_model": "vgg16_bn",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.5507161468267441,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.56953125,
+          "loss": 3.158638685941696
+        },
+        "original": {
+          "acc1": 0.5546875,
+          "loss": 3.1286434054374697
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.5365234375,
+          "loss": 3.2787872314453126
+        }
+      },
+      "final_test_acc1": 0.5365234375,
+      "final_test_loss": 3.2787872314453126,
+      "output_model": "vgg16_bn",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  }
+}
