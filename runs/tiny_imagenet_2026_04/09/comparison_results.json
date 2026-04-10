@@ -1,0 +1,158 @@
+{
+  "densenet121": {
+    "low_saliency": {
+      "best_val_acc": 0.6256944454378552,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.56669921875,
+          "loss": 2.5907595068216325
+        },
+        "original": {
+          "acc1": 0.42041015625,
+          "loss": 3.34844109416008
+        }
+      },
+      "final_test_acc1": 0.56669921875,
+      "final_test_loss": 2.5907595068216325,
+      "output_model": "densenet121",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.5424262152777778,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.51328125,
+          "loss": 2.665905660390854
+        },
+        "original": {
+          "acc1": 0.5353515625,
+          "loss": 2.4427440792322157
+        }
+      },
+      "final_test_acc1": 0.5353515625,
+      "final_test_loss": 2.4427440792322157,
+      "output_model": "densenet121",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.4874348963300387,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.3859375,
+          "loss": 3.5998646527528764
+        },
+        "original": {
+          "acc1": 0.3787109375,
+          "loss": 3.645313912630081
+        },
+        "random_sparsity": {
+          "acc1": 0.47373046875,
+          "loss": 2.9672394722700117
+        }
+      },
+      "final_test_acc1": 0.47373046875,
+      "final_test_loss": 2.9672394722700117,
+      "output_model": "densenet121",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.516080729663372,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.5439453125,
+          "loss": 2.481416118144989
+        },
+        "original": {
+          "acc1": 0.5279296875,
+          "loss": 2.4685216367244722
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.50712890625,
+          "loss": 2.5904332876205443
+        }
+      },
+      "final_test_acc1": 0.50712890625,
+      "final_test_loss": 2.5904332876205443,
+      "output_model": "densenet121",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  },
+  "resnet34": {
+    "low_saliency": {
+      "best_val_acc": 0.7153862847222222,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.6337890625,
+          "loss": 1.858311489224434
+        },
+        "original": {
+          "acc1": 0.54677734375,
+          "loss": 2.1552305191755297
+        }
+      },
+      "final_test_acc1": 0.6337890625,
+      "final_test_loss": 1.858311489224434,
+      "output_model": "resnet34",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.6565104176600774,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.63720703125,
+          "loss": 1.655385848879814
+        },
+        "original": {
+          "acc1": 0.653515625,
+          "loss": 1.5384637504816054
+        }
+      },
+      "final_test_acc1": 0.653515625,
+      "final_test_loss": 1.5384637504816054,
+      "output_model": "resnet34",
+      "variant": "original"
+    },
+    "random_sparsity": {
+      "best_val_acc": 0.6523003478844961,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.57412109375,
+          "loss": 2.0170560598373415
+        },
+        "original": {
+          "acc1": 0.55029296875,
+          "loss": 2.1247717797756196
+        },
+        "random_sparsity": {
+          "acc1": 0.62998046875,
+          "loss": 1.7140485346317291
+        }
+      },
+      "final_test_acc1": 0.62998046875,
+      "final_test_loss": 1.7140485346317291,
+      "output_model": "resnet34",
+      "variant": "random_sparsity"
+    },
+    "shuffled_cam_low_saliency": {
+      "best_val_acc": 0.6377387162711885,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.65068359375,
+          "loss": 1.5960652768611907
+        },
+        "original": {
+          "acc1": 0.65166015625,
+          "loss": 1.5643216133117677
+        },
+        "shuffled_cam_low_saliency": {
+          "acc1": 0.63642578125,
+          "loss": 1.6334558039903642
+        }
+      },
+      "final_test_acc1": 0.63642578125,
+      "final_test_loss": 1.6334558039903642,
+      "output_model": "resnet34",
+      "variant": "shuffled_cam_low_saliency"
+    }
+  }
+}
