@@ -462,6 +462,192 @@ def _ensure_archive_dataset_available(
     return existing
 
 
+def _iter_dirs_with_max_depth(root: Path, max_depth: int):
+    if not root.exists() or not root.is_dir():
+        return
+
+    stack: List[Tuple[Path, int]] = [(root, 0)]
+    while stack:
+        current, depth = stack.pop()
+        yield current, depth
+        if depth >= max_depth:
+            continue
+
+        try:
+            children = [p for p in current.iterdir() if p.is_dir() and not p.name.startswith(".")]
+        except OSError:
+            continue
+
+        for child in sorted(children, key=lambda p: p.name.lower(), reverse=True):
+            stack.append((child, depth + 1))
+
+
+def _collect_zip_files(search_root: Path, max_depth: int = 2) -> List[Path]:
+    zip_paths: List[Path] = []
+    for directory, _ in _iter_dirs_with_max_depth(search_root, max_depth):
+        try:
+            for file_path in directory.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() == ".zip":
+                    zip_paths.append(file_path)
+        except OSError:
+            continue
+    return zip_paths
+
+
+def _select_latest_path(paths: List[Path]) -> Path:
+    return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+
+
+def _resolve_drive_zip_archive_path(data_dir: str, **kwargs) -> Path:
+    explicit_zip = (
+        kwargs.get("drive_zip_path")
+        or kwargs.get("zip_path")
+        or kwargs.get("archive_path")
+        or kwargs.get("dataset_zip_path")
+        or os.environ.get("DRIVE_DATASET_ZIP")
+    )
+    if explicit_zip:
+        explicit_zip_str = str(explicit_zip).strip()
+        if explicit_zip_str.startswith("http://") or explicit_zip_str.startswith("https://"):
+            if "drive.google.com/drive/home" in explicit_zip_str:
+                raise ValueError(
+                    "Google Drive home URLs are not direct file links. Mount Drive in Colab and pass a local ZIP path "
+                    "via DRIVE_DATASET_ZIP or drive_zip_path."
+                )
+            raise ValueError(
+                "ZIP URL inputs are unsupported here. Mount Google Drive in Colab and use a local ZIP path instead."
+            )
+
+        explicit_zip_path = Path(explicit_zip_str).expanduser()
+        if explicit_zip_path.is_file():
+            return explicit_zip_path
+        raise FileNotFoundError(f"Configured dataset ZIP path does not exist: '{explicit_zip_path}'.")
+
+    data_root = Path(data_dir)
+    local_zip_candidates = _collect_zip_files(data_root, max_depth=2)
+    if local_zip_candidates:
+        if len(local_zip_candidates) > 1:
+            logger.info(
+                "Found %d ZIP files under '%s'; using the most recently modified: %s",
+                len(local_zip_candidates),
+                data_root,
+                _select_latest_path(local_zip_candidates),
+            )
+        return _select_latest_path(local_zip_candidates)
+
+    colab_drive_root = Path("/content/drive")
+    if colab_drive_root.exists():
+        shared_candidates: List[Path] = []
+        for candidate_root in [Path("/content/drive/MyDrive"), Path("/content/drive/Shareddrives")]:
+            if candidate_root.exists():
+                shared_candidates.extend(_collect_zip_files(candidate_root, max_depth=2))
+
+        if len(shared_candidates) == 1:
+            return shared_candidates[0]
+        if len(shared_candidates) > 1:
+            sample_candidates = ", ".join(str(p) for p in shared_candidates[:5])
+            raise ValueError(
+                "Multiple ZIP files were found on mounted Google Drive. "
+                f"Set DRIVE_DATASET_ZIP (or drive_zip_path) explicitly. Example candidates: {sample_candidates}"
+            )
+
+    raise FileNotFoundError(
+        "No dataset ZIP archive was found. Place one under data_dir, or set DRIVE_DATASET_ZIP to the mounted path "
+        "in Colab (for example /content/drive/MyDrive/<folder>/<file>.zip)."
+    )
+
+
+def _extract_zip_to_cache(zip_path: Path, extract_root: Path) -> Path:
+    extract_root.mkdir(parents=True, exist_ok=True)
+    target_root = extract_root / zip_path.stem
+    ready_marker = target_root / ".extracted_ok"
+
+    if ready_marker.exists() and target_root.is_dir():
+        return target_root
+
+    target_root.mkdir(parents=True, exist_ok=True)
+    has_existing_content = any(target_root.iterdir())
+    if not has_existing_content:
+        logger.info("Extracting dataset ZIP '%s' into '%s'", zip_path, target_root)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(target_root)
+
+    ready_marker.touch(exist_ok=True)
+    return target_root
+
+
+def _collapse_single_child_directory(root: Path, max_steps: int = 4) -> Path:
+    current = root
+    for _ in range(max_steps):
+        try:
+            children = [p for p in current.iterdir() if p.is_dir() and not p.name.startswith(".")]
+            files = [p for p in current.iterdir() if p.is_file() and p.name != ".extracted_ok"]
+        except OSError:
+            break
+
+        if len(children) == 1 and not files:
+            current = children[0]
+            continue
+        break
+    return current
+
+
+def _is_valid_imagefolder_root(root: Path) -> bool:
+    if not root.exists() or not root.is_dir():
+        return False
+    try:
+        ds = torchvision.datasets.ImageFolder(root=str(root))
+    except Exception:
+        return False
+    return len(ds) > 0 and len(ds.classes) > 0
+
+
+def _find_split_layout_root(search_root: Path, max_depth: int = 4) -> Tuple[Optional[str], Optional[Path]]:
+    for candidate, _ in _iter_dirs_with_max_depth(search_root, max_depth=max_depth):
+        train_dir = candidate / "train"
+        val_dir = candidate / "val"
+        test_dir = candidate / "test"
+
+        has_train = _is_valid_imagefolder_root(train_dir)
+        has_test = _is_valid_imagefolder_root(test_dir)
+        has_val = _is_valid_imagefolder_root(val_dir)
+
+        if has_train and has_test and has_val:
+            return "train_val_test", candidate
+        if has_train and has_test:
+            return "train_test", candidate
+
+    return None, None
+
+
+def _find_single_imagefolder_root(search_root: Path, max_depth: int = 4) -> Optional[Path]:
+    for candidate, _ in _iter_dirs_with_max_depth(search_root, max_depth=max_depth):
+        if (candidate / "train").is_dir() or (candidate / "test").is_dir() or (candidate / "val").is_dir():
+            continue
+        if _is_valid_imagefolder_root(candidate):
+            return candidate
+    return None
+
+
+def _resolve_drive_image_layout(search_root: Path) -> Tuple[str, Path]:
+    collapsed_root = _collapse_single_child_directory(search_root)
+
+    layout, split_root = _find_split_layout_root(collapsed_root, max_depth=4)
+    if layout and split_root is not None:
+        return layout, split_root
+
+    single_root = _find_single_imagefolder_root(collapsed_root, max_depth=4)
+    if single_root is not None:
+        return "single", single_root
+
+    raise FileNotFoundError(
+        "Unable to detect dataset layout in extracted ZIP. Supported layouts are: "
+        "(1) train/val/test with class subfolders, "
+        "(2) train/test with class subfolders, "
+        "or (3) a single class-folder root (auto split into train/val/test)."
+    )
+
+
 def _build_tiny_imagenet_val_samples(
     val_dir: Path,
     class_to_idx: Dict[str, int],
@@ -1032,6 +1218,84 @@ def _cifar100c_loader(
         logger.info("CIFAR-100-C run uses clean train split and corruption test split only.")
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
+
+def _drive_zip_loader(
+    data_dir: str,
+    batch_size: int,
+    num_workers: int,
+    val_split: float = 0.1,
+    seed: int = 42,
+    **kwargs,
+) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    image_size = int(kwargs.get("image_size", 224))
+    if image_size <= 0:
+        raise ValueError(f"Invalid image_size={image_size}. Expected a positive integer.")
+
+    resize_size = int(round(image_size / 0.875))
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    train_tfms = T.Compose([
+        T.Resize(resize_size),
+        T.RandomResizedCrop(image_size),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+    test_tfms = T.Compose([
+        T.Resize(resize_size),
+        T.CenterCrop(image_size),
+        T.ToTensor(),
+        T.Normalize(mean, std),
+    ])
+
+    zip_path = _resolve_drive_zip_archive_path(data_dir, **kwargs)
+    extracted_root = _extract_zip_to_cache(zip_path, Path(data_dir) / "_drive_zip_extracted")
+    layout, dataset_root = _resolve_drive_image_layout(extracted_root)
+
+    logger.info("drive_zip resolved layout '%s' at '%s'", layout, dataset_root)
+
+    if layout == "train_val_test":
+        train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "train"), transform=train_tfms)
+        val_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "val"), transform=test_tfms)
+        test_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "test"), transform=test_tfms)
+        if val_split and val_split > 0.0:
+            logger.info("drive_zip explicit train/val/test split detected; ignoring val_split=%s.", val_split)
+        return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
+
+    if layout == "train_test":
+        train_dir = dataset_root / "train"
+        test_dir = dataset_root / "test"
+        train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+        train_val_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=test_tfms)
+        test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
+        train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
+        if val_ds is None:
+            logger.info("drive_zip train/test layout detected; no validation split requested.")
+        return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
+
+    full_train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=train_tfms)
+    full_eval_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=test_tfms)
+
+    eval_split = val_split if (val_split and val_split > 0.0) else 0.1
+    if not val_split or val_split <= 0.0:
+        logger.info("No val_split provided for drive_zip single-root dataset; defaulting val_split to %.2f.", eval_split)
+
+    test_split = float(kwargs.get("test_split", eval_split))
+    if test_split <= 0.0:
+        test_split = eval_split
+
+    train_idx, val_idx, test_idx = _split_train_val_test_indices(
+        n_items=len(full_train_ds),
+        val_ratio=eval_split,
+        test_ratio=test_split,
+        seed=seed,
+    )
+
+    train_ds = Subset(full_train_ds, train_idx)
+    val_ds = Subset(full_eval_ds, val_idx)
+    test_ds = Subset(full_eval_ds, test_idx)
+    return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
+
 DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     "cifar100": {
         "loader": _cifar100_loader,
@@ -1088,6 +1352,13 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
         "default_input_size": 32,
         "mean": (0.5071, 0.4867, 0.4408),
         "std": (0.2675, 0.2565, 0.2761),
+    },
+    "drive_zip": {
+        "loader": _drive_zip_loader,
+        "num_classes": 1000,
+        "default_input_size": 224,
+        "mean": (0.485, 0.456, 0.406),
+        "std": (0.229, 0.224, 0.225),
     },
 }
 

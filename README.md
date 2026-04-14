@@ -67,6 +67,7 @@ Registered datasets (from `dataset_registry.py`):
 - `malimg` (25 classes, default size 224)
 - `malware_classification` (9 classes, default size 224)
 - `big2015` (alias of `malware_classification`, 9 classes, default size 224)
+- `drive_zip` (generic image dataset loaded from a ZIP file, default size 224)
 
 ### Recommended dataset starters
 
@@ -117,7 +118,22 @@ Notes:
 - `tiny_imagenet`, `cub200`, `imagenette`, and `cifar100_c` now support cloud-style automatic download/extraction in `--data_dir`.
 - `big2015` / `malware_classification` expects `trainLabels.csv` and `train/` with `.bytes` files under `--data_dir`.
 - `malimg` expects an explicit `train/val/test` split directory.
+- `drive_zip` expects a ZIP archive either under `--data_dir` or at `DRIVE_DATASET_ZIP` (mounted local path in Colab).
+  Supported ZIP layouts:
+  `train/val/test` with class folders, `train/test` with class folders, or a single class-folder root (auto split into train/val/test).
 - If CAM runs hit CUDA memory limits, reduce `--batch_size` first.
+
+Colab + Google Drive example:
+
+```bash
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+```bash
+export DRIVE_DATASET_ZIP=/content/drive/MyDrive/path/to/your_dataset.zip
+python train.py --dataset drive_zip --data_dir ./data --model resnet18 --run_name drive_zip_baseline
+```
 
 ## Module Responsibilities
 
