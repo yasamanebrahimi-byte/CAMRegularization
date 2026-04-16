@@ -715,6 +715,74 @@ def _split_train_val_test_indices(
     return train_idx, val_idx, test_idx
 
 
+def _stratified_split_train_val_test_indices(
+    labels: List[int],
+    val_ratio: float,
+    test_ratio: float,
+    seed: int,
+) -> Tuple[List[int], List[int], List[int]]:
+    if len(labels) < 3:
+        raise ValueError("At least 3 labeled samples are required to create train/val/test splits.")
+    if val_ratio <= 0.0 or test_ratio <= 0.0 or (val_ratio + test_ratio) >= 1.0:
+        raise ValueError(
+            f"Invalid split ratios: val_ratio={val_ratio}, test_ratio={test_ratio}. "
+            "Require val_ratio>0, test_ratio>0, and val_ratio+test_ratio<1."
+        )
+
+    class_to_indices: Dict[int, List[int]] = {}
+    for idx, label in enumerate(labels):
+        class_to_indices.setdefault(int(label), []).append(idx)
+
+    g = torch.Generator().manual_seed(seed)
+    train_idx: List[int] = []
+    val_idx: List[int] = []
+    test_idx: List[int] = []
+
+    for class_id in sorted(class_to_indices.keys()):
+        class_indices = class_to_indices[class_id]
+        shuffled = [class_indices[i] for i in torch.randperm(len(class_indices), generator=g).tolist()]
+        n = len(shuffled)
+
+        if n >= 3:
+            n_val = max(1, int(math.floor(n * val_ratio)))
+            n_test = max(1, int(math.floor(n * test_ratio)))
+            while (n_val + n_test) > (n - 1):
+                if n_val >= n_test and n_val > 1:
+                    n_val -= 1
+                elif n_test > 1:
+                    n_test -= 1
+                else:
+                    break
+            n_train = n - n_val - n_test
+        elif n == 2:
+            n_train = 1
+            assign_to_val = bool(torch.randint(0, 2, (1,), generator=g).item())
+            n_val = 1 if assign_to_val else 0
+            n_test = 1 - n_val
+        else:
+            n_train = 1
+            n_val = 0
+            n_test = 0
+
+        train_idx.extend(shuffled[:n_train])
+        val_idx.extend(shuffled[n_train:n_train + n_val])
+        test_idx.extend(shuffled[n_train + n_val:n_train + n_val + n_test])
+
+    if not val_idx and len(train_idx) > 1:
+        val_idx.append(train_idx.pop())
+    if not test_idx and len(train_idx) > 1:
+        test_idx.append(train_idx.pop())
+    if not train_idx:
+        raise ValueError("Stratified split left no training samples.")
+    if not val_idx or not test_idx:
+        raise ValueError("Unable to create non-empty val/test splits from provided labels.")
+
+    train_idx = [train_idx[i] for i in torch.randperm(len(train_idx), generator=g).tolist()]
+    val_idx = [val_idx[i] for i in torch.randperm(len(val_idx), generator=g).tolist()]
+    test_idx = [test_idx[i] for i in torch.randperm(len(test_idx), generator=g).tolist()]
+    return train_idx, val_idx, test_idx
+
+
 def _split_train_val(
     train_ds,
     val_source_ds,
@@ -1284,11 +1352,18 @@ def _drive_zip_loader(
     if test_split <= 0.0:
         test_split = eval_split
 
-    train_idx, val_idx, test_idx = _split_train_val_test_indices(
-        n_items=len(full_train_ds),
+    labels = [int(label) for _, label in full_train_ds.samples]
+    train_idx, val_idx, test_idx = _stratified_split_train_val_test_indices(
+        labels=labels,
         val_ratio=eval_split,
         test_ratio=test_split,
         seed=seed,
+    )
+    logger.info(
+        "drive_zip single-root layout: using stratified train/val/test split (seed=%s, val=%.3f, test=%.3f).",
+        seed,
+        eval_split,
+        test_split,
     )
 
     train_ds = Subset(full_train_ds, train_idx)

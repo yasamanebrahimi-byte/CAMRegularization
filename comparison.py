@@ -36,7 +36,7 @@ from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
 BASE_VARIANTS = ["original", "low_saliency"]
 HEADER_WIDTH = 60
-TABLE_WIDTH = 72
+TABLE_WIDTH = 96
 METRICS_BATCH_SIZE = 256
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs.json")
@@ -628,10 +628,17 @@ def train_output_on_variant(
 
 def _format_variant_row(variant: str, result: Optional[Dict[str, Any]]) -> str:
     if result is None:
-        return f"{variant:<18} {'FAILED':>10} {'—':>10}"
+        return f"{variant:<18} {'FAILED':>10} {'—':>10} {'—':>12} {'—':>12}"
     acc = f"{result['final_test_acc1'] * 100:.2f}%"
     loss = f"{result['final_test_loss']:.4f}"
-    return f"{variant:<18} {acc:>10} {loss:>10}"
+    original_eval = result.get("eval_metrics", {}).get("original")
+    if original_eval is not None:
+        original_acc = f"{original_eval['acc1'] * 100:.2f}%"
+        original_loss = f"{original_eval['loss']:.4f}"
+    else:
+        original_acc = "—"
+        original_loss = "—"
+    return f"{variant:<18} {acc:>10} {loss:>10} {original_acc:>12} {original_loss:>12}"
 
 
 def _render_comparison_table_lines(output_model: str, model_results: Dict[str, Any], variants: List[str]) -> List[str]:
@@ -639,11 +646,14 @@ def _render_comparison_table_lines(output_model: str, model_results: Dict[str, A
         f"\n{'=' * TABLE_WIDTH}",
         f"COMPARISON RESULTS — output model: {output_model}",
         f"{'=' * TABLE_WIDTH}",
-        f"{'Variant':<18} {'Accuracy':>10} {'Loss':>10}",
-        f"{'-' * 18} {'-' * 10} {'-' * 10}",
+        f"{'Variant':<18} {'PrimaryAcc':>10} {'PrimaryLoss':>10} {'OrigTestAcc':>12} {'OrigTestLoss':>12}",
+        f"{'-' * 18} {'-' * 10} {'-' * 10} {'-' * 12} {'-' * 12}",
     ]
     for variant in variants:
         lines.append(_format_variant_row(variant, model_results.get(variant)))
+    lines.append(
+        "Primary metrics use each variant's own test split; OrigTest* compares all variants on the same original test split."
+    )
     lines.append(f"{'=' * TABLE_WIDTH}")
     return lines
 
