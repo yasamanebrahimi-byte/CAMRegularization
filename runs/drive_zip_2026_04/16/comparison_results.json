@@ -1,0 +1,38 @@
+{
+  "resnet18": {
+    "low_saliency": {
+      "best_val_acc": 0.7237463662790697,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.7120225694444444,
+          "loss": 1.2044285193637565
+        },
+        "original": {
+          "acc1": 0.6809895833333334,
+          "loss": 1.2792353414826922
+        }
+      },
+      "final_test_acc1": 0.7120225694444444,
+      "final_test_loss": 1.2044285193637565,
+      "output_model": "resnet18",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.7503633720930233,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.6548032407407407,
+          "loss": 1.3492217063903809
+        },
+        "original": {
+          "acc1": 0.7422598379629629,
+          "loss": 1.0705559958738309
+        }
+      },
+      "final_test_acc1": 0.7422598379629629,
+      "final_test_loss": 1.0705559958738309,
+      "output_model": "resnet18",
+      "variant": "original"
+    }
+  }
+}
