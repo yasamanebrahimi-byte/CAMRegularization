@@ -94,6 +94,25 @@ Registered datasets (from `dataset_registry.py`):
   - Requires Microsoft Malware Classification structure (`trainLabels.csv` and `train/` with `.bytes` files).
   - Start with: `--dataset big2015 --model resnet18 --batch_size 32 --epochs 30 --val_split 0.1`
 
+### Recommended mask thresholds by dataset
+
+For `comparison.py`, `--threshold` controls which pixels are treated as low-saliency (`cam <= threshold`).
+
+Use these as starting points, then sweep around them.
+
+| Dataset                              | Start `--threshold` | Suggested sweep    | Notes                                                                             |
+| ------------------------------------ | ------------------: | ------------------ | --------------------------------------------------------------------------------- |
+| `cifar100`                           |              `0.20` | `0.15, 0.20, 0.30` | Existing runs used `0.15-0.30`; `0.20` is a good middle ground.                   |
+| `cifar100_c`                         |              `0.15` | `0.10, 0.15, 0.20` | Start slightly lower than CIFAR-100 to avoid over-masking under corruption shift. |
+| `tiny_imagenet`                      |              `0.05` | `0.04, 0.05, 0.08` | Recent runs clustered around `0.04-0.08`.                                         |
+| `cub200`                             |              `0.04` | `0.03, 0.04, 0.06` | Fine-grained dataset; conservative masking usually works better first.            |
+| `imagenette`                         |              `0.06` | `0.04, 0.06, 0.08` | Practical ImageNet-style starter range.                                           |
+| `malimg`                             |              `0.08` | `0.05, 0.08, 0.15` | Existing runs used `0.05` and `0.15`; midpoint is a stable default.               |
+| `malware_classification` / `big2015` |              `0.08` | `0.05, 0.08, 0.12` | Similar malware-domain behavior to `malimg`; start moderate.                      |
+| `drive_zip`                          |              `0.05` | `0.04, 0.05, 0.10` | Existing runs used `0.04` and `0.10`; start near the lower end first.             |
+
+Tip: if `low_saliency` looks too destructive in previews, lower `--threshold`; if masks are barely visible, raise it.
+
 Quick baseline template:
 
 ```bash
