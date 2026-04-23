@@ -1,4 +1,5 @@
 import argparse
+import gc
 import json
 import os
 import traceback
@@ -192,6 +193,93 @@ def _log_resolved_hparams(logger, scope: str, model_name: str, resolved: argpars
     logger.info(f"{'=' * HEADER_WIDTH}")
 
 
+def _is_cuda_oom(exc: BaseException) -> bool:
+    if isinstance(exc, torch.OutOfMemoryError):
+        return True
+    return "out of memory" in str(exc).lower()
+
+
+def _cuda_cleanup() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        try:
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass
+
+
+def _batch_size_candidates(initial_batch_size: int) -> List[int]:
+    bs = max(1, int(initial_batch_size))
+    cands: List[int] = []
+    while bs >= 1:
+        cands.append(bs)
+        if bs == 1:
+            break
+        bs = max(1, bs // 2)
+    return cands
+
+
+def _train_with_oom_retry(
+    args: argparse.Namespace,
+    run_dir: str,
+    logger,
+    return_model: bool,
+    model_label: str,
+    loader_builder=None,
+):
+    amp_candidates = [bool(getattr(args, "amp", False))]
+    if not bool(getattr(args, "amp", False)):
+        amp_candidates.append(True)
+
+    batch_candidates = _batch_size_candidates(int(args.batch_size))
+    last_oom: Optional[BaseException] = None
+
+    for use_amp in amp_candidates:
+        for bs in batch_candidates:
+            attempt_args = argparse.Namespace(**vars(args))
+            attempt_args.batch_size = bs
+            attempt_args.amp = use_amp
+
+            logger.info(
+                f"  Retry policy: training {model_label} with batch_size={bs}, amp={use_amp}"
+            )
+
+            train_dl = None
+            val_dl = None
+            test_dl = None
+            if loader_builder is not None:
+                train_dl, val_dl, test_dl = loader_builder(bs)
+
+            try:
+                outcome = train_with_config(
+                    attempt_args,
+                    run_dir=run_dir,
+                    logger=logger,
+                    train_dl=train_dl,
+                    val_dl=val_dl,
+                    test_dl=test_dl,
+                    return_model=return_model,
+                )
+                if bs != int(args.batch_size) or use_amp != bool(getattr(args, "amp", False)):
+                    logger.info(
+                        f"  OOM recovery succeeded for {model_label} with batch_size={bs}, amp={use_amp}"
+                    )
+                return outcome, bs, use_amp
+            except Exception as exc:
+                if not _is_cuda_oom(exc):
+                    raise
+                last_oom = exc
+                logger.warning(
+                    f"  CUDA OOM for {model_label} at batch_size={bs}, amp={use_amp}; retrying with safer settings."
+                )
+                _cuda_cleanup()
+
+    if last_oom is not None:
+        raise last_oom
+    raise RuntimeError(f"Failed to train {model_label} due to unknown retry failure.")
+
+
 def train_input_models(
     cli_args, config: Dict[str, Any], logger
 ) -> List[TrainedModel]:
@@ -212,7 +300,14 @@ def train_input_models(
         args = build_args_from_params(params)
         run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
 
-        result, model = train_with_config(args, run_dir=run_dir, logger=logger, return_model=True)
+        (result, model), used_bs, used_amp = _train_with_oom_retry(
+            args,
+            run_dir=run_dir,
+            logger=logger,
+            return_model=True,
+            model_label=f"input {model_name}",
+        )
+        logger.info(f"  Final training settings for input {model_name}: batch_size={used_bs}, amp={used_amp}")
         logger.info(
             f"Input model {model_name} done — test acc {result['final_test_acc1']*100:.2f}%, "
             f"test loss {result['final_test_loss']:.4f}"
@@ -507,12 +602,14 @@ def _build_variant_loaders(
         train_ds = Subset(train_ds, train_idx)
         val_ds = Subset(val_ds_base, val_idx)
 
+    metrics_batch_size = min(METRICS_BATCH_SIZE, batch_size)
+
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                           num_workers=num_workers, pin_memory=True)
-    test_dl = DataLoader(test_ds, batch_size=METRICS_BATCH_SIZE, shuffle=False,
+    test_dl = DataLoader(test_ds, batch_size=metrics_batch_size, shuffle=False,
                          num_workers=num_workers, pin_memory=True)
     val_dl = (
-        DataLoader(val_ds, batch_size=METRICS_BATCH_SIZE, shuffle=False, num_workers=num_workers, pin_memory=True)
+        DataLoader(val_ds, batch_size=metrics_batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
         if val_ds is not None
         else None
     )
@@ -540,17 +637,34 @@ def train_output_on_variant(
         logger.info(f"  Final test uses {variant} variant test split")
 
     variant_dir = variant_root / variant
-    train_dl, val_dl, variant_test_dl = _build_variant_loaders(
-        variant_dir,
-        resolved.dataset,
-        resolved.batch_size,
-        resolved.num_workers,
-        resolved.val_split,
-        resolved.seed,
-    )
+    variant_test_dl_for_metrics = None
+    final_batch_size = int(resolved.batch_size)
+    final_amp = bool(resolved.amp)
 
-    # Use train-matched test split for the primary metric in this run.
-    eval_test_dl = original_test_dl if variant == "original" else variant_test_dl
+    def _loader_builder(batch_size: int):
+        nonlocal variant_test_dl_for_metrics
+        train_dl, val_dl, variant_test_dl = _build_variant_loaders(
+            variant_dir,
+            resolved.dataset,
+            batch_size,
+            resolved.num_workers,
+            resolved.val_split,
+            resolved.seed,
+        )
+
+        # Use train-matched test split for the primary metric in this run.
+        if variant == "original":
+            eval_test_dl = DataLoader(
+                original_test_dl.dataset,
+                batch_size=min(METRICS_BATCH_SIZE, batch_size),
+                shuffle=False,
+                num_workers=resolved.num_workers,
+                pin_memory=True,
+            )
+        else:
+            eval_test_dl = variant_test_dl
+        variant_test_dl_for_metrics = variant_test_dl
+        return train_dl, val_dl, eval_test_dl
 
     params = namespace_to_train_params(
         resolved,
@@ -564,14 +678,17 @@ def train_output_on_variant(
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(str(run_dir / "config.json"), vars(args))
 
-    result, trained_output_model = train_with_config(
+    (result, trained_output_model), final_batch_size, final_amp = _train_with_oom_retry(
         args,
         run_dir=str(run_dir),
         logger=logger,
-        train_dl=train_dl,
-        val_dl=val_dl,
-        test_dl=eval_test_dl,
         return_model=True,
+        model_label=f"output {output_model} [{variant}]",
+        loader_builder=_loader_builder,
+    )
+    logger.info(
+        f"  Final training settings for output {output_model} [{variant}]: "
+        f"batch_size={final_batch_size}, amp={final_amp}"
     )
 
     # Evaluate this trained model on both original and low_saliency test distributions.
@@ -587,7 +704,7 @@ def train_output_on_variant(
         _, _, eval_dl = _build_variant_loaders(
             variant_root / eval_variant,
             resolved.dataset,
-            resolved.batch_size,
+            final_batch_size,
             resolved.num_workers,
             resolved.val_split,
             resolved.seed,
@@ -600,7 +717,7 @@ def train_output_on_variant(
 
     # Also evaluate on this variant's own test split for complete bookkeeping.
     if variant not in eval_metrics:
-        own_loss, own_a1 = evaluate(trained_output_model, variant_test_dl, criterion, str(model_device))
+        own_loss, own_a1 = evaluate(trained_output_model, variant_test_dl_for_metrics, criterion, str(model_device))
         eval_metrics[variant] = {
             "acc1": own_a1,
             "loss": own_loss,
@@ -834,6 +951,12 @@ def main():
             threshold=args.threshold,
             logger=logger,
         )
+
+    # CAM generation is complete; free input-model GPU memory before output-model training.
+    for _, model in trained_models:
+        model.to("cpu")
+    del trained_models
+    _cuda_cleanup()
 
     # ── Step 4: build the original test loader for fair evaluation ────────
     #    (all variants are evaluated on the *same* original test set)
