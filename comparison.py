@@ -44,6 +44,26 @@ DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 TrainedModel = Tuple[str, nn.Module]
 
 
+def _make_dataloader(dataset, batch_size: int, shuffle: bool, num_workers: int) -> DataLoader:
+    kwargs = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
+    if num_workers and num_workers > 0:
+        kwargs["persistent_workers"] = True
+        kwargs["prefetch_factor"] = 4
+    return DataLoader(dataset, **kwargs)
+
+
+def _save_pil_image(image: Image.Image, path: Path) -> None:
+    if path.suffix.lower() == ".png":
+        image.save(str(path), compress_level=1, optimize=False)
+    else:
+        image.save(str(path))
+
+
 # ---------------------------------------------------------------------------
 # Config loading and resolution
 # ---------------------------------------------------------------------------
@@ -139,6 +159,14 @@ def _build_parser() -> argparse.ArgumentParser:
     # CAM
     p.add_argument("--cam_layer", type=str, default="auto")
     p.add_argument("--threshold", type=float, default=0.3)
+    p.add_argument(
+        "--mask_top_of_threshold",
+        action="store_true",
+        help=(
+            "When set, hide the high-saliency side of the CAM instead of the low-saliency side. "
+            "For example, --threshold 0.3 masks cam >= 0.7 instead of cam <= 0.3."
+        ),
+    )
     p.add_argument(
         "--enable_random_control",
         action="store_true",
@@ -476,6 +504,7 @@ def generate_and_save_variants(
     device: torch.device,
     cam_layer: str,
     threshold: float,
+    mask_top_of_threshold: bool,
     logger,
 ) -> None:
     """Generate and save all enabled dataset variants for one split (train or test)."""
@@ -505,35 +534,49 @@ def generate_and_save_variants(
                 cls_name = class_names[label]
                 fname = f"img_{global_idx:06d}.png"
 
+                if mask_top_of_threshold:
+                    cam_mask = (cam_i >= (1.0 - threshold)).float()
+                else:
+                    cam_mask = (cam_i <= threshold).float()
+
                 # 1) Original
                 if "original" in variants:
                     pil_orig = tensor_to_pil_image(img_01)
-                    pil_orig.save(str(variant_root / "original" / split / cls_name / fname))
+                    _save_pil_image(pil_orig, variant_root / "original" / split / cls_name / fname)
 
-                # 2) Low saliency — hide pixels where cam <= threshold
-                low_mask = (cam_i <= threshold).float()  # 1 where to hide
+                # 2) CAM mask — hide either low-saliency pixels or the high-saliency side
                 if "low_saliency" in variants:
-                    img_low = img_01 * (1 - low_mask)
-                    tensor_to_pil_image(img_low).save(str(variant_root / "low_saliency" / split / cls_name / fname))
+                    img_low = img_01 * (1 - cam_mask)
+                    _save_pil_image(
+                        tensor_to_pil_image(img_low),
+                        variant_root / "low_saliency" / split / cls_name / fname,
+                    )
 
                 # 3) Random sparsity control — same hide ratio, random locations
                 if "random_sparsity" in variants:
-                    hide_ratio = float(low_mask.mean().item())
-                    random_mask = (torch.rand_like(low_mask) < hide_ratio).float()
+                    hide_ratio = float(cam_mask.mean().item())
+                    random_mask = (torch.rand_like(cam_mask) < hide_ratio).float()
                     img_random = img_01 * (1 - random_mask)
-                    tensor_to_pil_image(img_random).save(str(variant_root / "random_sparsity" / split / cls_name / fname))
+                    _save_pil_image(
+                        tensor_to_pil_image(img_random),
+                        variant_root / "random_sparsity" / split / cls_name / fname,
+                    )
 
-                # 4) Shuffled-CAM control — apply low-saliency mask from another image
+                # 4) Shuffled-CAM control — apply the same threshold rule from another image
                 if "shuffled_cam_low_saliency" in variants:
                     if B > 1:
                         shuffled_idx = (i + 1) % B
                         shuffled_cam = merged_cam_cpu[shuffled_idx]
                     else:
                         shuffled_cam = cam_i.flatten()[torch.randperm(cam_i.numel())].view_as(cam_i)
-                    shuffled_low_mask = (shuffled_cam <= threshold).float()
-                    img_shuffled = img_01 * (1 - shuffled_low_mask)
-                    tensor_to_pil_image(img_shuffled).save(
-                        str(variant_root / "shuffled_cam_low_saliency" / split / cls_name / fname)
+                    if mask_top_of_threshold:
+                        shuffled_mask = (shuffled_cam >= (1.0 - threshold)).float()
+                    else:
+                        shuffled_mask = (shuffled_cam <= threshold).float()
+                    img_shuffled = img_01 * (1 - shuffled_mask)
+                    _save_pil_image(
+                        tensor_to_pil_image(img_shuffled),
+                        variant_root / "shuffled_cam_low_saliency" / split / cls_name / fname,
                     )
 
                 global_idx += 1
@@ -604,15 +647,9 @@ def _build_variant_loaders(
 
     metrics_batch_size = min(METRICS_BATCH_SIZE, batch_size)
 
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
-                          num_workers=num_workers, pin_memory=True)
-    test_dl = DataLoader(test_ds, batch_size=metrics_batch_size, shuffle=False,
-                         num_workers=num_workers, pin_memory=True)
-    val_dl = (
-        DataLoader(val_ds, batch_size=metrics_batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
-        if val_ds is not None
-        else None
-    )
+    train_dl = _make_dataloader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_dl = _make_dataloader(test_ds, batch_size=metrics_batch_size, shuffle=False, num_workers=num_workers)
+    val_dl = _make_dataloader(val_ds, batch_size=metrics_batch_size, shuffle=False, num_workers=num_workers) if val_ds is not None else None
     return train_dl, val_dl, test_dl
 
 
@@ -654,12 +691,11 @@ def train_output_on_variant(
 
         # Use train-matched test split for the primary metric in this run.
         if variant == "original":
-            eval_test_dl = DataLoader(
+            eval_test_dl = _make_dataloader(
                 original_test_dl.dataset,
                 batch_size=min(METRICS_BATCH_SIZE, batch_size),
                 shuffle=False,
                 num_workers=resolved.num_workers,
-                pin_memory=True,
             )
         else:
             eval_test_dl = variant_test_dl
@@ -926,10 +962,8 @@ def main():
     eval_train_ds = _get_raw_dataset(train_dl, eval_tfm)
     eval_test_ds = _get_raw_dataset(test_dl, eval_tfm)
 
-    eval_train_dl = DataLoader(eval_train_ds, batch_size=args.batch_size, shuffle=False,
-                               num_workers=args.num_workers, pin_memory=True)
-    eval_test_dl = DataLoader(eval_test_ds, batch_size=args.batch_size, shuffle=False,
-                              num_workers=args.num_workers, pin_memory=True)
+    eval_train_dl = _make_dataloader(eval_train_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    eval_test_dl = _make_dataloader(eval_test_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     class_names = _get_class_names(train_dl)
 
@@ -949,6 +983,7 @@ def main():
             device=device,
             cam_layer=args.cam_layer,
             threshold=args.threshold,
+            mask_top_of_threshold=args.mask_top_of_threshold,
             logger=logger,
         )
 
@@ -960,7 +995,7 @@ def main():
 
     # ── Step 4: build the original test loader for fair evaluation ────────
     #    (all variants are evaluated on the *same* original test set)
-    orig_test_dl = DataLoader(
+    orig_test_dl = _make_dataloader(
         torchvision.datasets.ImageFolder(
             root=str(variant_root / "original" / "test"),
             transform=T.Compose([
@@ -972,12 +1007,12 @@ def main():
         batch_size=METRICS_BATCH_SIZE,
         shuffle=False,
         num_workers=args.num_workers,
-        pin_memory=True,
     )
 
     # ── Step 5: train each output model on each variant ───────────────────
+    output_results_root = Path(base_out_dir) / "output_models"
+    output_results_root.mkdir(parents=True, exist_ok=True)
     comparison_results: Dict[str, Dict[str, Any]] = {}
-    output_results_root = Path(base_out_dir)
     for output_model in args.output_models:
         comparison_results[output_model] = {}
         logger.info(f"\nStarting output model sweep: {output_model}")
