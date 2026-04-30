@@ -939,7 +939,7 @@ def main():
 
     timestamp = tags["timestamp"]
     log_path = Path(base_out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
-    logger = get_logger(__name__, log_file=log_path, console=False)
+    logger = get_logger(__name__, log_file=log_path, console=True)
     logger.info(f"Comparison pipeline | device={device} | out_dir={base_out_dir} | args={json.dumps(vars(args), sort_keys=True)}")
     logger.info(f"Enabled variants: {enabled_variants}")
 

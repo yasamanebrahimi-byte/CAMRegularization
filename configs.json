@@ -138,7 +138,7 @@
         "drive_zip": {
             "batch_size": 256,
             "num_workers": 8,
-            "epochs": 70
+            "epochs": 60
         }
     },
 
