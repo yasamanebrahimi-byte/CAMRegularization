@@ -1,0 +1,38 @@
+{
+  "densenet121": {
+    "low_saliency": {
+      "best_val_acc": 0.734375,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.7329078638497653,
+          "loss": 1.5304974150087491
+        },
+        "original": {
+          "acc1": 0.7182365023474179,
+          "loss": 1.4946258338824125
+        }
+      },
+      "final_test_acc1": 0.7329078638497653,
+      "final_test_loss": 1.5304974150087491,
+      "output_model": "densenet121",
+      "variant": "low_saliency"
+    },
+    "original": {
+      "best_val_acc": 0.7471507352941177,
+      "eval_metrics": {
+        "low_saliency": {
+          "acc1": 0.689994131455399,
+          "loss": 1.6720239158300028
+        },
+        "original": {
+          "acc1": 0.7453051643192489,
+          "loss": 1.4125521273757746
+        }
+      },
+      "final_test_acc1": 0.7453051643192489,
+      "final_test_loss": 1.4125521273757746,
+      "output_model": "densenet121",
+      "variant": "original"
+    }
+  }
+}
