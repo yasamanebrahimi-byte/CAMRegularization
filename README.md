@@ -216,7 +216,7 @@ Output:
 Use when you want to train teacher models, generate HiResCAM-masked dataset variants, and train downstream models under a controlled evaluation protocol.
 
 ```bash
-python comparison.py --dataset cifar100 --input_models resnet18 resnet34 --output_models densenet121 resnet50
+python comparison.py --dataset cifar100 --input_models resnet18 resnet34 --output_models densenet121 resnet50 --enable_original --enable_low_saliency
 ```
 
 This runs:
@@ -226,12 +226,12 @@ This runs:
 - downstream/output training (`--output_models`) on each enabled variant
 - cross-distribution evaluation and result export
 
-Default generated variants:
+Variants are opt-in (no variants generated unless enabled):
 
-- `original`
-- `low_saliency` (mask where merged CAM `<= --threshold`)
+- `--enable_original`: `original`
+- `--enable_low_saliency`: `low_saliency` (mask where merged CAM `<= --threshold`; use `--mask_top_of_threshold` for high-saliency masking)
 
-Optional faithfulness controls:
+Additional controls:
 
 - `--enable_random_control`: adds `random_sparsity` (same per-image mask ratio as `low_saliency`, random pixel locations)
 - `--enable_shuffled_cam_control`: adds `shuffled_cam_low_saliency` (low-saliency masks from CAMs of other images)

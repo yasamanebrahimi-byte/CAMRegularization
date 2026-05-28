@@ -54,35 +54,36 @@ def _load_validation_metrics(metrics_csv):
 
 def plot_variant_validation_comparison(
     original_metrics_csv,
-    low_saliency_metrics_csv,
+    variant_metrics_csv,
     out_png,
     output_model_name,
     input_models,
     dataset_name,
+    variant_label="Masked",
 ):
     original_df = _load_validation_metrics(original_metrics_csv)
-    low_df = _load_validation_metrics(low_saliency_metrics_csv)
+    variant_df = _load_validation_metrics(variant_metrics_csv)
 
-    if original_df.empty or low_df.empty:
+    if original_df.empty or variant_df.empty:
         return False
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     inputs_str = ", ".join(input_models)
     fig.suptitle(
         f"Validation Comparison | Output Model: {output_model_name} | "
-        f"Mask Inputs: {inputs_str} | Dataset: {dataset_name}",
+        f"Mask Inputs: {inputs_str} | Masking: {variant_label} | Dataset: {dataset_name}",
         fontsize=13,
         fontweight="bold",
     )
 
     ax = axes[0]
     ax.plot(original_df["epoch"], original_df["eval_loss"], color="#1f77b4", linewidth=2, label="Original")
-    ax.plot(low_df["epoch"], low_df["eval_loss"], color="#ff7f0e", linewidth=2, label="Low Saliency")
+    ax.plot(variant_df["epoch"], variant_df["eval_loss"], color="#ff7f0e", linewidth=2, label=variant_label)
     _setup_subplot(ax, "Epoch", "Loss", "Validation Loss")
 
     ax = axes[1]
     ax.plot(original_df["epoch"], original_df["eval_acc1"] * 100, color="#1f77b4", linewidth=2, label="Original")
-    ax.plot(low_df["epoch"], low_df["eval_acc1"] * 100, color="#ff7f0e", linewidth=2, label="Low Saliency")
+    ax.plot(variant_df["epoch"], variant_df["eval_acc1"] * 100, color="#ff7f0e", linewidth=2, label=variant_label)
     _setup_subplot(ax, "Epoch", "Accuracy (%)", "Validation Accuracy@1")
 
     plt.tight_layout()

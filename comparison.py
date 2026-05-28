@@ -35,7 +35,6 @@ from train import train_with_config
 from engine import evaluate
 from utils import set_seed, denormalize_tensor, tensor_to_pil_image
 
-BASE_VARIANTS = ["original", "low_saliency"]
 HEADER_WIDTH = 60
 TABLE_WIDTH = 96
 METRICS_BATCH_SIZE = 256
@@ -160,11 +159,25 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cam_layer", type=str, default="auto")
     p.add_argument("--threshold", type=float, default=0.3)
     p.add_argument(
+        "--enable_original",
+        action="store_true",
+        help="Generate the unmasked original dataset variant",
+    )
+    p.add_argument(
+        "--enable_low_saliency",
+        action="store_true",
+        help=(
+            "Generate CAM-masked variant (low-saliency by default; "
+            "use --mask_top_of_threshold for high-saliency masking)"
+        ),
+    )
+    p.add_argument(
         "--mask_top_of_threshold",
         action="store_true",
         help=(
             "When set, hide the high-saliency side of the CAM instead of the low-saliency side. "
-            "For example, --threshold 0.3 masks cam >= 0.7 instead of cam <= 0.3."
+            "For example, --threshold 0.3 masks cam >= 0.7 instead of cam <= 0.3. "
+            "Only affects CAM-derived variants."
         ),
     )
     p.add_argument(
@@ -196,7 +209,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _get_enabled_variants(args: argparse.Namespace) -> List[str]:
-    variants = list(BASE_VARIANTS)
+    variants: List[str] = []
+    if args.enable_original:
+        variants.append("original")
+    if args.enable_low_saliency:
+        variants.append("low_saliency")
     if args.enable_random_control:
         variants.append("random_sparsity")
     if args.enable_shuffled_cam_control:
@@ -660,7 +677,7 @@ def train_output_on_variant(
     variant: str,
     variant_root: Path,
     results_root: Path,
-    original_test_dl: DataLoader,
+    original_test_dl: Optional[DataLoader],
     logger,
 ) -> Dict[str, Any]:
     """Train output model on one train variant and evaluate across test variants."""
@@ -690,7 +707,7 @@ def train_output_on_variant(
         )
 
         # Use train-matched test split for the primary metric in this run.
-        if variant == "original":
+        if variant == "original" and original_test_dl is not None:
             eval_test_dl = _make_dataloader(
                 original_test_dl.dataset,
                 batch_size=min(METRICS_BATCH_SIZE, batch_size),
@@ -727,7 +744,7 @@ def train_output_on_variant(
         f"batch_size={final_batch_size}, amp={final_amp}"
     )
 
-    # Evaluate this trained model on both original and low_saliency test distributions.
+    # Evaluate this trained model on original/low_saliency test distributions when available.
     eval_metrics: Dict[str, Dict[str, float]] = {}
     criterion = nn.CrossEntropyLoss()
     model_device = next(trained_output_model.parameters()).device
@@ -863,34 +880,63 @@ def _generate_validation_comparison_plot(
     results_root: Path,
     input_models: List[str],
     dataset_name: str,
+    enabled_variants: List[str],
+    mask_top_of_threshold: bool,
     logger,
 ) -> None:
-    original_metrics_csv = results_root / output_model / "original" / "metrics.csv"
-    low_saliency_metrics_csv = results_root / output_model / "low_saliency" / "metrics.csv"
-    out_png = results_root / output_model / "validation_comparison_plot.png"
-
-    if not original_metrics_csv.exists() or not low_saliency_metrics_csv.exists():
-        logger.warning(
+    if "original" not in enabled_variants:
+        logger.info(
             f"Skipping validation comparison plot for {output_model}: "
-            f"missing metrics CSV ({original_metrics_csv}, {low_saliency_metrics_csv})"
+            "requires original variant"
         )
         return
 
-    written = plot_variant_validation_comparison(
-        original_metrics_csv=str(original_metrics_csv),
-        low_saliency_metrics_csv=str(low_saliency_metrics_csv),
-        out_png=str(out_png),
-        output_model_name=output_model,
-        input_models=input_models,
-        dataset_name=dataset_name,
-    )
-    if written:
-        logger.info(f"Saved validation comparison plot: {out_png}")
-    else:
+    original_metrics_csv = results_root / output_model / "original" / "metrics.csv"
+
+    if not original_metrics_csv.exists():
         logger.warning(
-            f"Skipped validation comparison plot for {output_model}: "
-            "no validation rows found in one or both metrics files"
+            f"Skipping validation comparison plot for {output_model}: "
+            f"missing metrics CSV ({original_metrics_csv})"
         )
+        return
+
+    variant_labels = {
+        "low_saliency": "High Saliency" if mask_top_of_threshold else "Low Saliency",
+        "random_sparsity": "Random Sparsity",
+        "shuffled_cam_low_saliency": "Shuffled CAM",
+    }
+
+    for variant in enabled_variants:
+        if variant == "original":
+            continue
+
+        variant_metrics_csv = results_root / output_model / variant / "metrics.csv"
+        if not variant_metrics_csv.exists():
+            logger.warning(
+                f"Skipping validation comparison plot for {output_model} [{variant}]: "
+                f"missing metrics CSV ({variant_metrics_csv})"
+            )
+            continue
+
+        variant_label = variant_labels.get(variant, variant.replace("_", " ").title())
+        out_png = results_root / output_model / f"validation_comparison_{variant}.png"
+
+        written = plot_variant_validation_comparison(
+            original_metrics_csv=str(original_metrics_csv),
+            variant_metrics_csv=str(variant_metrics_csv),
+            out_png=str(out_png),
+            output_model_name=output_model,
+            input_models=input_models,
+            dataset_name=dataset_name,
+            variant_label=variant_label,
+        )
+        if written:
+            logger.info(f"Saved validation comparison plot: {out_png}")
+        else:
+            logger.warning(
+                f"Skipped validation comparison plot for {output_model} [{variant}]: "
+                "no validation rows found in one or both metrics files"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -943,6 +989,14 @@ def main():
     logger.info(f"Comparison pipeline | device={device} | out_dir={base_out_dir} | args={json.dumps(vars(args), sort_keys=True)}")
     logger.info(f"Enabled variants: {enabled_variants}")
 
+    if not enabled_variants:
+        logger.warning(
+            "No variants enabled; skipping dataset generation and output model training. "
+            "Use --enable_original, --enable_low_saliency, --enable_random_control, "
+            "or --enable_shuffled_cam_control to select variants."
+        )
+        return
+
     mean, std = get_normalization_params(args.dataset)
     input_size = get_default_input_size(args.dataset)
 
@@ -994,20 +1048,22 @@ def main():
     _cuda_cleanup()
 
     # ── Step 4: build the original test loader for fair evaluation ────────
-    #    (all variants are evaluated on the *same* original test set)
-    orig_test_dl = _make_dataloader(
-        torchvision.datasets.ImageFolder(
-            root=str(variant_root / "original" / "test"),
-            transform=T.Compose([
-                T.Resize((input_size, input_size)),
-                T.ToTensor(),
-                T.Normalize(mean, std),
-            ]),
-        ),
-        batch_size=METRICS_BATCH_SIZE,
-        shuffle=False,
-        num_workers=args.num_workers,
-    )
+    #    (only if original variant is enabled)
+    orig_test_dl = None
+    if "original" in enabled_variants:
+        orig_test_dl = _make_dataloader(
+            torchvision.datasets.ImageFolder(
+                root=str(variant_root / "original" / "test"),
+                transform=T.Compose([
+                    T.Resize((input_size, input_size)),
+                    T.ToTensor(),
+                    T.Normalize(mean, std),
+                ]),
+            ),
+            batch_size=METRICS_BATCH_SIZE,
+            shuffle=False,
+            num_workers=args.num_workers,
+        )
 
     # ── Step 5: train each output model on each variant ───────────────────
     output_results_root = Path(base_out_dir) / "output_models"
@@ -1039,6 +1095,8 @@ def main():
             results_root=output_results_root,
             input_models=args.input_models,
             dataset_name=args.dataset,
+            enabled_variants=enabled_variants,
+            mask_top_of_threshold=args.mask_top_of_threshold,
             logger=logger,
         )
 
