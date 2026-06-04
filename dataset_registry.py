@@ -5,6 +5,7 @@ import sys
 import zipfile
 import csv
 import math
+import re
 from pathlib import Path
 import numpy as np
 import torch
@@ -23,9 +24,10 @@ KAGGLE_API_TOKEN = "KGAT_5944f37e07ad4aef74d5a89f1a0bce45"
 
 
 class _ImagePathDataset(Dataset):
-    def __init__(self, samples: List[Tuple[str, int]], transform=None):
+    def __init__(self, samples: List[Tuple[str, int]], transform=None, convert_mode: str = "RGB"):
         self.samples = samples
         self.transform = transform
+        self.convert_mode = convert_mode
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -33,10 +35,54 @@ class _ImagePathDataset(Dataset):
     def __getitem__(self, index: int):
         image_path, target = self.samples[index]
         with Image.open(image_path) as img:
-            image = img.convert("RGB")
+            image = img.convert(self.convert_mode)
         if self.transform is not None:
             image = self.transform(image)
         return image, target
+
+
+def _prepend_grayscale_transform(transform, grayscale: bool):
+    if not grayscale:
+        return transform
+    grayscale_tfm = T.Grayscale(num_output_channels=3)
+    if transform is None:
+        return T.Compose([grayscale_tfm])
+    if isinstance(transform, T.Compose):
+        return T.Compose([grayscale_tfm] + list(transform.transforms))
+    return T.Compose([grayscale_tfm, transform])
+
+
+def _filter_samples_by_regex(samples: List[Tuple[str, int]], include_regex: Optional[str]) -> List[Tuple[str, int]]:
+    if not include_regex:
+        return samples
+    pattern = re.compile(include_regex)
+    filtered = [sample for sample in samples if pattern.search(str(sample[0]))]
+    if not filtered:
+        raise ValueError(f"include_regex='{include_regex}' filtered out all samples.")
+    return filtered
+
+
+def _filter_dataset_by_regex(dataset: Dataset, include_regex: Optional[str]) -> Dataset:
+    if not include_regex:
+        return dataset
+    pattern = re.compile(include_regex)
+
+    if isinstance(dataset, Subset):
+        base = dataset.dataset
+        if hasattr(base, "samples"):
+            indices = [idx for idx in dataset.indices if pattern.search(str(base.samples[idx][0]))]
+            if not indices:
+                raise ValueError(f"include_regex='{include_regex}' filtered out all samples.")
+            return Subset(base, indices)
+        return dataset
+
+    if hasattr(dataset, "samples"):
+        indices = [i for i, (path, _) in enumerate(dataset.samples) if pattern.search(str(path))]
+        if not indices:
+            raise ValueError(f"include_regex='{include_regex}' filtered out all samples.")
+        return Subset(dataset, indices)
+
+    return dataset
 
 
 class _MalwareBytesDataset(Dataset):
@@ -835,6 +881,7 @@ def _build_dataloaders(
 
 def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split: float = 0.0, 
     seed: int = 42, **kwargs) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
     mean = (0.5071, 0.4867, 0.4408)
     std = (0.2675, 0.2565, 0.2761)
     train_tfms = T.Compose([
@@ -847,6 +894,8 @@ def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split:
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
     train_ds = torchvision.datasets.CIFAR100(
         root=data_dir, train=True, download=True, transform=train_tfms
     )
@@ -870,6 +919,8 @@ def _tiny_imagenet_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
+    include_regex = kwargs.get("include_regex")
     root = Path(data_dir)
     local_candidates = [
         str(root / "tiny-imagenet-200"),
@@ -899,6 +950,8 @@ def _tiny_imagenet_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     train_dir = Path(tiny_root) / "train"
     val_dir = Path(tiny_root) / "val"
@@ -907,11 +960,17 @@ def _tiny_imagenet_loader(
             f"Tiny-ImageNet structure invalid at '{tiny_root}'. Expected train/ and val/ directories."
         )
 
-    train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+    base_train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+    train_ds = base_train_ds
     train_val_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=test_tfms)
+    class_to_idx = base_train_ds.class_to_idx
+    train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+    train_val_ds = _filter_dataset_by_regex(train_val_ds, include_regex)
 
-    val_samples = _build_tiny_imagenet_val_samples(val_dir, train_ds.class_to_idx)
-    test_ds = _ImagePathDataset(val_samples, transform=test_tfms)
+    val_samples = _build_tiny_imagenet_val_samples(val_dir, class_to_idx)
+    val_samples = _filter_samples_by_regex(val_samples, include_regex)
+    convert_mode = "L" if grayscale else "RGB"
+    test_ds = _ImagePathDataset(val_samples, transform=test_tfms, convert_mode=convert_mode)
 
     train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
     if val_ds is None:
@@ -927,6 +986,8 @@ def _cub200_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
+    include_regex = kwargs.get("include_regex")
     root = Path(data_dir)
     local_candidates = [
         str(root / "CUB_200_2011"),
@@ -969,6 +1030,8 @@ def _cub200_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     with open(images_txt, "r", encoding="utf-8") as f:
         image_rows = [row.strip().split(" ", 1) for row in f if row.strip()]
@@ -990,9 +1053,12 @@ def _cub200_loader(
         else:
             test_samples.append(sample)
 
-    train_ds = _ImagePathDataset(train_samples, transform=train_tfms)
-    train_val_ds = _ImagePathDataset(train_samples, transform=test_tfms)
-    test_ds = _ImagePathDataset(test_samples, transform=test_tfms)
+    train_samples = _filter_samples_by_regex(train_samples, include_regex)
+    test_samples = _filter_samples_by_regex(test_samples, include_regex)
+    convert_mode = "L" if grayscale else "RGB"
+    train_ds = _ImagePathDataset(train_samples, transform=train_tfms, convert_mode=convert_mode)
+    train_val_ds = _ImagePathDataset(train_samples, transform=test_tfms, convert_mode=convert_mode)
+    test_ds = _ImagePathDataset(test_samples, transform=test_tfms, convert_mode=convert_mode)
 
     train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
     if val_ds is None:
@@ -1008,6 +1074,8 @@ def _malimg_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
+    include_regex = kwargs.get("include_regex")
     kaggle_dataset = "manmandes/malimg"
     root = Path(data_dir)
     malimg_root = _ensure_kaggle_dataset_available(
@@ -1073,10 +1141,15 @@ def _malimg_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
     val_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
     test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
+    train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+    val_ds = _filter_dataset_by_regex(val_ds, include_regex)
+    test_ds = _filter_dataset_by_regex(test_ds, include_regex)
 
     if val_split and val_split > 0.0:
         logger.info("MalImg explicit train/val/test split detected; ignoring val_split=%s.", val_split)
@@ -1178,6 +1251,7 @@ def _imagenette_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
     if not hasattr(torchvision.datasets, "Imagenette"):
         raise RuntimeError(
             "torchvision.datasets.Imagenette is unavailable in this torchvision version. "
@@ -1200,6 +1274,8 @@ def _imagenette_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     train_ds = torchvision.datasets.Imagenette(
         root=data_dir,
@@ -1235,6 +1311,7 @@ def _cifar100c_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
     corruption = kwargs.get("corruption", "gaussian_noise")
     severity = int(kwargs.get("severity", 5))
 
@@ -1261,6 +1338,8 @@ def _cifar100c_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     train_ds = torchvision.datasets.CIFAR100(
         root=data_dir,
@@ -1295,6 +1374,8 @@ def _drive_zip_loader(
     seed: int = 42,
     **kwargs,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    grayscale = bool(kwargs.get("grayscale", False))
+    include_regex = kwargs.get("include_regex")
     image_size = int(kwargs.get("image_size", 224))
     if image_size <= 0:
         raise ValueError(f"Invalid image_size={image_size}. Expected a positive integer.")
@@ -1315,6 +1396,8 @@ def _drive_zip_loader(
         T.ToTensor(),
         T.Normalize(mean, std),
     ])
+    train_tfms = _prepend_grayscale_transform(train_tfms, grayscale)
+    test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     zip_path = _resolve_drive_zip_archive_path(data_dir, **kwargs)
     extracted_root = _extract_zip_to_cache(zip_path, Path(data_dir) / "_drive_zip_extracted")
@@ -1326,6 +1409,9 @@ def _drive_zip_loader(
         train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "train"), transform=train_tfms)
         val_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "val"), transform=test_tfms)
         test_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "test"), transform=test_tfms)
+        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+        val_ds = _filter_dataset_by_regex(val_ds, include_regex)
+        test_ds = _filter_dataset_by_regex(test_ds, include_regex)
         if val_split and val_split > 0.0:
             logger.info("drive_zip explicit train/val/test split detected; ignoring val_split=%s.", val_split)
         return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
@@ -1336,6 +1422,9 @@ def _drive_zip_loader(
         train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
         train_val_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=test_tfms)
         test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
+        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+        train_val_ds = _filter_dataset_by_regex(train_val_ds, include_regex)
+        test_ds = _filter_dataset_by_regex(test_ds, include_regex)
         train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
         if val_ds is None:
             logger.info("drive_zip train/test layout detected; no validation split requested.")
@@ -1343,6 +1432,8 @@ def _drive_zip_loader(
 
     full_train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=train_tfms)
     full_eval_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=test_tfms)
+    full_train_ds = _filter_dataset_by_regex(full_train_ds, include_regex)
+    full_eval_ds = _filter_dataset_by_regex(full_eval_ds, include_regex)
 
     eval_split = val_split if (val_split and val_split > 0.0) else 0.1
     if not val_split or val_split <= 0.0:
@@ -1352,7 +1443,14 @@ def _drive_zip_loader(
     if test_split <= 0.0:
         test_split = eval_split
 
-    labels = [int(label) for _, label in full_train_ds.samples]
+    if isinstance(full_train_ds, Subset) and hasattr(full_train_ds.dataset, "samples"):
+        labels = [int(full_train_ds.dataset.samples[i][1]) for i in full_train_ds.indices]
+    elif hasattr(full_train_ds, "samples"):
+        labels = [int(label) for _, label in full_train_ds.samples]
+    elif hasattr(full_train_ds, "targets"):
+        labels = [int(label) for label in full_train_ds.targets]
+    else:
+        raise ValueError("Unable to extract labels for drive_zip stratified split.")
     train_idx, val_idx, test_idx = _stratified_split_train_val_test_indices(
         labels=labels,
         val_ratio=eval_split,

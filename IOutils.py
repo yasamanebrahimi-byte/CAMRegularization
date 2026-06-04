@@ -100,6 +100,25 @@ def add_training_hparam_args(
     parser.add_argument("--amp", action="store_true", default=False)
     return parser
 
+
+def add_cutout_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--cutout_mode",
+        type=str,
+        choices=["none", "random", "cam_low", "cam_high"],
+        default="none",
+    )
+    parser.add_argument("--cutout_m", type=int, default=0)
+    parser.add_argument("--cutout_size", type=int, default=0)
+    parser.add_argument("--cutout_area", type=float, default=None)
+    parser.add_argument("--teacher_model", type=str, default="")
+    parser.add_argument("--teacher_checkpoint", type=str, default="")
+    parser.add_argument("--cam_layer", type=str, default="auto")
+    parser.add_argument("--saliency_candidate_percent", type=float, default=10.0)
+    parser.add_argument("--grayscale", action="store_true", default=False)
+    parser.add_argument("--include_regex", type=str, default="")
+    return parser
+
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
@@ -107,6 +126,7 @@ def build_parser():
     add_data_loading_args(p)
     p.add_argument("--out_dir", type=str, default="./runs")
     add_training_hparam_args(p)
+    add_cutout_args(p)
     return p
 
 def make_run_dir(out_dir, run_name):
@@ -165,6 +185,16 @@ TRAIN_ARG_FIELDS = (
     "warmup_epochs",
     "nesterov",
     "amp",
+    "cutout_mode",
+    "cutout_m",
+    "cutout_size",
+    "cutout_area",
+    "teacher_model",
+    "teacher_checkpoint",
+    "cam_layer",
+    "saliency_candidate_percent",
+    "grayscale",
+    "include_regex",
 )
 
 

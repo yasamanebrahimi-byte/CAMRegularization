@@ -4,12 +4,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from copy import deepcopy
+from torch.utils.data import DataLoader
 
 from model_registry import get_model
 from dataset_registry import (
     get_dataset_loaders,
     get_num_classes,
     get_default_input_size,
+    get_normalization_params,
     infer_num_classes_from_loader,
 )
 from engine import train_one_epoch, evaluate
@@ -18,6 +20,7 @@ from IOutils import build_parser, append_csv, init_run_dir_with_config, build_ti
 from graphics import plot_metrics
 from logger import get_logger, SimpleLogger
 from pathlib import Path
+from cutout import CutoutAugmentedDataset
 
 def build_optimizer(args, model):
     optimizer_name = str(getattr(args, "optimizer", "sgd")).lower()
@@ -44,6 +47,95 @@ def build_optimizer(args, model):
 
     raise ValueError(f"Unsupported optimizer '{optimizer_name}'.")
 
+
+def _extract_state_dict(checkpoint):
+    if isinstance(checkpoint, dict):
+        if "state_dict" in checkpoint:
+            return checkpoint["state_dict"]
+        if "model_state_dict" in checkpoint:
+            return checkpoint["model_state_dict"]
+    return checkpoint
+
+
+def _load_teacher_model(args, num_classes: int, input_size: int, logger):
+    logger = logger or SimpleLogger()
+    if not args.teacher_model or not args.teacher_checkpoint:
+        raise ValueError("Teacher model and checkpoint are required for cam_low/cam_high cutout.")
+    if not os.path.isfile(args.teacher_checkpoint):
+        raise FileNotFoundError(f"Teacher checkpoint not found: {args.teacher_checkpoint}")
+
+    model = get_model(args.teacher_model, num_classes=num_classes, input_size=input_size)
+    checkpoint = torch.load(args.teacher_checkpoint, map_location="cpu")
+    state_dict = _extract_state_dict(checkpoint)
+    if state_dict is None:
+        raise ValueError("Teacher checkpoint did not contain a valid state_dict.")
+
+    cleaned = {}
+    for key, value in state_dict.items():
+        if isinstance(key, str) and key.startswith("module."):
+            cleaned[key[len("module."):]] = value
+        else:
+            cleaned[key] = value
+
+    missing, unexpected = model.load_state_dict(cleaned, strict=False)
+    if missing or unexpected:
+        if hasattr(logger, "warning"):
+            logger.warning("Teacher checkpoint load: missing=%s unexpected=%s", missing, unexpected)
+        else:
+            logger.info(f"Teacher checkpoint load: missing={missing} unexpected={unexpected}")
+    model.eval()
+    return model
+
+
+def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
+    cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
+    cutout_m = int(getattr(args, "cutout_m", 0))
+    if cutout_mode == "none" or cutout_m <= 0:
+        return train_dl
+
+    cutout_size = int(getattr(args, "cutout_size", 0))
+    cutout_area = getattr(args, "cutout_area", None)
+    if (cutout_size <= 0) and (cutout_area is None or float(cutout_area) <= 0.0):
+        raise ValueError("cutout_size or cutout_area must be provided when cutout_m > 0.")
+
+    saliency_candidate_percent = float(getattr(args, "saliency_candidate_percent", 10.0))
+    cam_layer = str(getattr(args, "cam_layer", "auto") or "auto")
+
+    cutout_ds = CutoutAugmentedDataset(
+        base_dataset=train_dl.dataset,
+        cutout_mode=cutout_mode,
+        cutout_m=cutout_m,
+        cutout_size=cutout_size if cutout_size > 0 else None,
+        cutout_area=cutout_area,
+        mean=mean,
+        std=std,
+        seed=int(getattr(args, "seed", 0)),
+        saliency_candidate_percent=saliency_candidate_percent,
+        teacher_model=teacher_model,
+        cam_layer=cam_layer,
+    )
+
+    logger.info(
+        "Cutout enabled: mode=%s m=%s size=%s area=%s",
+        cutout_mode,
+        cutout_m,
+        cutout_size if cutout_size > 0 else None,
+        cutout_area,
+    )
+
+    loader_kwargs = {
+        "batch_size": train_dl.batch_size,
+        "shuffle": True,
+        "num_workers": train_dl.num_workers,
+        "pin_memory": getattr(train_dl, "pin_memory", True),
+        "drop_last": getattr(train_dl, "drop_last", False),
+    }
+    if getattr(train_dl, "persistent_workers", False):
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = getattr(train_dl, "prefetch_factor", 2)
+
+    return DataLoader(cutout_ds, **loader_kwargs)
+
 def train_with_config(
     args,
     run_dir=None,
@@ -66,6 +158,8 @@ def train_with_config(
         dataset_kwargs = {
             "val_split": args.val_split,
             "seed": args.seed,
+            "grayscale": getattr(args, "grayscale", False),
+            "include_regex": getattr(args, "include_regex", ""),
         }
 
         train_dl, val_dl, test_dl = get_dataset_loaders(
@@ -84,6 +178,20 @@ def train_with_config(
     )
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = build_optimizer(args, model)
+
+    cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
+    cutout_m = int(getattr(args, "cutout_m", 0))
+    if cutout_m < 0:
+        raise ValueError("cutout_m must be >= 0.")
+    if cutout_mode not in {"none", "random", "cam_low", "cam_high"}:
+        raise ValueError(f"Unsupported cutout_mode '{cutout_mode}'.")
+
+    teacher_model = None
+    if cutout_mode in {"cam_low", "cam_high"} and cutout_m > 0:
+        teacher_model = _load_teacher_model(args, num_classes=num_classes, input_size=input_size, logger=logger)
+    if cutout_mode != "none" and cutout_m > 0:
+        mean, std = get_normalization_params(args.dataset)
+        train_dl = _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger)
 
     # scheduler
     if args.scheduler == "multistep":

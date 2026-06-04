@@ -71,11 +71,11 @@ class HiResCAM:
         cam = cam / (cam.amax(dim=(2, 3), keepdim=True) + 1e-6)
         return cam
 
-    def cam(self, x):
+    def cam(self, x, target_class=None):
         """
         Returns HiResCAM in input resolution: [B, 1, H_in, W_in].
         Element-wise gradient * activation product (no global average pooling).
-        Computes CAM for the predicted class.
+        Computes CAM for the predicted class unless target_class is provided.
         """
         with torch.enable_grad():
             self.model.zero_grad(set_to_none=True)
@@ -88,7 +88,15 @@ class HiResCAM:
 
             # class score for predicted labels
             idx = torch.arange(x.size(0), device=x.device)
-            pred = logits.argmax(dim=1)
+            if target_class is None:
+                pred = logits.argmax(dim=1)
+            else:
+                if isinstance(target_class, int):
+                    pred = torch.full((x.size(0),), int(target_class), device=x.device, dtype=torch.long)
+                else:
+                    pred = torch.as_tensor(target_class, device=x.device, dtype=torch.long)
+                    if pred.ndim == 0:
+                        pred = pred.repeat(x.size(0))
             score = logits[idx, pred]
             grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
 
@@ -103,3 +111,32 @@ class HiResCAM:
         cam = self._normalize_cam(cam)
         cam = F.interpolate(cam, size=x.shape[-2:], mode="bilinear", align_corners=False)  # to input size
         return cam
+
+
+def compute_saliency_map(model: nn.Module, image_tensor: torch.Tensor, target_class=None, cam_layer: str = "auto") -> torch.Tensor:
+    """Return a normalized HiResCAM saliency map for a single image tensor.
+
+    Returns a [H, W] tensor in [0, 1] on CPU.
+    """
+    if image_tensor.ndim == 3:
+        x = image_tensor.unsqueeze(0)
+    else:
+        x = image_tensor
+
+    model.eval()
+    device = next(model.parameters()).device
+    x = x.to(device)
+
+    _, target_module = resolve_cam_target_module(model, cam_layer)
+    cam_runner = HiResCAM(model, target_module)
+    try:
+        cam = cam_runner.cam(x, target_class=target_class)  # [B, 1, H, W]
+    finally:
+        cam_runner.close()
+
+    cam = cam[:, 0]
+    cam = cam - cam.amin(dim=(1, 2), keepdim=True)
+    cam = cam / (cam.amax(dim=(1, 2), keepdim=True) + 1e-6)
+    cam = cam[0].detach().cpu()
+    return cam
+

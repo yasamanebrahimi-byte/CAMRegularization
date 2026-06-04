@@ -69,6 +69,52 @@ Registered datasets (from `dataset_registry.py`):
 - `big2015` (alias of `malware_classification`, 9 classes, default size 224)
 - `drive_zip` (generic image dataset loaded from a ZIP file, default size 224)
 
+## Mentor Cutout Experiments (Grayscale Malware)
+
+This training path adds square cutout augmentation for training data only. Each training image yields the original plus `M` cutout copies. Validation and test splits remain unmasked.
+
+Example commands (grayscale malware images in an explicit train/val/test split):
+
+No cutout:
+
+```bash
+python train.py --dataset drive_zip --data_dir /path/to/grayscale_data --model resnet18 --cutout_mode none --cutout_m 0 --grayscale
+```
+
+Random cutout M=4:
+
+```bash
+python train.py --dataset drive_zip --data_dir /path/to/grayscale_data --model resnet18 --cutout_mode random --cutout_m 4 --cutout_area 0.10 --grayscale
+```
+
+Random cutout M=8:
+
+```bash
+python train.py --dataset drive_zip --data_dir /path/to/grayscale_data --model resnet18 --cutout_mode random --cutout_m 8 --cutout_area 0.10 --grayscale
+```
+
+Low-saliency cutout M=4:
+
+```bash
+python train.py --dataset drive_zip --data_dir /path/to/grayscale_data --model resnet18 --cutout_mode cam_low --cutout_m 4 --cutout_area 0.10 --teacher_model resnet50 --teacher_checkpoint /path/to/teacher_best.pt --grayscale
+```
+
+High-saliency cutout M=4:
+
+```bash
+python train.py --dataset drive_zip --data_dir /path/to/grayscale_data --model resnet18 --cutout_mode cam_high --cutout_m 4 --cutout_area 0.10 --teacher_model resnet50 --teacher_checkpoint /path/to/teacher_best.pt --grayscale
+```
+
+Optional:
+
+- Use `--include_regex` to filter input paths when only a subset of grayscale files should be included.
+
+Quick validation helper:
+
+```bash
+python cutout_validation.py --dataset drive_zip --data_dir /path/to/grayscale_data --cutout_mode random --cutout_m 4 --cutout_area 0.10 --grayscale
+```
+
 ### Recommended dataset starters
 
 - `cifar100`
