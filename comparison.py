@@ -221,6 +221,48 @@ def _get_enabled_variants(args: argparse.Namespace) -> List[str]:
     return variants
 
 
+def _format_threshold_dir(threshold: float) -> str:
+    formatted = f"{threshold:.4f}".rstrip("0").rstrip(".")
+    return formatted or "0"
+
+
+def _variant_dir_name(variant: str, mask_top_of_threshold: bool) -> str:
+    if variant == "low_saliency":
+        return "high_saliency" if mask_top_of_threshold else "low_saliency"
+    if variant == "random_sparsity":
+        return "random"
+    if variant == "shuffled_cam_low_saliency":
+        return "shuffled_cam"
+    return variant
+
+
+def _output_model_run_dir(
+    results_root: Path,
+    output_model: str,
+    variant: str,
+    mask_top_of_threshold: bool,
+    threshold: float,
+) -> Path:
+    variant_name = _variant_dir_name(variant, mask_top_of_threshold)
+    if variant_name == "original":
+        return results_root / variant_name / output_model
+    threshold_dir = _format_threshold_dir(threshold)
+    return results_root / variant_name / threshold_dir / output_model
+
+
+def _variant_data_dir(
+    variant_root: Path,
+    variant: str,
+    mask_top_of_threshold: bool,
+    threshold: float,
+) -> Path:
+    variant_name = _variant_dir_name(variant, mask_top_of_threshold)
+    if variant_name == "original":
+        return variant_root / variant_name
+    threshold_dir = _format_threshold_dir(threshold)
+    return variant_root / variant_name / threshold_dir
+
+
 # ---------------------------------------------------------------------------
 # Step 1 — train input models (returns trained nn.Module objects)
 # ---------------------------------------------------------------------------
@@ -326,7 +368,7 @@ def _train_with_oom_retry(
 
 
 def train_input_models(
-    cli_args, config: Dict[str, Any], logger
+    cli_args, config: Dict[str, Any], logger, input_root: Path
 ) -> List[TrainedModel]:
     """Train each input model on the dataset and return (name, model) pairs."""
     trained: List[TrainedModel] = []
@@ -339,8 +381,8 @@ def train_input_models(
             resolved,
             model=model_name,
             dataset=cli_args.dataset,
-            out_dir=cli_args.out_dir,
-            run_name=f"input_{model_name}",
+            out_dir=str(input_root),
+            run_name=model_name,
         )
         args = build_args_from_params(params)
         run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))
@@ -528,9 +570,18 @@ def generate_and_save_variants(
     logger.info(f"Generating {split} variants → {variant_root}")
 
     # Create output directories
-    for variant in variants:
+    variant_dirs = {
+        variant: _variant_data_dir(
+            variant_root,
+            variant,
+            mask_top_of_threshold,
+            threshold,
+        )
+        for variant in variants
+    }
+    for variant_dir in variant_dirs.values():
         for cls_name in class_names:
-            (variant_root / variant / split / cls_name).mkdir(parents=True, exist_ok=True)
+            (variant_dir / split / cls_name).mkdir(parents=True, exist_ok=True)
 
     global_idx = 0
     cam_runners = _build_cam_runners(trained_models, cam_layer)
@@ -559,14 +610,17 @@ def generate_and_save_variants(
                 # 1) Original
                 if "original" in variants:
                     pil_orig = tensor_to_pil_image(img_01)
-                    _save_pil_image(pil_orig, variant_root / "original" / split / cls_name / fname)
+                    _save_pil_image(
+                        pil_orig,
+                        variant_dirs["original"] / split / cls_name / fname,
+                    )
 
                 # 2) CAM mask — hide either low-saliency pixels or the high-saliency side
                 if "low_saliency" in variants:
                     img_low = img_01 * (1 - cam_mask)
                     _save_pil_image(
                         tensor_to_pil_image(img_low),
-                        variant_root / "low_saliency" / split / cls_name / fname,
+                        variant_dirs["low_saliency"] / split / cls_name / fname,
                     )
 
                 # 3) Random sparsity control — same hide ratio, random locations
@@ -576,7 +630,7 @@ def generate_and_save_variants(
                     img_random = img_01 * (1 - random_mask)
                     _save_pil_image(
                         tensor_to_pil_image(img_random),
-                        variant_root / "random_sparsity" / split / cls_name / fname,
+                        variant_dirs["random_sparsity"] / split / cls_name / fname,
                     )
 
                 # 4) Shuffled-CAM control — apply the same threshold rule from another image
@@ -593,7 +647,7 @@ def generate_and_save_variants(
                     img_shuffled = img_01 * (1 - shuffled_mask)
                     _save_pil_image(
                         tensor_to_pil_image(img_shuffled),
-                        variant_root / "shuffled_cam_low_saliency" / split / cls_name / fname,
+                        variant_dirs["shuffled_cam_low_saliency"] / split / cls_name / fname,
                     )
 
                 global_idx += 1
@@ -690,7 +744,12 @@ def train_output_on_variant(
     else:
         logger.info(f"  Final test uses {variant} variant test split")
 
-    variant_dir = variant_root / variant
+    variant_dir = _variant_data_dir(
+        variant_root,
+        variant,
+        cli_args.mask_top_of_threshold,
+        cli_args.threshold,
+    )
     variant_test_dl_for_metrics = None
     final_batch_size = int(resolved.batch_size)
     final_amp = bool(resolved.amp)
@@ -723,11 +782,23 @@ def train_output_on_variant(
         resolved,
         model=output_model,
         dataset=resolved.dataset,
-        out_dir=str(results_root / output_model / variant),
-        run_name=f"output_{output_model}_{variant}",
+        out_dir=str(_output_model_run_dir(
+            results_root,
+            output_model,
+            variant,
+            cli_args.mask_top_of_threshold,
+            cli_args.threshold,
+        ).parent),
+        run_name=output_model,
     )
     args = build_args_from_params(params)
-    run_dir = Path(results_root) / output_model / variant
+    run_dir = _output_model_run_dir(
+        results_root,
+        output_model,
+        variant,
+        cli_args.mask_top_of_threshold,
+        cli_args.threshold,
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(str(run_dir / "config.json"), vars(args))
 
@@ -751,11 +822,24 @@ def train_output_on_variant(
 
     candidate_eval_variants = ["original", "low_saliency"]
     for eval_variant in candidate_eval_variants:
-        eval_variant_dir = variant_root / eval_variant / "test"
+        eval_variant_dir = (
+            _variant_data_dir(
+                variant_root,
+                eval_variant,
+                cli_args.mask_top_of_threshold,
+                cli_args.threshold,
+            )
+            / "test"
+        )
         if not eval_variant_dir.exists():
             continue
         _, _, eval_dl = _build_variant_loaders(
-            variant_root / eval_variant,
+            _variant_data_dir(
+                variant_root,
+                eval_variant,
+                cli_args.mask_top_of_threshold,
+                cli_args.threshold,
+            ),
             resolved.dataset,
             final_batch_size,
             resolved.num_workers,
@@ -882,6 +966,7 @@ def _generate_validation_comparison_plot(
     dataset_name: str,
     enabled_variants: List[str],
     mask_top_of_threshold: bool,
+    threshold: float,
     logger,
 ) -> None:
     if "original" not in enabled_variants:
@@ -891,7 +976,13 @@ def _generate_validation_comparison_plot(
         )
         return
 
-    original_metrics_csv = results_root / output_model / "original" / "metrics.csv"
+    original_metrics_csv = _output_model_run_dir(
+        results_root,
+        output_model,
+        "original",
+        mask_top_of_threshold,
+        threshold,
+    ) / "metrics.csv"
 
     if not original_metrics_csv.exists():
         logger.warning(
@@ -910,7 +1001,13 @@ def _generate_validation_comparison_plot(
         if variant == "original":
             continue
 
-        variant_metrics_csv = results_root / output_model / variant / "metrics.csv"
+        variant_metrics_csv = _output_model_run_dir(
+            results_root,
+            output_model,
+            variant,
+            mask_top_of_threshold,
+            threshold,
+        ) / "metrics.csv"
         if not variant_metrics_csv.exists():
             logger.warning(
                 f"Skipping validation comparison plot for {output_model} [{variant}]: "
@@ -919,7 +1016,17 @@ def _generate_validation_comparison_plot(
             continue
 
         variant_label = variant_labels.get(variant, variant.replace("_", " ").title())
-        out_png = results_root / output_model / f"validation_comparison_{variant}.png"
+        variant_dir_name = _variant_dir_name(variant, mask_top_of_threshold)
+        out_png = (
+            _output_model_run_dir(
+                results_root,
+                output_model,
+                variant,
+                mask_top_of_threshold,
+                threshold,
+            )
+            / f"validation_comparison_{variant_dir_name}.png"
+        )
 
         written = plot_variant_validation_comparison(
             original_metrics_csv=str(original_metrics_csv),
@@ -975,13 +1082,15 @@ def main():
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if args.out_dir:
-        base_out_dir = args.out_dir
-    else:
-        base_out_dir = os.path.join("./runs", f"{args.dataset}_{tags['year_month']}", tags["day"])
-    Path(base_out_dir).mkdir(parents=True, exist_ok=True)
-    write_json(str(Path(base_out_dir) / "comparison_config.json"), vars(args))
-    args.out_dir = base_out_dir
+    root_out_dir = Path(args.out_dir) if args.out_dir else Path("./runs")
+    base_out_dir = root_out_dir / args.dataset / str(args.seed)
+    input_models_root = base_out_dir / "input_models"
+    output_models_root = base_out_dir / "output_models"
+    base_out_dir.mkdir(parents=True, exist_ok=True)
+    input_models_root.mkdir(parents=True, exist_ok=True)
+    output_models_root.mkdir(parents=True, exist_ok=True)
+    args.out_dir = str(base_out_dir)
+    write_json(str(base_out_dir / "comparison_config.json"), vars(args))
 
     timestamp = tags["timestamp"]
     log_path = Path(base_out_dir) / f"comparison_{args.dataset}_{timestamp}.log"
@@ -1001,10 +1110,10 @@ def main():
     input_size = get_default_input_size(args.dataset)
 
     # ── Variant output directory ────────────────────────────────────────────
-    variant_root = Path(args.data_dir) / f"comparison_{args.dataset}_{tags['year_month']}" / tags["day"]
+    variant_root = Path(args.data_dir) / f"comparison_{args.dataset}" / str(args.seed)
 
     # ── Step 1: train input models ────────────────────────────────────────
-    trained_models = train_input_models(args, config, logger)
+    trained_models = train_input_models(args, config, logger, input_models_root)
 
     # ── Step 2: build eval-mode dataloaders (no augmentation) for CAM ─────
     logger.info("\nPreparing eval dataloaders for HiResCAM computation …")
@@ -1053,7 +1162,15 @@ def main():
     if "original" in enabled_variants:
         orig_test_dl = _make_dataloader(
             torchvision.datasets.ImageFolder(
-                root=str(variant_root / "original" / "test"),
+                root=str(
+                    _variant_data_dir(
+                        variant_root,
+                        "original",
+                        args.mask_top_of_threshold,
+                        args.threshold,
+                    )
+                    / "test"
+                ),
                 transform=T.Compose([
                     T.Resize((input_size, input_size)),
                     T.ToTensor(),
@@ -1066,8 +1183,7 @@ def main():
         )
 
     # ── Step 5: train each output model on each variant ───────────────────
-    output_results_root = Path(base_out_dir) / "output_models"
-    output_results_root.mkdir(parents=True, exist_ok=True)
+    output_results_root = output_models_root
     comparison_results: Dict[str, Dict[str, Any]] = {}
     for output_model in args.output_models:
         comparison_results[output_model] = {}
@@ -1097,6 +1213,7 @@ def main():
             dataset_name=args.dataset,
             enabled_variants=enabled_variants,
             mask_top_of_threshold=args.mask_top_of_threshold,
+            threshold=args.threshold,
             logger=logger,
         )
 
