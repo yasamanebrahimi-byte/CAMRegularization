@@ -96,7 +96,7 @@ Registered datasets (from `dataset_registry.py`):
 
 ### Recommended mask thresholds by dataset
 
-For `comparison.py`, `--threshold` controls which pixels are treated as low-saliency (`cam <= threshold`).
+For `comparison.py`, `--threshold` controls low-saliency (`cam <= threshold`) and high-saliency (`cam >= 1 - threshold`).
 
 Use these as starting points, then sweep around them.
 
@@ -112,6 +112,7 @@ Use these as starting points, then sweep around them.
 | `drive_zip`                          |              `0.05` | `0.04, 0.05, 0.10` | Existing runs used `0.04` and `0.10`; start near the lower end first.             |
 
 Tip: if `low_saliency` looks too destructive in previews, lower `--threshold`; if masks are barely visible, raise it.
+For `high_saliency`, the same `--threshold` means masking the top saliency tail (e.g. `0.3 -> cam >= 0.7`).
 
 Quick baseline template:
 
@@ -216,7 +217,7 @@ Output:
 Use when you want to train teacher models, generate HiResCAM-masked dataset variants, and train downstream models under a controlled evaluation protocol.
 
 ```bash
-python comparison.py --dataset cifar100 --input_models resnet18 resnet34 --output_models densenet121 resnet50 --enable_original --enable_low_saliency
+python comparison.py --dataset cifar100 --input_models resnet18 resnet34 --output_models densenet121 resnet50 --enable_original --enable_low_saliency --enable_high_saliency
 ```
 
 This runs:
@@ -229,19 +230,22 @@ This runs:
 Variants are opt-in (no variants generated unless enabled):
 
 - `--enable_original`: `original`
-- `--enable_low_saliency`: `low_saliency` (mask where merged CAM `<= --threshold`; use `--mask_top_of_threshold` for high-saliency masking)
+- `--enable_low_saliency`: `low_saliency` (mask where merged CAM `<= --threshold`)
+- `--enable_high_saliency`: `high_saliency` (mask where merged CAM `>= 1 - --threshold`)
 
 Additional controls:
 
-- `--enable_random_control`: adds `random_sparsity` (same per-image mask ratio as `low_saliency`, random pixel locations)
+- `--enable_random_control`: adds `random_sparsity` (same per-image mask ratio as `low_saliency` if enabled; otherwise `high_saliency`)
 - `--enable_shuffled_cam_control`: adds `shuffled_cam_low_saliency` (low-saliency masks from CAMs of other images)
 
-Key output files:
+Key output files (comparison pipeline):
 
-- `runs/.../comparison_config.json`
-- `runs/.../comparison_results.json`
-- `runs/.../<output_model>/<variant>/metrics.csv`
-- `runs/.../<output_model>/validation_comparison_plot.png`
+- `runs/<dataset>/<seed>/comparison_config.json`
+- `runs/<dataset>/<seed>/comparison_results.json`
+- `runs/<dataset>/<seed>/input_models/<input_model>/...`
+- `runs/<dataset>/<seed>/output_models/original/<output_model>/metrics.csv`
+- `runs/<dataset>/<seed>/output_models/<variant>/<threshold>/<output_model>/metrics.csv`
+- `runs/<dataset>/<seed>/output_models/<variant>/<threshold>/<output_model>/validation_comparison_<variant>.png`
 
 ## Comparison Protocol (Publishable-Grade)
 

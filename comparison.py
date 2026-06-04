@@ -168,16 +168,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Generate CAM-masked variant (low-saliency by default; "
-            "use --mask_top_of_threshold for high-saliency masking)"
+            "use --enable_high_saliency for high-saliency masking)"
         ),
     )
     p.add_argument(
-        "--mask_top_of_threshold",
+        "--enable_high_saliency",
         action="store_true",
         help=(
-            "When set, hide the high-saliency side of the CAM instead of the low-saliency side. "
-            "For example, --threshold 0.3 masks cam >= 0.7 instead of cam <= 0.3. "
-            "Only affects CAM-derived variants."
+            "When set, generate a high-saliency masked variant. "
+            "For example, --threshold 0.3 masks cam >= 0.7 instead of cam <= 0.3."
         ),
     )
     p.add_argument(
@@ -214,6 +213,8 @@ def _get_enabled_variants(args: argparse.Namespace) -> List[str]:
         variants.append("original")
     if args.enable_low_saliency:
         variants.append("low_saliency")
+    if args.enable_high_saliency:
+        variants.append("high_saliency")
     if args.enable_random_control:
         variants.append("random_sparsity")
     if args.enable_shuffled_cam_control:
@@ -226,9 +227,7 @@ def _format_threshold_dir(threshold: float) -> str:
     return formatted or "0"
 
 
-def _variant_dir_name(variant: str, mask_top_of_threshold: bool) -> str:
-    if variant == "low_saliency":
-        return "high_saliency" if mask_top_of_threshold else "low_saliency"
+def _variant_dir_name(variant: str) -> str:
     if variant == "random_sparsity":
         return "random"
     if variant == "shuffled_cam_low_saliency":
@@ -240,10 +239,9 @@ def _output_model_run_dir(
     results_root: Path,
     output_model: str,
     variant: str,
-    mask_top_of_threshold: bool,
     threshold: float,
 ) -> Path:
-    variant_name = _variant_dir_name(variant, mask_top_of_threshold)
+    variant_name = _variant_dir_name(variant)
     if variant_name == "original":
         return results_root / variant_name / output_model
     threshold_dir = _format_threshold_dir(threshold)
@@ -253,10 +251,9 @@ def _output_model_run_dir(
 def _variant_data_dir(
     variant_root: Path,
     variant: str,
-    mask_top_of_threshold: bool,
     threshold: float,
 ) -> Path:
-    variant_name = _variant_dir_name(variant, mask_top_of_threshold)
+    variant_name = _variant_dir_name(variant)
     if variant_name == "original":
         return variant_root / variant_name
     threshold_dir = _format_threshold_dir(threshold)
@@ -563,7 +560,6 @@ def generate_and_save_variants(
     device: torch.device,
     cam_layer: str,
     threshold: float,
-    mask_top_of_threshold: bool,
     logger,
 ) -> None:
     """Generate and save all enabled dataset variants for one split (train or test)."""
@@ -574,7 +570,6 @@ def generate_and_save_variants(
         variant: _variant_data_dir(
             variant_root,
             variant,
-            mask_top_of_threshold,
             threshold,
         )
         for variant in variants
@@ -602,10 +597,8 @@ def generate_and_save_variants(
                 cls_name = class_names[label]
                 fname = f"img_{global_idx:06d}.png"
 
-                if mask_top_of_threshold:
-                    cam_mask = (cam_i >= (1.0 - threshold)).float()
-                else:
-                    cam_mask = (cam_i <= threshold).float()
+                cam_mask_low = (cam_i <= threshold).float()
+                cam_mask_high = (cam_i >= (1.0 - threshold)).float()
 
                 # 1) Original
                 if "original" in variants:
@@ -617,16 +610,31 @@ def generate_and_save_variants(
 
                 # 2) CAM mask — hide either low-saliency pixels or the high-saliency side
                 if "low_saliency" in variants:
-                    img_low = img_01 * (1 - cam_mask)
+                    img_low = img_01 * (1 - cam_mask_low)
                     _save_pil_image(
                         tensor_to_pil_image(img_low),
                         variant_dirs["low_saliency"] / split / cls_name / fname,
                     )
 
+                if "high_saliency" in variants:
+                    img_high = img_01 * (1 - cam_mask_high)
+                    _save_pil_image(
+                        tensor_to_pil_image(img_high),
+                        variant_dirs["high_saliency"] / split / cls_name / fname,
+                    )
+
                 # 3) Random sparsity control — same hide ratio, random locations
                 if "random_sparsity" in variants:
-                    hide_ratio = float(cam_mask.mean().item())
-                    random_mask = (torch.rand_like(cam_mask) < hide_ratio).float()
+                    if "low_saliency" in variants:
+                        hide_ratio = float(cam_mask_low.mean().item())
+                        base_mask = cam_mask_low
+                    elif "high_saliency" in variants:
+                        hide_ratio = float(cam_mask_high.mean().item())
+                        base_mask = cam_mask_high
+                    else:
+                        hide_ratio = float(cam_mask_low.mean().item())
+                        base_mask = cam_mask_low
+                    random_mask = (torch.rand_like(base_mask) < hide_ratio).float()
                     img_random = img_01 * (1 - random_mask)
                     _save_pil_image(
                         tensor_to_pil_image(img_random),
@@ -640,10 +648,7 @@ def generate_and_save_variants(
                         shuffled_cam = merged_cam_cpu[shuffled_idx]
                     else:
                         shuffled_cam = cam_i.flatten()[torch.randperm(cam_i.numel())].view_as(cam_i)
-                    if mask_top_of_threshold:
-                        shuffled_mask = (shuffled_cam >= (1.0 - threshold)).float()
-                    else:
-                        shuffled_mask = (shuffled_cam <= threshold).float()
+                    shuffled_mask = (shuffled_cam <= threshold).float()
                     img_shuffled = img_01 * (1 - shuffled_mask)
                     _save_pil_image(
                         tensor_to_pil_image(img_shuffled),
@@ -747,7 +752,6 @@ def train_output_on_variant(
     variant_dir = _variant_data_dir(
         variant_root,
         variant,
-        cli_args.mask_top_of_threshold,
         cli_args.threshold,
     )
     variant_test_dl_for_metrics = None
@@ -786,7 +790,6 @@ def train_output_on_variant(
             results_root,
             output_model,
             variant,
-            cli_args.mask_top_of_threshold,
             cli_args.threshold,
         ).parent),
         run_name=output_model,
@@ -796,7 +799,6 @@ def train_output_on_variant(
         results_root,
         output_model,
         variant,
-        cli_args.mask_top_of_threshold,
         cli_args.threshold,
     )
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -820,13 +822,12 @@ def train_output_on_variant(
     criterion = nn.CrossEntropyLoss()
     model_device = next(trained_output_model.parameters()).device
 
-    candidate_eval_variants = ["original", "low_saliency"]
+    candidate_eval_variants = ["original", "low_saliency", "high_saliency"]
     for eval_variant in candidate_eval_variants:
         eval_variant_dir = (
             _variant_data_dir(
                 variant_root,
                 eval_variant,
-                cli_args.mask_top_of_threshold,
                 cli_args.threshold,
             )
             / "test"
@@ -837,7 +838,6 @@ def train_output_on_variant(
             _variant_data_dir(
                 variant_root,
                 eval_variant,
-                cli_args.mask_top_of_threshold,
                 cli_args.threshold,
             ),
             resolved.dataset,
@@ -965,7 +965,6 @@ def _generate_validation_comparison_plot(
     input_models: List[str],
     dataset_name: str,
     enabled_variants: List[str],
-    mask_top_of_threshold: bool,
     threshold: float,
     logger,
 ) -> None:
@@ -980,7 +979,6 @@ def _generate_validation_comparison_plot(
         results_root,
         output_model,
         "original",
-        mask_top_of_threshold,
         threshold,
     ) / "metrics.csv"
 
@@ -992,7 +990,8 @@ def _generate_validation_comparison_plot(
         return
 
     variant_labels = {
-        "low_saliency": "High Saliency" if mask_top_of_threshold else "Low Saliency",
+        "low_saliency": "Low Saliency",
+        "high_saliency": "High Saliency",
         "random_sparsity": "Random Sparsity",
         "shuffled_cam_low_saliency": "Shuffled CAM",
     }
@@ -1005,7 +1004,6 @@ def _generate_validation_comparison_plot(
             results_root,
             output_model,
             variant,
-            mask_top_of_threshold,
             threshold,
         ) / "metrics.csv"
         if not variant_metrics_csv.exists():
@@ -1016,13 +1014,12 @@ def _generate_validation_comparison_plot(
             continue
 
         variant_label = variant_labels.get(variant, variant.replace("_", " ").title())
-        variant_dir_name = _variant_dir_name(variant, mask_top_of_threshold)
+        variant_dir_name = _variant_dir_name(variant)
         out_png = (
             _output_model_run_dir(
                 results_root,
                 output_model,
                 variant,
-                mask_top_of_threshold,
                 threshold,
             )
             / f"validation_comparison_{variant_dir_name}.png"
@@ -1146,7 +1143,6 @@ def main():
             device=device,
             cam_layer=args.cam_layer,
             threshold=args.threshold,
-            mask_top_of_threshold=args.mask_top_of_threshold,
             logger=logger,
         )
 
@@ -1166,7 +1162,6 @@ def main():
                     _variant_data_dir(
                         variant_root,
                         "original",
-                        args.mask_top_of_threshold,
                         args.threshold,
                     )
                     / "test"
@@ -1212,7 +1207,6 @@ def main():
             input_models=args.input_models,
             dataset_name=args.dataset,
             enabled_variants=enabled_variants,
-            mask_top_of_threshold=args.mask_top_of_threshold,
             threshold=args.threshold,
             logger=logger,
         )
