@@ -273,12 +273,30 @@ def train_with_config(
     if best_state_dict is not None:
         model.load_state_dict(best_state_dict)
         logger.info("Loaded best checkpoint weights for final test evaluation.")
-    model.to(device)
-    te_loss, te_a1 = evaluate(model, test_dl, criterion, device)
-    final_test_acc1 = te_a1
-    final_test_loss = te_loss
-    logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
-    logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}%")
+        model.to(device)
+        te_loss, te_a1 = evaluate(model, test_dl, criterion, device)
+        final_test_acc1 = te_a1
+        final_test_loss = te_loss
+        logger.info(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
+        logger.info(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}%")
+
+        if run_dir is not None:
+            checkpoint_path = os.path.join(run_dir, "best_model.pt")
+            torch.save(
+                {
+                    "model_state_dict": best_state_dict,
+                    "model": args.model,
+                    "dataset": args.dataset,
+                    "num_classes": num_classes,
+                    "input_size": input_size,
+                    "best_tracked_acc": best,
+                    "final_test_acc1": final_test_acc1,
+                    "final_test_loss": final_test_loss,
+                    "config": vars(args),
+                },
+                checkpoint_path,
+            )
+            logger.info(f"Saved best model checkpoint to {checkpoint_path}")
     
     # Print final results to console
     print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
