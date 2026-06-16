@@ -57,7 +57,7 @@ def _extract_state_dict(checkpoint):
     return checkpoint
 
 
-def _load_teacher_model(args, num_classes: int, input_size: int, logger):
+def _load_teacher_model(args, num_classes: int, input_size: int, logger, device):
     logger = logger or SimpleLogger()
     if not args.teacher_model or not args.teacher_checkpoint:
         raise ValueError("Teacher model and checkpoint are required for cam_low/cam_high cutout.")
@@ -83,7 +83,12 @@ def _load_teacher_model(args, num_classes: int, input_size: int, logger):
             logger.warning("Teacher checkpoint load: missing=%s unexpected=%s", missing, unexpected)
         else:
             logger.info(f"Teacher checkpoint load: missing={missing} unexpected={unexpected}")
+    model = model.to(device)
     model.eval()
+
+    for p in model.parameters():
+        p.requires_grad_(False)
+
     return model
 
 
@@ -188,7 +193,13 @@ def train_with_config(
 
     teacher_model = None
     if cutout_mode in {"cam_low", "cam_high"} and cutout_m > 0:
-        teacher_model = _load_teacher_model(args, num_classes=num_classes, input_size=input_size, logger=logger)
+        teacher_model = _load_teacher_model(
+            args,
+            num_classes=num_classes,
+            input_size=input_size,
+            logger=logger,
+            device=device,
+        )
     if cutout_mode != "none" and cutout_m > 0:
         mean, std = get_normalization_params(args.dataset)
         train_dl = _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger)
