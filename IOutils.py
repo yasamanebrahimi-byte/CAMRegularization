@@ -1,9 +1,8 @@
 import argparse
 import json
-from pathlib import Path
 import time
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from utils import DEFAULT_DATASET, DEFAULT_MODEL
 from dataset_registry import get_available_datasets
@@ -155,92 +154,8 @@ def append_csv(path, row, header=None, mode="a"):
         if row:  # Only write row if it's not empty
             f.write(",".join(str(x) for x in row) + "\n")
 
-def ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-TRAIN_ARG_FIELDS = (
-    "dataset",
-    "model",
-    "data_dir",
-    "out_dir",
-    "optimizer",
-    "epochs",
-    "batch_size",
-    "num_workers",
-    "lr",
-    "momentum",
-    "weight_decay",
-    "adamw_betas",
-    "adamw_eps",
-    "seed",
-    "log_every",
-    "val_split",
-    "min_lr",
-    "gamma",
-    "milestones",
-    "label_smoothing",
-    "scheduler",
-    "warmup_epochs",
-    "nesterov",
-    "amp",
-    "cutout_mode",
-    "cutout_m",
-    "cutout_size",
-    "cutout_area",
-    "teacher_model",
-    "teacher_checkpoint",
-    "cam_layer",
-    "saliency_candidate_percent",
-    "grayscale",
-    "include_regex",
-)
-
-
-def namespace_to_train_params(
-    source: Any,
-    *,
-    model: Optional[str] = None,
-    dataset: Optional[str] = None,
-    out_dir: Optional[str] = None,
-    run_name: str = "",
-) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
-    for field in TRAIN_ARG_FIELDS:
-        if hasattr(source, field):
-            params[field] = getattr(source, field)
-
-    if model is not None:
-        params["model"] = model
-    if dataset is not None:
-        params["dataset"] = dataset
-    if out_dir is not None:
-        params["out_dir"] = out_dir
-
-    params["run_name"] = run_name
-    return params
-
 
 def init_run_dir_with_config(out_dir: str, run_name: str, config: Dict[str, Any]) -> str:
     run_dir = make_run_dir(out_dir, run_name)
     write_json(os.path.join(run_dir, "config.json"), config)
     return run_dir
-
-def build_args_from_params(params):
-    """Convert a params dict to an argparse.Namespace object that train_with_config expects."""
-    parser = build_parser()
-    args = parser.parse_args([])
-
-    for key, value in params.items():
-        setattr(args, key, value)
-
-    return args
-
-
-
-
-
-
-
-
