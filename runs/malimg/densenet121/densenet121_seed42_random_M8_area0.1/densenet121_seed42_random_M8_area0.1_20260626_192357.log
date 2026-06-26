@@ -1,0 +1,96 @@
+2026-06-26 19:23:57 - __main__ - INFO - Run parameters: {"adamw_betas": [0.9, 0.999], "adamw_eps": 1e-08, "amp": true, "batch_size": 32, "cam_layer": "auto", "cutout_area": 0.1, "cutout_m": 8, "cutout_mode": "random", "cutout_size": 0, "data_dir": "./data", "dataset": "malimg", "epochs": 20, "gamma": 0.1, "grayscale": true, "include_regex": "", "label_smoothing": 0.0, "log_every": 100, "lr": 0.05, "milestones": "60,80", "min_lr": 1e-05, "model": "densenet121", "momentum": 0.9, "nesterov": false, "num_workers": 4, "optimizer": "sgd", "out_dir": "runs/malimg/densenet121", "run_name": "densenet121_seed42_random_M8_area0.1", "saliency_candidate_percent": 10.0, "scheduler": "cosine", "seed": 42, "teacher_checkpoint": "", "teacher_model": "", "val_split": 0.0, "warmup_epochs": 5, "weight_decay": 0.0001}
+2026-06-26 19:23:57 - __main__ - INFO - device: cuda | cuda: True | gpu: NVIDIA L4
+2026-06-26 19:23:58 - __main__ - INFO - Model: densenet121 | Dataset: malimg | Classes: 25 | Optimizer: sgd
+2026-06-26 19:23:58 - __main__ - INFO - Cutout enabled: mode=random m=8 size=None area=0.1
+2026-06-26 19:23:58 - __main__ - INFO - 
+Epoch 1/20 | lr 0.000050
+2026-06-26 19:27:29 - __main__ - INFO - Train: loss 1.6116 acc1 59.59%
+2026-06-26 19:27:29 - __main__ - INFO - Val:   loss 0.9388 acc1 75.51%
+2026-06-26 19:27:30 - __main__ - INFO - saved best: 75.51%
+2026-06-26 19:27:30 - __main__ - INFO - 
+Epoch 2/20 | lr 0.010040
+2026-06-26 19:30:59 - __main__ - INFO - Train: loss 0.1132 acc1 96.59%
+2026-06-26 19:30:59 - __main__ - INFO - Val:   loss 0.1040 acc1 97.83%
+2026-06-26 19:30:59 - __main__ - INFO - saved best: 97.83%
+2026-06-26 19:30:59 - __main__ - INFO - 
+Epoch 3/20 | lr 0.020030
+2026-06-26 19:34:27 - __main__ - INFO - Train: loss 0.0645 acc1 98.00%
+2026-06-26 19:34:27 - __main__ - INFO - Val:   loss 0.0719 acc1 97.99%
+2026-06-26 19:34:27 - __main__ - INFO - saved best: 97.99%
+2026-06-26 19:34:27 - __main__ - INFO - 
+Epoch 4/20 | lr 0.030020
+2026-06-26 19:37:57 - __main__ - INFO - Train: loss 0.0562 acc1 98.30%
+2026-06-26 19:37:57 - __main__ - INFO - Val:   loss 0.0759 acc1 98.05%
+2026-06-26 19:37:57 - __main__ - INFO - saved best: 98.05%
+2026-06-26 19:37:57 - __main__ - INFO - 
+Epoch 5/20 | lr 0.040010
+2026-06-26 19:41:26 - __main__ - INFO - Train: loss 0.0483 acc1 98.51%
+2026-06-26 19:41:26 - __main__ - INFO - Val:   loss 0.0784 acc1 98.31%
+2026-06-26 19:41:26 - __main__ - INFO - saved best: 98.31%
+2026-06-26 19:41:26 - __main__ - INFO - 
+Epoch 6/20 | lr 0.050000
+2026-06-26 19:44:55 - __main__ - INFO - Train: loss 0.0444 acc1 98.67%
+2026-06-26 19:44:55 - __main__ - INFO - Val:   loss 0.0686 acc1 98.41%
+2026-06-26 19:44:55 - __main__ - INFO - saved best: 98.41%
+2026-06-26 19:44:55 - __main__ - INFO - 
+Epoch 7/20 | lr 0.049454
+2026-06-26 19:48:25 - __main__ - INFO - Train: loss 0.0405 acc1 98.78%
+2026-06-26 19:48:25 - __main__ - INFO - Val:   loss 0.0787 acc1 98.18%
+2026-06-26 19:48:25 - __main__ - INFO - 
+Epoch 8/20 | lr 0.047839
+2026-06-26 19:51:55 - __main__ - INFO - Train: loss 0.0426 acc1 98.70%
+2026-06-26 19:51:55 - __main__ - INFO - Val:   loss 0.0667 acc1 98.21%
+2026-06-26 19:51:55 - __main__ - INFO - 
+Epoch 9/20 | lr 0.045226
+2026-06-26 19:55:26 - __main__ - INFO - Train: loss 0.0423 acc1 98.71%
+2026-06-26 19:55:26 - __main__ - INFO - Val:   loss 0.0706 acc1 98.09%
+2026-06-26 19:55:26 - __main__ - INFO - 
+Epoch 10/20 | lr 0.041730
+2026-06-26 19:58:55 - __main__ - INFO - Train: loss 0.0365 acc1 98.87%
+2026-06-26 19:58:55 - __main__ - INFO - Val:   loss 0.0677 acc1 98.31%
+2026-06-26 19:58:55 - __main__ - INFO - 
+Epoch 11/20 | lr 0.037503
+2026-06-26 20:02:24 - __main__ - INFO - Train: loss 0.0360 acc1 98.87%
+2026-06-26 20:02:24 - __main__ - INFO - Val:   loss 0.0680 acc1 98.31%
+2026-06-26 20:02:24 - __main__ - INFO - 
+Epoch 12/20 | lr 0.032729
+2026-06-26 20:05:54 - __main__ - INFO - Train: loss 0.0350 acc1 98.93%
+2026-06-26 20:05:54 - __main__ - INFO - Val:   loss 0.0782 acc1 98.15%
+2026-06-26 20:05:54 - __main__ - INFO - 
+Epoch 13/20 | lr 0.027618
+2026-06-26 20:09:24 - __main__ - INFO - Train: loss 0.0337 acc1 98.92%
+2026-06-26 20:09:24 - __main__ - INFO - Val:   loss 0.0806 acc1 98.31%
+2026-06-26 20:09:24 - __main__ - INFO - 
+Epoch 14/20 | lr 0.022392
+2026-06-26 20:12:53 - __main__ - INFO - Train: loss 0.0032 acc1 99.92%
+2026-06-26 20:12:53 - __main__ - INFO - Val:   loss 0.0382 acc1 99.29%
+2026-06-26 20:12:53 - __main__ - INFO - saved best: 99.29%
+2026-06-26 20:12:53 - __main__ - INFO - 
+Epoch 15/20 | lr 0.017281
+2026-06-26 20:16:22 - __main__ - INFO - Train: loss 0.0017 acc1 99.97%
+2026-06-26 20:16:22 - __main__ - INFO - Val:   loss 0.0432 acc1 99.13%
+2026-06-26 20:16:22 - __main__ - INFO - 
+Epoch 16/20 | lr 0.012508
+2026-06-26 20:19:52 - __main__ - INFO - Train: loss 0.0006 acc1 100.00%
+2026-06-26 20:19:52 - __main__ - INFO - Val:   loss 0.0387 acc1 99.29%
+2026-06-26 20:19:52 - __main__ - INFO - 
+Epoch 17/20 | lr 0.008280
+2026-06-26 20:23:21 - __main__ - INFO - Train: loss 0.0006 acc1 100.00%
+2026-06-26 20:23:21 - __main__ - INFO - Val:   loss 0.0425 acc1 99.13%
+2026-06-26 20:23:21 - __main__ - INFO - 
+Epoch 18/20 | lr 0.004784
+2026-06-26 20:26:51 - __main__ - INFO - Train: loss 0.0006 acc1 100.00%
+2026-06-26 20:26:51 - __main__ - INFO - Val:   loss 0.0419 acc1 99.13%
+2026-06-26 20:26:51 - __main__ - INFO - 
+Epoch 19/20 | lr 0.002171
+2026-06-26 20:30:21 - __main__ - INFO - Train: loss 0.0005 acc1 100.00%
+2026-06-26 20:30:21 - __main__ - INFO - Val:   loss 0.0432 acc1 99.13%
+2026-06-26 20:30:21 - __main__ - INFO - 
+Epoch 20/20 | lr 0.000556
+2026-06-26 20:33:49 - __main__ - INFO - Train: loss 0.0005 acc1 100.00%
+2026-06-26 20:33:49 - __main__ - INFO - Val:   loss 0.0435 acc1 99.13%
+2026-06-26 20:33:49 - __main__ - INFO - Loaded best checkpoint weights for final test evaluation.
+2026-06-26 20:33:52 - __main__ - INFO - 
+Best tracked (val): 99.29%
+2026-06-26 20:33:52 - __main__ - INFO - Final test: loss 0.0390 acc1 99.01%
+2026-06-26 20:33:53 - __main__ - INFO - Saved best model checkpoint to runs/malimg/densenet121/densenet121_seed42_random_M8_area0.1/best_model.pt
