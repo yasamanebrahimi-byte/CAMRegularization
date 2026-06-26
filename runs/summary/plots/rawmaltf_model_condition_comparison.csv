@@ -1,0 +1,15 @@
+dataset_folder,model_folder,run_name,condition,best_eval_accuracy,final_eval_accuracy,best_epoch,improvement_over_none
+rawmaltf,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,0.742011,0.736988,93,0.053354
+rawmaltf,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,0.750204,0.743195,98,0.061547
+rawmaltf,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,0.742011,0.736988,93,0.053354
+rawmaltf,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,0.750204,0.743195,98,0.061547
+rawmaltf,densenet121,densenet121_seed42_none,none,0.688657,0.675999,98,0
+rawmaltf,densenet121,densenet121_seed42_random_M4_area0.1,random M4,0.740268,0.735668,88,0.051611
+rawmaltf,densenet121,densenet121_seed42_random_M8_area0.1,random M8,0.73922,0.737546,90,0.050563
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,0.731272,0.725378,95,0.054715
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,0.749891,0.749891,100,0.073334
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,0.731272,0.725378,95,0.054715
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,0.749891,0.749891,100,0.073334
+rawmaltf,resnet18,resnet18_seed42_none,none,0.676557,0.656958,91,0
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,0.734579,0.731789,98,0.058022
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,0.743304,0.736988,95,0.066747

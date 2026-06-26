@@ -1,0 +1,43 @@
+dataset_folder,model_folder,run_name,condition,best_epoch,best_eval_accuracy
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,95,0.621818
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,96,0.618267
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,95,0.621818
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,96,0.618267
+cifar100,densenet121,densenet121_seed42_none,none,100,0.617027
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,99,0.623426
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,99,0.613913
+cifar100,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,99,0.786753
+cifar100,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,100,0.784858
+cifar100,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,99,0.786753
+cifar100,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,100,0.784858
+cifar100,resnet18,resnet18_seed42_none,none,90,0.771955
+cifar100,resnet18,resnet18_seed42_random_M4_area0.1,random M4,100,0.782939
+cifar100,resnet18,resnet18_seed42_random_M8_area0.1,random M8,97,0.782629
+malimg,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,66,0.995457
+malimg,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,13,0.992868
+malimg,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,17,0.992232
+malimg,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,13,0.992868
+malimg,densenet121,densenet121_seed42_none,none,23,0.984419
+malimg,densenet121,densenet121_seed42_random_M4_area0.1,random M4,23,0.992868
+malimg,densenet121,densenet121_seed42_random_M8_area0.1,random M8,14,0.992868
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,20,0.990619
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,18,0.988029
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,20,0.990619
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,18,0.988029
+malimg,resnet18,resnet18_seed42_none,none,54,0.984079
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,12,0.983443
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,20,0.987053
+rawmaltf,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,93,0.742011
+rawmaltf,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,98,0.750204
+rawmaltf,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,93,0.742011
+rawmaltf,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,98,0.750204
+rawmaltf,densenet121,densenet121_seed42_none,none,98,0.688657
+rawmaltf,densenet121,densenet121_seed42_random_M4_area0.1,random M4,88,0.740268
+rawmaltf,densenet121,densenet121_seed42_random_M8_area0.1,random M8,90,0.73922
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,95,0.731272
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,100,0.749891
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,95,0.731272
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,100,0.749891
+rawmaltf,resnet18,resnet18_seed42_none,none,91,0.676557
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,98,0.734579
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,95,0.743304

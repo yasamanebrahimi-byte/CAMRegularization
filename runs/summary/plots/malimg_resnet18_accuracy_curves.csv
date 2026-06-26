@@ -1,0 +1,221 @@
+dataset_folder,model_folder,run_name,condition,epoch,value
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,1,0.722209
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,2,0.973425
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,3,0.977287
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,4,0.975334
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,5,0.952621
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,6,0.973085
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,7,0.979877
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,8,0.97856
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,9,0.982466
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,10,0.980853
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,11,0.97924
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,12,0.978604
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,13,0.980853
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,14,0.97924
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,15,0.979877
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,16,0.980853
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,17,0.979877
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,18,0.977287
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,19,0.86061
+malimg,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,20,0.990619
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,1,0.773627
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,2,0.976991
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,3,0.97924
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,4,0.977627
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,5,0.974401
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,6,0.980853
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,7,0.979877
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,8,0.835389
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,9,0.977287
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,10,0.971087
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,11,0.972789
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,12,0.980513
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,13,0.976651
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,14,0.978264
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,15,0.976947
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,16,0.978264
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,17,0.984123
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,18,0.988029
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,19,0.987393
+malimg,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,20,0.988029
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,1,0.722209
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,2,0.973425
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,3,0.977287
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,4,0.975334
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,5,0.952621
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,6,0.973085
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,7,0.979877
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,8,0.97856
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,9,0.982466
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,10,0.980853
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,11,0.97924
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,12,0.978604
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,13,0.980853
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,14,0.97924
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,15,0.979877
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,16,0.980853
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,17,0.979877
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,18,0.977287
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,19,0.86061
+malimg,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,20,0.990619
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,1,0.773627
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,2,0.976991
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,3,0.97924
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,4,0.977627
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,5,0.974401
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,6,0.980853
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,7,0.979877
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,8,0.835389
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,9,0.977287
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,10,0.971087
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,11,0.972789
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,12,0.980513
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,13,0.976651
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,14,0.978264
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,15,0.976947
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,16,0.978264
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,17,0.984123
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,18,0.988029
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,19,0.987393
+malimg,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,20,0.988029
+malimg,resnet18,resnet18_seed42_none,none,1,0.470829
+malimg,resnet18,resnet18_seed42_none,none,2,0.948891
+malimg,resnet18,resnet18_seed42_none,none,3,0.936404
+malimg,resnet18,resnet18_seed42_none,none,4,0.954618
+malimg,resnet18,resnet18_seed42_none,none,5,0.945785
+malimg,resnet18,resnet18_seed42_none,none,6,0.958865
+malimg,resnet18,resnet18_seed42_none,none,7,0.958436
+malimg,resnet18,resnet18_seed42_none,none,8,0.97924
+malimg,resnet18,resnet18_seed42_none,none,9,0.98183
+malimg,resnet18,resnet18_seed42_none,none,10,0.979536
+malimg,resnet18,resnet18_seed42_none,none,11,0.981489
+malimg,resnet18,resnet18_seed42_none,none,12,0.980217
+malimg,resnet18,resnet18_seed42_none,none,13,0.978264
+malimg,resnet18,resnet18_seed42_none,none,14,0.973425
+malimg,resnet18,resnet18_seed42_none,none,15,0.973677
+malimg,resnet18,resnet18_seed42_none,none,16,0.979877
+malimg,resnet18,resnet18_seed42_none,none,17,0.979877
+malimg,resnet18,resnet18_seed42_none,none,18,0.965612
+malimg,resnet18,resnet18_seed42_none,none,19,0.979877
+malimg,resnet18,resnet18_seed42_none,none,20,0.977923
+malimg,resnet18,resnet18_seed42_none,none,21,0.976991
+malimg,resnet18,resnet18_seed42_none,none,22,0.981489
+malimg,resnet18,resnet18_seed42_none,none,23,0.980513
+malimg,resnet18,resnet18_seed42_none,none,24,0.979877
+malimg,resnet18,resnet18_seed42_none,none,25,0.949691
+malimg,resnet18,resnet18_seed42_none,none,26,0.9789
+malimg,resnet18,resnet18_seed42_none,none,27,0.974698
+malimg,resnet18,resnet18_seed42_none,none,28,0.975674
+malimg,resnet18,resnet18_seed42_none,none,29,0.981489
+malimg,resnet18,resnet18_seed42_none,none,30,0.981489
+malimg,resnet18,resnet18_seed42_none,none,31,0.981489
+malimg,resnet18,resnet18_seed42_none,none,32,0.981149
+malimg,resnet18,resnet18_seed42_none,none,33,0.9789
+malimg,resnet18,resnet18_seed42_none,none,34,0.97958
+malimg,resnet18,resnet18_seed42_none,none,35,0.977287
+malimg,resnet18,resnet18_seed42_none,none,36,0.978604
+malimg,resnet18,resnet18_seed42_none,none,37,0.981489
+malimg,resnet18,resnet18_seed42_none,none,38,0.97856
+malimg,resnet18,resnet18_seed42_none,none,39,0.979536
+malimg,resnet18,resnet18_seed42_none,none,40,0.976651
+malimg,resnet18,resnet18_seed42_none,none,41,0.977627
+malimg,resnet18,resnet18_seed42_none,none,42,0.980853
+malimg,resnet18,resnet18_seed42_none,none,43,0.976651
+malimg,resnet18,resnet18_seed42_none,none,44,0.9789
+malimg,resnet18,resnet18_seed42_none,none,45,0.981489
+malimg,resnet18,resnet18_seed42_none,none,46,0.979877
+malimg,resnet18,resnet18_seed42_none,none,47,0.978604
+malimg,resnet18,resnet18_seed42_none,none,48,0.97924
+malimg,resnet18,resnet18_seed42_none,none,49,0.982466
+malimg,resnet18,resnet18_seed42_none,none,50,0.981489
+malimg,resnet18,resnet18_seed42_none,none,51,0.980853
+malimg,resnet18,resnet18_seed42_none,none,52,0.982466
+malimg,resnet18,resnet18_seed42_none,none,53,0.981489
+malimg,resnet18,resnet18_seed42_none,none,54,0.984079
+malimg,resnet18,resnet18_seed42_none,none,55,0.984079
+malimg,resnet18,resnet18_seed42_none,none,56,0.981489
+malimg,resnet18,resnet18_seed42_none,none,57,0.981489
+malimg,resnet18,resnet18_seed42_none,none,58,0.979877
+malimg,resnet18,resnet18_seed42_none,none,59,0.981489
+malimg,resnet18,resnet18_seed42_none,none,60,0.981489
+malimg,resnet18,resnet18_seed42_none,none,61,0.981489
+malimg,resnet18,resnet18_seed42_none,none,62,0.981489
+malimg,resnet18,resnet18_seed42_none,none,63,0.982466
+malimg,resnet18,resnet18_seed42_none,none,64,0.981489
+malimg,resnet18,resnet18_seed42_none,none,65,0.982466
+malimg,resnet18,resnet18_seed42_none,none,66,0.981489
+malimg,resnet18,resnet18_seed42_none,none,67,0.981489
+malimg,resnet18,resnet18_seed42_none,none,68,0.984079
+malimg,resnet18,resnet18_seed42_none,none,69,0.983102
+malimg,resnet18,resnet18_seed42_none,none,70,0.979877
+malimg,resnet18,resnet18_seed42_none,none,71,0.979877
+malimg,resnet18,resnet18_seed42_none,none,72,0.979877
+malimg,resnet18,resnet18_seed42_none,none,73,0.981489
+malimg,resnet18,resnet18_seed42_none,none,74,0.981489
+malimg,resnet18,resnet18_seed42_none,none,75,0.983102
+malimg,resnet18,resnet18_seed42_none,none,76,0.979877
+malimg,resnet18,resnet18_seed42_none,none,77,0.983102
+malimg,resnet18,resnet18_seed42_none,none,78,0.981489
+malimg,resnet18,resnet18_seed42_none,none,79,0.981489
+malimg,resnet18,resnet18_seed42_none,none,80,0.981489
+malimg,resnet18,resnet18_seed42_none,none,81,0.981489
+malimg,resnet18,resnet18_seed42_none,none,82,0.983102
+malimg,resnet18,resnet18_seed42_none,none,83,0.983102
+malimg,resnet18,resnet18_seed42_none,none,84,0.979877
+malimg,resnet18,resnet18_seed42_none,none,85,0.981489
+malimg,resnet18,resnet18_seed42_none,none,86,0.983102
+malimg,resnet18,resnet18_seed42_none,none,87,0.981489
+malimg,resnet18,resnet18_seed42_none,none,88,0.983102
+malimg,resnet18,resnet18_seed42_none,none,89,0.983102
+malimg,resnet18,resnet18_seed42_none,none,90,0.981489
+malimg,resnet18,resnet18_seed42_none,none,91,0.981489
+malimg,resnet18,resnet18_seed42_none,none,92,0.983102
+malimg,resnet18,resnet18_seed42_none,none,93,0.981489
+malimg,resnet18,resnet18_seed42_none,none,94,0.981489
+malimg,resnet18,resnet18_seed42_none,none,95,0.981489
+malimg,resnet18,resnet18_seed42_none,none,96,0.982466
+malimg,resnet18,resnet18_seed42_none,none,97,0.981489
+malimg,resnet18,resnet18_seed42_none,none,98,0.981489
+malimg,resnet18,resnet18_seed42_none,none,99,0.981489
+malimg,resnet18,resnet18_seed42_none,none,100,0.981489
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,1,0.719916
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,2,0.976651
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,3,0.980513
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,4,0.971768
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,5,0.968586
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,6,0.946333
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,7,0.980853
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,8,0.975038
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,9,0.975038
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,10,0.9789
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,11,0.709413
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,12,0.983443
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,13,0.655998
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,14,0.979877
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,15,0.980853
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,16,0.978264
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,17,0.97924
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,18,0.978264
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,19,0.978264
+malimg,resnet18,resnet18_seed42_random_M4_area0.1,random M4,20,0.97924
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,1,0.784369
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,2,0.979877
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,3,0.980513
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,4,0.980513
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,5,0.977287
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,6,0.935931
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,7,0.976014
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,8,0.952533
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,9,0.949011
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,10,0.971812
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,11,0.968586
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,12,0.873771
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,13,0.941583
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,14,0.979877
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,15,0.979877
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,16,0.978264
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,17,0.978264
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,18,0.977287
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,19,0.98544
+malimg,resnet18,resnet18_seed42_random_M8_area0.1,random M8,20,0.987053

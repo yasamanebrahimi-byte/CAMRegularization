@@ -1,0 +1,701 @@
+dataset_folder,model_folder,run_name,condition,epoch,value
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,1,0.168295
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,2,0.291499
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,3,0.346608
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,4,0.239547
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,5,0.381615
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,6,0.385562
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,7,0.443271
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,8,0.304824
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,9,0.405774
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,10,0.355074
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,11,0.380186
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,12,0.329377
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,13,0.436779
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,14,0.449613
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,15,0.419697
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,16,0.36177
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,17,0.535918
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,18,0.447449
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,19,0.465933
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,20,0.368603
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,21,0.491071
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,22,0.399744
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,23,0.445421
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,24,0.481653
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,25,0.211155
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,26,0.446361
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,27,0.402807
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,28,0.475868
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,29,0.457045
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,30,0.462965
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,31,0.331119
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,32,0.490132
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,33,0.486444
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,34,0.452513
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,35,0.480197
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,36,0.401146
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,37,0.468723
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,38,0.540805
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,39,0.547528
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,40,0.480373
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,41,0.546521
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,42,0.549066
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,43,0.34782
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,44,0.297746
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,45,0.523751
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,46,0.457671
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,47,0.546766
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,48,0.493794
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,49,0.551897
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,50,0.600079
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,51,0.541948
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,52,0.480442
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,53,0.504124
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,54,0.592239
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,55,0.507881
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,56,0.598378
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,57,0.601794
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,58,0.5913
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,59,0.592906
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,60,0.570095
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,61,0.482184
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,62,0.556838
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,63,0.539757
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,64,0.574668
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,65,0.559601
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,66,0.572708
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,67,0.654031
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,68,0.452472
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,69,0.574491
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,70,0.6224
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,71,0.613826
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,72,0.58704
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,73,0.643783
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,74,0.611798
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,75,0.614629
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,76,0.675237
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,77,0.66899
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,78,0.68064
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,79,0.658945
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,80,0.643606
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,81,0.679905
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,82,0.684057
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,83,0.676734
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,84,0.673209
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,85,0.660619
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,86,0.715892
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,87,0.707943
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,88,0.717294
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,89,0.705711
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,90,0.701247
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,91,0.714258
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,92,0.728169
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,93,0.716137
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,94,0.712652
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,95,0.731272
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,96,0.727856
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,97,0.723704
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,98,0.727366
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,99,0.726984
+rawmaltf,resnet18,resnet18_seed42_cam_high_M4_area0.1,cam_high M4,100,0.725378
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,1,0.200661
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,2,0.345138
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,3,0.414389
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,4,0.340538
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,5,0.40361
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,6,0.373176
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,7,0.400724
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,8,0.484552
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,9,0.451982
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,10,0.346595
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,11,0.414988
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,12,0.44093
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,13,0.375204
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,14,0.41394
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,15,0.440549
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,16,0.402534
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,17,0.399363
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,18,0.479325
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,19,0.391659
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,20,0.394654
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,21,0.52748
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,22,0.439841
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,23,0.374292
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,24,0.377572
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,25,0.359361
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,26,0.483831
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,27,0.500286
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,28,0.456296
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,29,0.48937
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,30,0.50656
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,31,0.511692
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,32,0.492501
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,33,0.462652
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,34,0.468097
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,35,0.501606
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,36,0.535742
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,37,0.364983
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,38,0.439991
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,39,0.568421
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,40,0.557709
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,41,0.440059
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,42,0.390339
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,43,0.533972
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,44,0.476671
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,45,0.491629
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,46,0.464299
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,47,0.551435
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,48,0.617977
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,49,0.436847
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,50,0.52699
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,51,0.527902
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,52,0.595615
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,53,0.615078
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,54,0.535605
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,55,0.601236
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,56,0.581568
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,57,0.612642
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,58,0.559315
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,59,0.538749
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,60,0.319959
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,61,0.561343
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,62,0.637318
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,63,0.645974
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,64,0.66017
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,65,0.58523
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,66,0.485668
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,67,0.578288
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,68,0.571143
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,69,0.609429
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,70,0.630077
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,71,0.659612
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,72,0.64988
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,73,0.629165
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,74,0.603917
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,75,0.618848
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,76,0.631125
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,77,0.667805
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,78,0.661912
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,79,0.652425
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,80,0.638338
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,81,0.678476
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,82,0.676108
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,83,0.706827
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,84,0.675863
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,85,0.707072
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,86,0.665083
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,87,0.705915
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,88,0.721717
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,89,0.720737
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,90,0.715375
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,91,0.733259
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,92,0.723949
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,93,0.745046
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,94,0.739778
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,95,0.746543
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,96,0.745985
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,97,0.744869
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,98,0.746788
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,99,0.748775
+rawmaltf,resnet18,resnet18_seed42_cam_high_M8_area0.1,cam_high M8,100,0.749891
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,1,0.168295
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,2,0.291499
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,3,0.346608
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,4,0.239547
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,5,0.381615
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,6,0.385562
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,7,0.443271
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,8,0.304824
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,9,0.405774
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,10,0.355074
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,11,0.380186
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,12,0.329377
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,13,0.436779
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,14,0.449613
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,15,0.419697
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,16,0.36177
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,17,0.535918
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,18,0.447449
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,19,0.465933
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,20,0.368603
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,21,0.491071
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,22,0.399744
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,23,0.445421
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,24,0.481653
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,25,0.211155
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,26,0.446361
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,27,0.402807
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,28,0.475868
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,29,0.457045
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,30,0.462965
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,31,0.331119
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,32,0.490132
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,33,0.486444
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,34,0.452513
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,35,0.480197
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,36,0.401146
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,37,0.468723
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,38,0.540805
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,39,0.547528
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,40,0.480373
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,41,0.546521
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,42,0.549066
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,43,0.34782
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,44,0.297746
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,45,0.523751
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,46,0.457671
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,47,0.546766
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,48,0.493794
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,49,0.551897
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,50,0.600079
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,51,0.541948
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,52,0.480442
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,53,0.504124
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,54,0.592239
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,55,0.507881
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,56,0.598378
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,57,0.601794
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,58,0.5913
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,59,0.592906
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,60,0.570095
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,61,0.482184
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,62,0.556838
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,63,0.539757
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,64,0.574668
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,65,0.559601
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,66,0.572708
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,67,0.654031
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,68,0.452472
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,69,0.574491
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,70,0.6224
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,71,0.613826
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,72,0.58704
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,73,0.643783
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,74,0.611798
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,75,0.614629
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,76,0.675237
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,77,0.66899
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,78,0.68064
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,79,0.658945
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,80,0.643606
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,81,0.679905
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,82,0.684057
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,83,0.676734
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,84,0.673209
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,85,0.660619
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,86,0.715892
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,87,0.707943
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,88,0.717294
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,89,0.705711
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,90,0.701247
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,91,0.714258
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,92,0.728169
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,93,0.716137
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,94,0.712652
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,95,0.731272
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,96,0.727856
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,97,0.723704
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,98,0.727366
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,99,0.726984
+rawmaltf,resnet18,resnet18_seed42_cam_low_M4_area0.1,cam_low M4,100,0.725378
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,1,0.200661
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,2,0.345138
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,3,0.414389
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,4,0.340538
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,5,0.40361
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,6,0.373176
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,7,0.400724
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,8,0.484552
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,9,0.451982
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,10,0.346595
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,11,0.414988
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,12,0.44093
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,13,0.375204
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,14,0.41394
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,15,0.440549
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,16,0.402534
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,17,0.399363
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,18,0.479325
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,19,0.391659
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,20,0.394654
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,21,0.52748
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,22,0.439841
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,23,0.374292
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,24,0.377572
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,25,0.359361
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,26,0.483831
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,27,0.500286
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,28,0.456296
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,29,0.48937
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,30,0.50656
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,31,0.511692
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,32,0.492501
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,33,0.462652
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,34,0.468097
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,35,0.501606
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,36,0.535742
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,37,0.364983
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,38,0.439991
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,39,0.568421
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,40,0.557709
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,41,0.440059
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,42,0.390339
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,43,0.533972
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,44,0.476671
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,45,0.491629
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,46,0.464299
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,47,0.551435
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,48,0.617977
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,49,0.436847
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,50,0.52699
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,51,0.527902
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,52,0.595615
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,53,0.615078
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,54,0.535605
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,55,0.601236
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,56,0.581568
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,57,0.612642
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,58,0.559315
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,59,0.538749
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,60,0.319959
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,61,0.561343
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,62,0.637318
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,63,0.645974
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,64,0.66017
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,65,0.58523
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,66,0.485668
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,67,0.578288
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,68,0.571143
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,69,0.609429
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,70,0.630077
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,71,0.659612
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,72,0.64988
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,73,0.629165
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,74,0.603917
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,75,0.618848
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,76,0.631125
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,77,0.667805
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,78,0.661912
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,79,0.652425
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,80,0.638338
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,81,0.678476
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,82,0.676108
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,83,0.706827
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,84,0.675863
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,85,0.707072
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,86,0.665083
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,87,0.705915
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,88,0.721717
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,89,0.720737
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,90,0.715375
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,91,0.733259
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,92,0.723949
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,93,0.745046
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,94,0.739778
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,95,0.746543
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,96,0.745985
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,97,0.744869
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,98,0.746788
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,99,0.748775
+rawmaltf,resnet18,resnet18_seed42_cam_low_M8_area0.1,cam_low M8,100,0.749891
+rawmaltf,resnet18,resnet18_seed42_none,none,1,0.081882
+rawmaltf,resnet18,resnet18_seed42_none,none,2,0.331051
+rawmaltf,resnet18,resnet18_seed42_none,none,3,0.25607
+rawmaltf,resnet18,resnet18_seed42_none,none,4,0.369474
+rawmaltf,resnet18,resnet18_seed42_none,none,5,0.324287
+rawmaltf,resnet18,resnet18_seed42_none,none,6,0.261542
+rawmaltf,resnet18,resnet18_seed42_none,none,7,0.296671
+rawmaltf,resnet18,resnet18_seed42_none,none,8,0.35306
+rawmaltf,resnet18,resnet18_seed42_none,none,9,0.379519
+rawmaltf,resnet18,resnet18_seed42_none,none,10,0.278596
+rawmaltf,resnet18,resnet18_seed42_none,none,11,0.353958
+rawmaltf,resnet18,resnet18_seed42_none,none,12,0.382663
+rawmaltf,resnet18,resnet18_seed42_none,none,13,0.24446
+rawmaltf,resnet18,resnet18_seed42_none,none,14,0.370386
+rawmaltf,resnet18,resnet18_seed42_none,none,15,0.389917
+rawmaltf,resnet18,resnet18_seed42_none,none,16,0.379315
+rawmaltf,resnet18,resnet18_seed42_none,none,17,0.227828
+rawmaltf,resnet18,resnet18_seed42_none,none,18,0.281427
+rawmaltf,resnet18,resnet18_seed42_none,none,19,0.357687
+rawmaltf,resnet18,resnet18_seed42_none,none,20,0.391482
+rawmaltf,resnet18,resnet18_seed42_none,none,21,0.383956
+rawmaltf,resnet18,resnet18_seed42_none,none,22,0.423005
+rawmaltf,resnet18,resnet18_seed42_none,none,23,0.355537
+rawmaltf,resnet18,resnet18_seed42_none,none,24,0.337149
+rawmaltf,resnet18,resnet18_seed42_none,none,25,0.369515
+rawmaltf,resnet18,resnet18_seed42_none,none,26,0.319196
+rawmaltf,resnet18,resnet18_seed42_none,none,27,0.363867
+rawmaltf,resnet18,resnet18_seed42_none,none,28,0.378403
+rawmaltf,resnet18,resnet18_seed42_none,none,29,0.415233
+rawmaltf,resnet18,resnet18_seed42_none,none,30,0.439678
+rawmaltf,resnet18,resnet18_seed42_none,none,31,0.309356
+rawmaltf,resnet18,resnet18_seed42_none,none,32,0.393823
+rawmaltf,resnet18,resnet18_seed42_none,none,33,0.456664
+rawmaltf,resnet18,resnet18_seed42_none,none,34,0.432845
+rawmaltf,resnet18,resnet18_seed42_none,none,35,0.278283
+rawmaltf,resnet18,resnet18_seed42_none,none,36,0.395879
+rawmaltf,resnet18,resnet18_seed42_none,none,37,0.31759
+rawmaltf,resnet18,resnet18_seed42_none,none,38,0.346567
+rawmaltf,resnet18,resnet18_seed42_none,none,39,0.398873
+rawmaltf,resnet18,resnet18_seed42_none,none,40,0.439855
+rawmaltf,resnet18,resnet18_seed42_none,none,41,0.336768
+rawmaltf,resnet18,resnet18_seed42_none,none,42,0.457916
+rawmaltf,resnet18,resnet18_seed42_none,none,43,0.432178
+rawmaltf,resnet18,resnet18_seed42_none,none,44,0.467049
+rawmaltf,resnet18,resnet18_seed42_none,none,45,0.30643
+rawmaltf,resnet18,resnet18_seed42_none,none,46,0.429116
+rawmaltf,resnet18,resnet18_seed42_none,none,47,0.231843
+rawmaltf,resnet18,resnet18_seed42_none,none,48,0.369624
+rawmaltf,resnet18,resnet18_seed42_none,none,49,0.376102
+rawmaltf,resnet18,resnet18_seed42_none,none,50,0.399853
+rawmaltf,resnet18,resnet18_seed42_none,none,51,0.401663
+rawmaltf,resnet18,resnet18_seed42_none,none,52,0.493725
+rawmaltf,resnet18,resnet18_seed42_none,none,53,0.507499
+rawmaltf,resnet18,resnet18_seed42_none,none,54,0.513951
+rawmaltf,resnet18,resnet18_seed42_none,none,55,0.483613
+rawmaltf,resnet18,resnet18_seed42_none,none,56,0.476018
+rawmaltf,resnet18,resnet18_seed42_none,none,57,0.407284
+rawmaltf,resnet18,resnet18_seed42_none,none,58,0.430436
+rawmaltf,resnet18,resnet18_seed42_none,none,59,0.393197
+rawmaltf,resnet18,resnet18_seed42_none,none,60,0.534843
+rawmaltf,resnet18,resnet18_seed42_none,none,61,0.39121
+rawmaltf,resnet18,resnet18_seed42_none,none,62,0.488676
+rawmaltf,resnet18,resnet18_seed42_none,none,63,0.402085
+rawmaltf,resnet18,resnet18_seed42_none,none,64,0.510712
+rawmaltf,resnet18,resnet18_seed42_none,none,65,0.513393
+rawmaltf,resnet18,resnet18_seed42_none,none,66,0.490064
+rawmaltf,resnet18,resnet18_seed42_none,none,67,0.463632
+rawmaltf,resnet18,resnet18_seed42_none,none,68,0.46611
+rawmaltf,resnet18,resnet18_seed42_none,none,69,0.547324
+rawmaltf,resnet18,resnet18_seed42_none,none,70,0.4879
+rawmaltf,resnet18,resnet18_seed42_none,none,71,0.567863
+rawmaltf,resnet18,resnet18_seed42_none,none,72,0.521096
+rawmaltf,resnet18,resnet18_seed42_none,none,73,0.561656
+rawmaltf,resnet18,resnet18_seed42_none,none,74,0.527167
+rawmaltf,resnet18,resnet18_seed42_none,none,75,0.442536
+rawmaltf,resnet18,resnet18_seed42_none,none,76,0.478032
+rawmaltf,resnet18,resnet18_seed42_none,none,77,0.499905
+rawmaltf,resnet18,resnet18_seed42_none,none,78,0.538219
+rawmaltf,resnet18,resnet18_seed42_none,none,79,0.447245
+rawmaltf,resnet18,resnet18_seed42_none,none,80,0.549134
+rawmaltf,resnet18,resnet18_seed42_none,none,81,0.535156
+rawmaltf,resnet18,resnet18_seed42_none,none,82,0.57592
+rawmaltf,resnet18,resnet18_seed42_none,none,83,0.570163
+rawmaltf,resnet18,resnet18_seed42_none,none,84,0.640816
+rawmaltf,resnet18,resnet18_seed42_none,none,85,0.661531
+rawmaltf,resnet18,resnet18_seed42_none,none,86,0.614901
+rawmaltf,resnet18,resnet18_seed42_none,none,87,0.585924
+rawmaltf,resnet18,resnet18_seed42_none,none,88,0.572014
+rawmaltf,resnet18,resnet18_seed42_none,none,89,0.6368
+rawmaltf,resnet18,resnet18_seed42_none,none,90,0.624701
+rawmaltf,resnet18,resnet18_seed42_none,none,91,0.676557
+rawmaltf,resnet18,resnet18_seed42_none,none,92,0.624143
+rawmaltf,resnet18,resnet18_seed42_none,none,93,0.659748
+rawmaltf,resnet18,resnet18_seed42_none,none,94,0.659013
+rawmaltf,resnet18,resnet18_seed42_none,none,95,0.646042
+rawmaltf,resnet18,resnet18_seed42_none,none,96,0.661177
+rawmaltf,resnet18,resnet18_seed42_none,none,97,0.65919
+rawmaltf,resnet18,resnet18_seed42_none,none,98,0.664212
+rawmaltf,resnet18,resnet18_seed42_none,none,99,0.653365
+rawmaltf,resnet18,resnet18_seed42_none,none,100,0.656958
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,1,0.158183
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,2,0.388692
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,3,0.324001
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,4,0.30025
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,5,0.295922
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,6,0.268973
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,7,0.365228
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,8,0.458583
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,9,0.412089
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,10,0.265761
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,11,0.335965
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,12,0.389182
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,13,0.45073
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,14,0.447245
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,15,0.379492
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,16,0.396886
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,17,0.3315
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,18,0.275847
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,19,0.462584
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,20,0.428136
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,21,0.461264
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,22,0.488635
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,23,0.367419
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,24,0.349072
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,25,0.341409
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,26,0.501919
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,27,0.442427
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,28,0.3367
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,29,0.553776
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,30,0.51817
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,31,0.410388
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,32,0.49446
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,33,0.400207
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,34,0.43441
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,35,0.487138
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,36,0.564378
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,37,0.530338
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,38,0.495155
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,39,0.491453
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,40,0.409966
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,41,0.503171
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,42,0.455126
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,43,0.514999
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,44,0.502232
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,45,0.492147
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,46,0.537769
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,47,0.53732
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,48,0.517258
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,49,0.409272
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,50,0.479257
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,51,0.607687
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,52,0.597398
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,53,0.499347
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,54,0.572082
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,55,0.609361
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,56,0.61369
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,57,0.556362
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,58,0.402044
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,59,0.499687
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,60,0.595342
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,61,0.566855
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,62,0.469145
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,63,0.577349
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,64,0.549556
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,65,0.607864
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,66,0.654971
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,67,0.494705
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,68,0.630009
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,69,0.604026
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,70,0.538504
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,71,0.596077
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,72,0.60619
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,73,0.575784
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,74,0.650996
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,75,0.675373
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,76,0.555001
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,77,0.605877
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,78,0.650928
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,79,0.664838
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,80,0.688072
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,81,0.531114
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,82,0.685486
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,83,0.663899
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,84,0.706201
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,85,0.681715
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,86,0.674461
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,87,0.710801
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,88,0.681021
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,89,0.697899
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,90,0.71272
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,91,0.725936
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,92,0.720288
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,93,0.729489
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,94,0.729176
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,95,0.730047
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,96,0.73036
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,97,0.734021
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,98,0.734579
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,99,0.732034
+rawmaltf,resnet18,resnet18_seed42_random_M4_area0.1,random M4,100,0.731789
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,1,0.201737
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,2,0.385698
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,3,0.389985
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,4,0.374047
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,5,0.385099
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,6,0.294507
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,7,0.437337
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,8,0.399472
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,9,0.447558
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,10,0.437309
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,11,0.393892
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,12,0.412933
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,13,0.206092
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,14,0.370209
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,15,0.426734
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,16,0.418826
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,17,0.440726
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,18,0.514931
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,19,0.519599
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,20,0.452649
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,21,0.527126
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,22,0.486158
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,23,0.290914
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,24,0.525003
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,25,0.507989
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,26,0.455507
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,27,0.45122
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,28,0.503879
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,29,0.535047
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,30,0.53732
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,31,0.466559
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,32,0.492922
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,33,0.532924
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,34,0.552523
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,35,0.534911
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,36,0.453697
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,37,0.496693
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,38,0.522076
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,39,0.522117
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,40,0.590252
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,41,0.517095
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,42,0.461999
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,43,0.617936
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,44,0.490867
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,45,0.512236
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,46,0.591259
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,47,0.534353
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,48,0.556811
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,49,0.574695
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,50,0.598895
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,51,0.584985
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,52,0.558131
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,53,0.577213
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,54,0.629233
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,55,0.46562
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,56,0.504328
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,57,0.526786
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,58,0.598827
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,59,0.594471
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,60,0.636664
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,61,0.607755
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,62,0.535047
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,63,0.484484
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,64,0.629696
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,65,0.606925
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,66,0.569183
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,67,0.645348
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,68,0.68716
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,69,0.642939
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,70,0.638828
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,71,0.673141
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,72,0.605945
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,73,0.670283
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,74,0.584713
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,75,0.660905
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,76,0.597507
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,77,0.689079
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,78,0.670106
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,79,0.655529
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,80,0.638447
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,81,0.659435
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,82,0.667111
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,83,0.706895
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,84,0.686534
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,85,0.678721
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,86,0.684301
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,87,0.701805
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,88,0.703166
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,89,0.706269
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,90,0.717117
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,91,0.716069
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,92,0.723391
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,93,0.738104
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,94,0.734756
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,95,0.743304
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,96,0.73036
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,97,0.735559
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,98,0.732701
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,99,0.736117
+rawmaltf,resnet18,resnet18_seed42_random_M8_area0.1,random M8,100,0.736988

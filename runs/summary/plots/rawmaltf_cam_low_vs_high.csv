@@ -1,0 +1,6 @@
+group,mean_best_accuracy,count
+cam_high,0.7433445,4
+cam_low,0.7433445,4
+none,0.682607,2
+random M4,0.7374235,2
+random M8,0.741262,2

@@ -1,0 +1,701 @@
+dataset_folder,model_folder,run_name,condition,epoch,value
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,1,0.045393
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,2,0.323541
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,3,0.422587
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,4,0.463787
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,5,0.485765
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,6,0.506974
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,7,0.514062
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,8,0.523058
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,9,0.53179
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,10,0.52847
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,11,0.54267
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,12,0.533858
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,13,0.526746
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,14,0.542475
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,15,0.536317
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,16,0.544841
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,17,0.535926
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,18,0.539878
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,19,0.535604
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,20,0.54375
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,21,0.541935
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,22,0.540223
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,23,0.548943
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,24,0.543325
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,25,0.543417
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,26,0.543176
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,27,0.53781
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,28,0.53966
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,29,0.550793
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,30,0.546289
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,31,0.549012
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,32,0.553539
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,33,0.543084
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,34,0.54221
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,35,0.548277
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,36,0.550046
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,37,0.557686
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,38,0.545106
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,39,0.545393
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,40,0.554125
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,41,0.563545
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,42,0.556503
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,43,0.547208
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,44,0.560133
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,45,0.554584
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,46,0.553665
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,47,0.563545
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,48,0.553182
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,49,0.549253
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,50,0.566854
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,51,0.55571
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,52,0.555905
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,53,0.560512
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,54,0.563614
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,55,0.56489
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,56,0.556606
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,57,0.563132
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,58,0.570221
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,59,0.568991
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,60,0.573334
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,61,0.565384
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,62,0.577665
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,63,0.573598
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,64,0.576471
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,65,0.572289
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,66,0.573656
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,67,0.576126
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,68,0.587431
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,69,0.581158
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,70,0.585386
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,71,0.584134
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,72,0.587511
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,73,0.59259
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,74,0.598058
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,75,0.595347
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,76,0.601643
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,77,0.605561
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,78,0.604699
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,79,0.608582
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,80,0.612247
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,81,0.614074
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,82,0.609145
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,83,0.615005
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,84,0.610409
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,85,0.617371
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,86,0.612489
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,87,0.613557
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,88,0.611512
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,89,0.617567
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,90,0.615786
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,91,0.617521
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,92,0.619301
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,93,0.617521
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,94,0.617934
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,95,0.621818
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,96,0.620473
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,97,0.617911
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,98,0.61813
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,99,0.619451
+cifar100,densenet121,densenet121_seed42_cam_high_M4_area0.1,cam_high M4,100,0.620037
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,1,0.061041
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,2,0.389591
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,3,0.478136
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,4,0.514947
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,5,0.532778
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,6,0.53225
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,7,0.513798
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,8,0.52091
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,9,0.532996
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,10,0.53287
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,11,0.531893
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,12,0.542521
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,13,0.527723
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,14,0.54352
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,15,0.520967
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,16,0.538293
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,17,0.530756
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,18,0.545818
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,19,0.538155
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,20,0.541992
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,21,0.53866
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,22,0.534881
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,23,0.528676
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,24,0.548449
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,25,0.531434
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,26,0.539005
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,27,0.546829
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,28,0.545163
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,29,0.540763
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,30,0.543647
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,31,0.535398
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,32,0.546209
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,33,0.53966
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,34,0.544623
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,35,0.536535
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,36,0.538833
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,37,0.537339
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,38,0.548265
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,39,0.537845
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,40,0.545312
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,41,0.553987
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,42,0.547208
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,43,0.553998
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,44,0.553355
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,45,0.546818
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,46,0.545565
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,47,0.556514
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,48,0.548012
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,49,0.547277
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,50,0.561248
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,51,0.552551
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,52,0.55517
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,53,0.555871
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,54,0.547725
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,55,0.556388
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,56,0.556813
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,57,0.551746
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,58,0.561937
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,59,0.571726
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,60,0.562086
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,61,0.557985
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,62,0.559616
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,63,0.558663
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,64,0.575804
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,65,0.559754
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,66,0.572725
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,67,0.566716
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,68,0.571255
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,69,0.566636
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,70,0.571094
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,71,0.578493
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,72,0.58071
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,73,0.562891
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,74,0.571174
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,75,0.586994
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,76,0.586799
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,77,0.589396
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,78,0.589063
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,79,0.592796
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,80,0.594577
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,81,0.600758
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,82,0.601562
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,83,0.606204
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,84,0.608444
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,85,0.608157
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,86,0.610478
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,87,0.608789
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,88,0.613063
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,89,0.609329
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,90,0.612971
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,91,0.616314
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,92,0.612845
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,93,0.614557
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,94,0.61204
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,95,0.612603
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,96,0.618267
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,97,0.614534
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,98,0.61651
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,99,0.61458
+cifar100,densenet121,densenet121_seed42_cam_high_M8_area0.1,cam_high M8,100,0.616314
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,1,0.045393
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,2,0.323541
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,3,0.422587
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,4,0.463787
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,5,0.485765
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,6,0.506974
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,7,0.514062
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,8,0.523058
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,9,0.53179
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,10,0.52847
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,11,0.54267
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,12,0.533858
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,13,0.526746
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,14,0.542475
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,15,0.536317
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,16,0.544841
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,17,0.535926
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,18,0.539878
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,19,0.535604
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,20,0.54375
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,21,0.541935
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,22,0.540223
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,23,0.548943
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,24,0.543325
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,25,0.543417
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,26,0.543176
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,27,0.53781
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,28,0.53966
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,29,0.550793
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,30,0.546289
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,31,0.549012
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,32,0.553539
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,33,0.543084
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,34,0.54221
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,35,0.548277
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,36,0.550046
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,37,0.557686
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,38,0.545106
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,39,0.545393
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,40,0.554125
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,41,0.563545
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,42,0.556503
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,43,0.547208
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,44,0.560133
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,45,0.554584
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,46,0.553665
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,47,0.563545
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,48,0.553182
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,49,0.549253
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,50,0.566854
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,51,0.55571
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,52,0.555905
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,53,0.560512
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,54,0.563614
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,55,0.56489
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,56,0.556606
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,57,0.563132
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,58,0.570221
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,59,0.568991
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,60,0.573334
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,61,0.565384
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,62,0.577665
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,63,0.573598
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,64,0.576471
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,65,0.572289
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,66,0.573656
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,67,0.576126
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,68,0.587431
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,69,0.581158
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,70,0.585386
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,71,0.584134
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,72,0.587511
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,73,0.59259
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,74,0.598058
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,75,0.595347
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,76,0.601643
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,77,0.605561
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,78,0.604699
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,79,0.608582
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,80,0.612247
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,81,0.614074
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,82,0.609145
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,83,0.615005
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,84,0.610409
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,85,0.617371
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,86,0.612489
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,87,0.613557
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,88,0.611512
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,89,0.617567
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,90,0.615786
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,91,0.617521
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,92,0.619301
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,93,0.617521
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,94,0.617934
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,95,0.621818
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,96,0.620473
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,97,0.617911
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,98,0.61813
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,99,0.619451
+cifar100,densenet121,densenet121_seed42_cam_low_M4_area0.1,cam_low M4,100,0.620037
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,1,0.061041
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,2,0.389591
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,3,0.478136
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,4,0.514947
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,5,0.532778
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,6,0.53225
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,7,0.513798
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,8,0.52091
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,9,0.532996
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,10,0.53287
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,11,0.531893
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,12,0.542521
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,13,0.527723
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,14,0.54352
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,15,0.520967
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,16,0.538293
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,17,0.530756
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,18,0.545818
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,19,0.538155
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,20,0.541992
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,21,0.53866
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,22,0.534881
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,23,0.528676
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,24,0.548449
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,25,0.531434
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,26,0.539005
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,27,0.546829
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,28,0.545163
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,29,0.540763
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,30,0.543647
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,31,0.535398
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,32,0.546209
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,33,0.53966
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,34,0.544623
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,35,0.536535
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,36,0.538833
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,37,0.537339
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,38,0.548265
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,39,0.537845
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,40,0.545312
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,41,0.553987
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,42,0.547208
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,43,0.553998
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,44,0.553355
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,45,0.546818
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,46,0.545565
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,47,0.556514
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,48,0.548012
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,49,0.547277
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,50,0.561248
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,51,0.552551
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,52,0.55517
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,53,0.555871
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,54,0.547725
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,55,0.556388
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,56,0.556813
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,57,0.551746
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,58,0.561937
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,59,0.571726
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,60,0.562086
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,61,0.557985
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,62,0.559616
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,63,0.558663
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,64,0.575804
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,65,0.559754
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,66,0.572725
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,67,0.566716
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,68,0.571255
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,69,0.566636
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,70,0.571094
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,71,0.578493
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,72,0.58071
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,73,0.562891
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,74,0.571174
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,75,0.586994
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,76,0.586799
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,77,0.589396
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,78,0.589063
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,79,0.592796
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,80,0.594577
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,81,0.600758
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,82,0.601562
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,83,0.606204
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,84,0.608444
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,85,0.608157
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,86,0.610478
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,87,0.608789
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,88,0.613063
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,89,0.609329
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,90,0.612971
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,91,0.616314
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,92,0.612845
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,93,0.614557
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,94,0.61204
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,95,0.612603
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,96,0.618267
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,97,0.614534
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,98,0.61651
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,99,0.61458
+cifar100,densenet121,densenet121_seed42_cam_low_M8_area0.1,cam_low M8,100,0.616314
+cifar100,densenet121,densenet121_seed42_none,none,1,0.024759
+cifar100,densenet121,densenet121_seed42_none,none,2,0.171507
+cifar100,densenet121,densenet121_seed42_none,none,3,0.23827
+cifar100,densenet121,densenet121_seed42_none,none,4,0.276896
+cifar100,densenet121,densenet121_seed42_none,none,5,0.336294
+cifar100,densenet121,densenet121_seed42_none,none,6,0.361535
+cifar100,densenet121,densenet121_seed42_none,none,7,0.407284
+cifar100,densenet121,densenet121_seed42_none,none,8,0.435754
+cifar100,densenet121,densenet121_seed42_none,none,9,0.424644
+cifar100,densenet121,densenet121_seed42_none,none,10,0.455676
+cifar100,densenet121,densenet121_seed42_none,none,11,0.465591
+cifar100,densenet121,densenet121_seed42_none,none,12,0.4804
+cifar100,densenet121,densenet121_seed42_none,none,13,0.498437
+cifar100,densenet121,densenet121_seed42_none,none,14,0.510478
+cifar100,densenet121,densenet121_seed42_none,none,15,0.495198
+cifar100,densenet121,densenet121_seed42_none,none,16,0.50293
+cifar100,densenet121,densenet121_seed42_none,none,17,0.50764
+cifar100,densenet121,densenet121_seed42_none,none,18,0.512672
+cifar100,densenet121,densenet121_seed42_none,none,19,0.516326
+cifar100,densenet121,densenet121_seed42_none,none,20,0.514947
+cifar100,densenet121,densenet121_seed42_none,none,21,0.518899
+cifar100,densenet121,densenet121_seed42_none,none,22,0.534168
+cifar100,densenet121,densenet121_seed42_none,none,23,0.535524
+cifar100,densenet121,densenet121_seed42_none,none,24,0.538637
+cifar100,densenet121,densenet121_seed42_none,none,25,0.542659
+cifar100,densenet121,densenet121_seed42_none,none,26,0.526126
+cifar100,densenet121,densenet121_seed42_none,none,27,0.531939
+cifar100,densenet121,densenet121_seed42_none,none,28,0.529814
+cifar100,densenet121,densenet121_seed42_none,none,29,0.523219
+cifar100,densenet121,densenet121_seed42_none,none,30,0.547633
+cifar100,densenet121,densenet121_seed42_none,none,31,0.534065
+cifar100,densenet121,densenet121_seed42_none,none,32,0.541372
+cifar100,densenet121,densenet121_seed42_none,none,33,0.54051
+cifar100,densenet121,densenet121_seed42_none,none,34,0.548242
+cifar100,densenet121,densenet121_seed42_none,none,35,0.559237
+cifar100,densenet121,densenet121_seed42_none,none,36,0.533996
+cifar100,densenet121,densenet121_seed42_none,none,37,0.545588
+cifar100,densenet121,densenet121_seed42_none,none,38,0.534352
+cifar100,densenet121,densenet121_seed42_none,none,39,0.541728
+cifar100,densenet121,densenet121_seed42_none,none,40,0.538706
+cifar100,densenet121,densenet121_seed42_none,none,41,0.543417
+cifar100,densenet121,densenet121_seed42_none,none,42,0.544095
+cifar100,densenet121,densenet121_seed42_none,none,43,0.539212
+cifar100,densenet121,densenet121_seed42_none,none,44,0.549345
+cifar100,densenet121,densenet121_seed42_none,none,45,0.547254
+cifar100,densenet121,densenet121_seed42_none,none,46,0.555331
+cifar100,densenet121,densenet121_seed42_none,none,47,0.547105
+cifar100,densenet121,densenet121_seed42_none,none,48,0.55756
+cifar100,densenet121,densenet121_seed42_none,none,49,0.554848
+cifar100,densenet121,densenet121_seed42_none,none,50,0.561489
+cifar100,densenet121,densenet121_seed42_none,none,51,0.552528
+cifar100,densenet121,densenet121_seed42_none,none,52,0.561857
+cifar100,densenet121,densenet121_seed42_none,none,53,0.564913
+cifar100,densenet121,densenet121_seed42_none,none,54,0.561834
+cifar100,densenet121,densenet121_seed42_none,none,55,0.567544
+cifar100,densenet121,densenet121_seed42_none,none,56,0.570761
+cifar100,densenet121,densenet121_seed42_none,none,57,0.574747
+cifar100,densenet121,densenet121_seed42_none,none,58,0.580538
+cifar100,densenet121,densenet121_seed42_none,none,59,0.570864
+cifar100,densenet121,densenet121_seed42_none,none,60,0.578217
+cifar100,densenet121,densenet121_seed42_none,none,61,0.582698
+cifar100,densenet121,densenet121_seed42_none,none,62,0.584766
+cifar100,densenet121,densenet121_seed42_none,none,63,0.595944
+cifar100,densenet121,densenet121_seed42_none,none,64,0.588775
+cifar100,densenet121,densenet121_seed42_none,none,65,0.595921
+cifar100,densenet121,densenet121_seed42_none,none,66,0.590797
+cifar100,densenet121,densenet121_seed42_none,none,67,0.590326
+cifar100,densenet121,densenet121_seed42_none,none,68,0.595025
+cifar100,densenet121,densenet121_seed42_none,none,69,0.600908
+cifar100,densenet121,densenet121_seed42_none,none,70,0.596634
+cifar100,densenet121,densenet121_seed42_none,none,71,0.599322
+cifar100,densenet121,densenet121_seed42_none,none,72,0.604504
+cifar100,densenet121,densenet121_seed42_none,none,73,0.602447
+cifar100,densenet121,densenet121_seed42_none,none,74,0.599713
+cifar100,densenet121,densenet121_seed42_none,none,75,0.600322
+cifar100,densenet121,densenet121_seed42_none,none,76,0.605526
+cifar100,densenet121,densenet121_seed42_none,none,77,0.606549
+cifar100,densenet121,densenet121_seed42_none,none,78,0.607916
+cifar100,densenet121,densenet121_seed42_none,none,79,0.604446
+cifar100,densenet121,densenet121_seed42_none,none,80,0.604102
+cifar100,densenet121,densenet121_seed42_none,none,81,0.60687
+cifar100,densenet121,densenet121_seed42_none,none,82,0.61065
+cifar100,densenet121,densenet121_seed42_none,none,83,0.613316
+cifar100,densenet121,densenet121_seed42_none,none,84,0.612948
+cifar100,densenet121,densenet121_seed42_none,none,85,0.606985
+cifar100,densenet121,densenet121_seed42_none,none,86,0.613971
+cifar100,densenet121,densenet121_seed42_none,none,87,0.611259
+cifar100,densenet121,densenet121_seed42_none,none,88,0.612994
+cifar100,densenet121,densenet121_seed42_none,none,89,0.610892
+cifar100,densenet121,densenet121_seed42_none,none,90,0.611386
+cifar100,densenet121,densenet121_seed42_none,none,91,0.611822
+cifar100,densenet121,densenet121_seed42_none,none,92,0.613971
+cifar100,densenet121,densenet121_seed42_none,none,93,0.610283
+cifar100,densenet121,densenet121_seed42_none,none,94,0.612017
+cifar100,densenet121,densenet121_seed42_none,none,95,0.614534
+cifar100,densenet121,densenet121_seed42_none,none,96,0.614166
+cifar100,densenet121,densenet121_seed42_none,none,97,0.61412
+cifar100,densenet121,densenet121_seed42_none,none,98,0.613189
+cifar100,densenet121,densenet121_seed42_none,none,99,0.614511
+cifar100,densenet121,densenet121_seed42_none,none,100,0.617027
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,1,0.050471
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,2,0.316188
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,3,0.420209
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,4,0.460294
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,5,0.483146
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,6,0.496657
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,7,0.504113
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,8,0.530377
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,9,0.521427
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,10,0.524472
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,11,0.542027
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,12,0.529848
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,13,0.527769
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,14,0.535145
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,15,0.53526
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,16,0.527137
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,17,0.535099
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,18,0.551677
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,19,0.545772
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,20,0.542796
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,21,0.534122
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,22,0.545301
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,23,0.542578
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,24,0.541004
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,25,0.538683
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,26,0.546427
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,27,0.551333
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,28,0.545232
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,29,0.53665
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,30,0.539936
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,31,0.545186
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,32,0.548874
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,33,0.540694
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,34,0.537546
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,35,0.547254
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,36,0.544692
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,37,0.541142
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,38,0.54514
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,39,0.553022
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,40,0.553998
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,41,0.546795
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,42,0.549632
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,43,0.553366
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,44,0.551494
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,45,0.550264
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,46,0.552045
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,47,0.556583
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,48,0.548656
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,49,0.553929
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,50,0.552217
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,51,0.561788
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,52,0.564694
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,53,0.556813
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,54,0.552022
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,55,0.555664
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,56,0.551264
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,57,0.557169
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,58,0.559812
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,59,0.566498
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,60,0.556778
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,61,0.567727
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,62,0.568555
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,63,0.57801
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,64,0.568164
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,65,0.573483
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,66,0.566383
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,67,0.574701
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,68,0.578596
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,69,0.583674
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,70,0.587121
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,71,0.591487
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,72,0.587845
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,73,0.591073
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,74,0.598277
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,75,0.591808
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,76,0.600988
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,77,0.604308
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,78,0.608973
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,79,0.60602
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,80,0.605963
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,81,0.609019
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,82,0.610926
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,83,0.613511
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,84,0.614809
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,85,0.617762
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,86,0.616222
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,87,0.620692
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,88,0.616785
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,89,0.618176
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,90,0.621864
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,91,0.616831
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,92,0.622105
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,93,0.621025
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,94,0.62091
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,95,0.621278
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,96,0.622495
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,97,0.623058
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,98,0.623058
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,99,0.623426
+cifar100,densenet121,densenet121_seed42_random_M4_area0.1,random M4,100,0.618153
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,1,0.061386
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,2,0.406009
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,3,0.46065
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,4,0.506147
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,5,0.517142
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,6,0.516751
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,7,0.521358
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,8,0.533651
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,9,0.530744
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,10,0.539809
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,11,0.527206
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,12,0.547829
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,13,0.543865
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,14,0.535811
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,15,0.536972
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,16,0.542521
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,17,0.542107
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,18,0.548575
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,19,0.53673
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,20,0.545967
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,21,0.543107
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,22,0.531239
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,23,0.537454
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,24,0.543543
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,25,0.548748
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,26,0.532479
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,27,0.547794
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,28,0.547116
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,29,0.541153
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,30,0.535018
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,31,0.547622
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,32,0.53704
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,33,0.551723
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,34,0.552068
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,35,0.542452
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,36,0.549334
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,37,0.553068
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,38,0.551068
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,39,0.549472
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,40,0.548633
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,41,0.553918
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,42,0.539166
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,43,0.551045
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,44,0.549288
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,45,0.538339
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,46,0.550379
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,47,0.557881
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,48,0.556951
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,49,0.55378
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,50,0.548725
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,51,0.550597
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,52,0.55293
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,53,0.547564
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,54,0.544554
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,55,0.548828
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,56,0.55378
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,57,0.566544
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,58,0.55795
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,59,0.562603
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,60,0.562305
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,61,0.563477
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,62,0.555756
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,63,0.570508
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,64,0.571806
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,65,0.575586
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,66,0.57029
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,67,0.580296
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,68,0.566579
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,69,0.571484
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,70,0.573552
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,71,0.579274
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,72,0.579102
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,73,0.571232
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,74,0.587443
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,75,0.578171
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,76,0.580963
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,77,0.581078
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,78,0.593187
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,79,0.584467
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,80,0.595944
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,81,0.596875
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,82,0.591912
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,83,0.600195
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,84,0.601045
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,85,0.600804
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,86,0.606055
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,87,0.604642
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,88,0.604756
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,89,0.601585
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,90,0.609375
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,91,0.608008
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,92,0.60918
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,93,0.612649
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,94,0.609352
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,95,0.608961
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,96,0.611569
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,97,0.609053
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,98,0.612305
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,99,0.613913
+cifar100,densenet121,densenet121_seed42_random_M8_area0.1,random M8,100,0.612328
