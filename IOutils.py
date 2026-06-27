@@ -112,6 +112,12 @@ def add_cutout_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--cutout_area", type=float, default=None)
     parser.add_argument("--teacher_model", type=str, default="")
     parser.add_argument("--teacher_checkpoint", type=str, default="")
+    parser.add_argument(
+        "--cam_cache_dir",
+        type=str,
+        default="",
+        help="Directory for cached CAM saliency .pt files. Defaults to data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/.",
+    )
     parser.add_argument("--cam_layer", type=str, default="auto")
     parser.add_argument("--saliency_candidate_percent", type=float, default=10.0)
     parser.add_argument("--grayscale", action="store_true", default=False)

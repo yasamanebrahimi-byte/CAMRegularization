@@ -43,7 +43,7 @@ Use the teacher checkpoint for high-saliency cutout:
 python train.py --dataset cifar100 --model resnet18 --data_dir ./data --cutout_mode cam_high --cutout_m 4 --cutout_area 0.10 --teacher_model resnet18 --teacher_checkpoint ./runs/teacher_cifar100/best_model.pt --cam_layer auto --run_name cam_high_cifar100
 ```
 
-CAM cutout modes require both `--teacher_model` and `--teacher_checkpoint` when `--cutout_m > 0`.
+CAM cutout modes require both `--teacher_model` and `--teacher_checkpoint` when `--cutout_m > 0`. CAM saliency maps are cached as CPU `.pt` tensors under `--cam_cache_dir`; when omitted, the default is `data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/`. Populate a new CAM cache with `--num_workers 0`, then rerun with workers to avoid CUDA work inside DataLoader workers.
 
 Quick local CAM validation without dataset downloads:
 
@@ -60,6 +60,7 @@ python validate_cam_cutout.py
 - `--teacher_model`: model architecture used by the teacher checkpoint for CAM cutout.
 - `--teacher_checkpoint`: path to a saved teacher checkpoint, usually a `best_model.pt` from a prior `train.py` run.
 - `--cam_layer`: teacher layer used for CAM generation. `auto` selects a suitable layer from the model.
+- `--cam_cache_dir`: directory for cached CAM saliency maps. Defaults to `data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/`.
 - `--saliency_candidate_percent`: percent of candidate windows considered for CAM-based placement.
 - `--grayscale`: load supported image datasets as grayscale.
 - `--include_regex`: include only matching input paths for supported file-based datasets.

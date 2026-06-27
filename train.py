@@ -1,4 +1,5 @@
 import os
+import hashlib
 import json
 import torch
 import torch.nn as nn
@@ -69,6 +70,80 @@ def _extract_state_dict(checkpoint):
     return checkpoint
 
 
+
+def _cam_cache_required(args) -> bool:
+    cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
+    cutout_m = int(getattr(args, "cutout_m", 0))
+    return cutout_m > 0 and cutout_mode in {"cam_low", "cam_high"}
+
+
+def _slug_cache_component(value) -> str:
+    text = str(value or "unknown").strip() or "unknown"
+    return "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in text)
+
+
+def _checkpoint_fingerprint(checkpoint_path: str) -> dict:
+    checkpoint_path = str(checkpoint_path or "").strip()
+    if not checkpoint_path:
+        raise ValueError("Teacher checkpoint is required to resolve the CAM cache directory.")
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(f"Teacher checkpoint not found: {checkpoint_path}")
+
+    digest = hashlib.sha256()
+    with open(checkpoint_path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    stat = os.stat(checkpoint_path)
+    return {
+        "path": os.path.abspath(checkpoint_path),
+        "sha256": digest.hexdigest(),
+        "size": int(stat.st_size),
+        "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+    }
+
+
+def _resolve_cam_cache_dir(args, logger=None):
+    if not _cam_cache_required(args):
+        return None, None
+
+    checkpoint_info = getattr(args, "_cam_checkpoint_fingerprint", None)
+    if checkpoint_info is None:
+        checkpoint_info = _checkpoint_fingerprint(getattr(args, "teacher_checkpoint", ""))
+        setattr(args, "_cam_checkpoint_fingerprint", checkpoint_info)
+        setattr(args, "teacher_checkpoint_sha256", checkpoint_info["sha256"])
+
+    cache_dir = str(getattr(args, "cam_cache_dir", "") or "").strip()
+    if not cache_dir:
+        teacher_component = _slug_cache_component(getattr(args, "teacher_model", "") or getattr(args, "model", ""))
+        cache_dir = os.path.join(
+            str(getattr(args, "data_dir", "./data")),
+            "cam_cache",
+            _slug_cache_component(getattr(args, "dataset", "dataset")),
+            teacher_component,
+            checkpoint_info["sha256"][:16],
+        )
+        setattr(args, "cam_cache_dir", cache_dir)
+    else:
+        setattr(args, "cam_cache_dir", cache_dir)
+
+    if logger is not None:
+        _log(logger, "info", "CAM saliency cache directory: %s", cache_dir)
+    return cache_dir, checkpoint_info
+
+
+def _build_cam_cache_settings(args, checkpoint_info, input_size: int) -> dict:
+    return {
+        "dataset": getattr(args, "dataset", ""),
+        "grayscale": bool(getattr(args, "grayscale", False)),
+        "student_model": getattr(args, "model", ""),
+        "teacher_model": getattr(args, "teacher_model", ""),
+        "teacher_checkpoint": checkpoint_info,
+        "cam_layer": str(getattr(args, "cam_layer", "auto") or "auto"),
+        "input_size": int(input_size),
+    }
+
+
 def _load_teacher_model(args, num_classes: int, input_size: int, logger, device):
     logger = logger or SimpleLogger()
     if not args.teacher_model or not args.teacher_checkpoint:
@@ -132,7 +207,7 @@ def _validate_cam_cutout_generation(cutout_ds: CutoutAugmentedDataset, cutout_mo
     _log(logger, "info", "Validated CAM cutout generation for mode %s", cutout_mode)
 
 
-def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
+def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, input_size: int):
     cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
     cutout_m = int(getattr(args, "cutout_m", 0))
     if cutout_mode == "none" or cutout_m <= 0:
@@ -145,6 +220,19 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
 
     saliency_candidate_percent = float(getattr(args, "saliency_candidate_percent", 10.0))
     cam_layer = str(getattr(args, "cam_layer", "auto") or "auto")
+    cam_cache_dir = None
+    cam_cache_settings = None
+    dataset_teacher_model = teacher_model
+    if cutout_mode in {"cam_low", "cam_high"}:
+        cam_cache_dir, checkpoint_info = _resolve_cam_cache_dir(args, logger=logger)
+        cam_cache_settings = _build_cam_cache_settings(args, checkpoint_info, input_size=input_size)
+        if int(getattr(train_dl, "num_workers", 0) or 0) > 0:
+            dataset_teacher_model = None
+            _log(
+                logger,
+                "info",
+                "CAM cache-only mode for DataLoader workers; cache misses will raise. Populate the cache first with --num_workers 0.",
+            )
 
     cutout_ds = CutoutAugmentedDataset(
         base_dataset=train_dl.dataset,
@@ -156,8 +244,10 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
         std=std,
         seed=int(getattr(args, "seed", 0)),
         saliency_candidate_percent=saliency_candidate_percent,
-        teacher_model=teacher_model,
+        teacher_model=dataset_teacher_model,
         cam_layer=cam_layer,
+        cam_cache_dir=cam_cache_dir,
+        cam_cache_settings=cam_cache_settings,
         logger=logger,
     )
 
@@ -249,7 +339,7 @@ def train_with_config(
         )
     if cutout_mode != "none" and cutout_m > 0:
         mean, std = get_normalization_params(args.dataset)
-        train_dl = _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger)
+        train_dl = _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, input_size=input_size)
 
     # scheduler
     if args.scheduler == "multistep":
@@ -381,6 +471,7 @@ def train_with_config(
 
 def main():
     args = build_parser().parse_args()
+    _resolve_cam_cache_dir(args)
 
     # saving results (creates run dir) and setup per-run logging
     run_dir = init_run_dir_with_config(args.out_dir, args.run_name, vars(args))

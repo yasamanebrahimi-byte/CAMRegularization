@@ -1,7 +1,11 @@
+import tempfile
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
+import cutout
 from cam_masking import compute_saliency_map
 from cutout import CutoutAugmentedDataset
 
@@ -59,11 +63,11 @@ def _assert_valid_saliency():
     assert float(saliency.max() - saliency.min()) > 1e-6
 
 
-def _dataset(mode, teacher, cam_layer="conv"):
+def _dataset(mode, teacher, cam_layer="conv", cutout_m=1, cam_cache_dir=None, cam_cache_settings=None):
     return CutoutAugmentedDataset(
         base_dataset=TinyImageDataset(),
         cutout_mode=mode,
-        cutout_m=1,
+        cutout_m=cutout_m,
         cutout_size=4,
         cutout_area=None,
         mean=(0.0, 0.0, 0.0),
@@ -71,6 +75,8 @@ def _dataset(mode, teacher, cam_layer="conv"):
         seed=123,
         teacher_model=teacher,
         cam_layer=cam_layer,
+        cam_cache_dir=cam_cache_dir,
+        cam_cache_settings=cam_cache_settings,
         debug_log_limit=0,
     )
 
@@ -96,8 +102,77 @@ def _assert_random_still_works():
     assert target == 0
 
 
+
+def _load_cpu_tensor(path: Path):
+    try:
+        return torch.load(path, map_location="cpu", weights_only=True)
+    except TypeError:
+        return torch.load(path, map_location="cpu")
+
+
+def _assert_saliency_cache_reuses_cpu_pt():
+    settings = {
+        "dataset": "tiny",
+        "grayscale": False,
+        "student_model": "toy",
+        "teacher_model": "toy",
+        "teacher_checkpoint": {"path": "toy.pt", "sha256": "toy", "mtime_ns": 0},
+        "cam_layer": "conv",
+        "input_size": 16,
+    }
+    original_compute = cutout.compute_saliency_map
+    calls = {"count": 0}
+
+    def counted_compute(*args, **kwargs):
+        calls["count"] += 1
+        return original_compute(*args, **kwargs)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            cutout.compute_saliency_map = counted_compute
+            ds = _dataset(
+                "cam_high",
+                _build_teacher(),
+                cutout_m=2,
+                cam_cache_dir=tmpdir,
+                cam_cache_settings=settings,
+            )
+            image, target = ds[1]
+            image2, target2 = ds[2]
+            assert image.shape == (3, 16, 16)
+            assert image2.shape == (3, 16, 16)
+            assert target == 0
+            assert target2 == 0
+            assert calls["count"] == 1, calls
+
+            cache_files = sorted(Path(tmpdir).rglob("*.pt"))
+            assert len(cache_files) == 1, cache_files
+            saliency = _load_cpu_tensor(cache_files[0])
+            assert torch.is_tensor(saliency)
+            assert saliency.device.type == "cpu"
+            assert saliency.shape == (16, 16)
+
+            def fail_compute(*_args, **_kwargs):
+                raise AssertionError("cached CAM path should not recompute saliency")
+
+            cutout.compute_saliency_map = fail_compute
+            cached_ds = _dataset(
+                "cam_high",
+                teacher=None,
+                cutout_m=2,
+                cam_cache_dir=tmpdir,
+                cam_cache_settings=settings,
+            )
+            cached_image, cached_target = cached_ds[1]
+            assert cached_image.shape == (3, 16, 16)
+            assert cached_target == 0
+        finally:
+            cutout.compute_saliency_map = original_compute
+
+
 def main():
     _assert_valid_saliency()
+    _assert_saliency_cache_reuses_cpu_pt()
     for mode in ("cam_low", "cam_high"):
         valid_ds = _dataset(mode, _build_teacher())
         image, target = valid_ds[1]
