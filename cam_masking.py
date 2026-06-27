@@ -16,6 +16,18 @@ def _get_submodule(model: nn.Module, module_name: str) -> nn.Module:
     return cur
 
 
+def _model_device(model: nn.Module) -> torch.device:
+    try:
+        return next(model.parameters()).device
+    except StopIteration:
+        pass
+
+    try:
+        return next(model.buffers()).device
+    except StopIteration:
+        return torch.device("cpu")
+
+
 def resolve_cam_target_module(model: nn.Module, cam_layer: str = "auto"):
     requested = (cam_layer or "auto").strip()
     if requested.lower() != "auto":
@@ -42,6 +54,7 @@ def resolve_cam_target_module(model: nn.Module, cam_layer: str = "auto"):
 
     raise ValueError(f"Unable to automatically select CAM layer for model '{type(model).__name__}'.")
 
+
 class HiResCAM:
     """
     HiResCAM: element-wise gradient * activation, summed over channels.
@@ -55,10 +68,22 @@ class HiResCAM:
         self.model = model
         self.target_module = target_module
         self.activations = None
+        self.gradients = None
         self._hook = target_module.register_forward_hook(self._forward_hook)
 
     def _forward_hook(self, module, _inp, out):
+        if not torch.is_tensor(out):
+            self.activations = None
+            self.gradients = None
+            return
+
         self.activations = out  # [B, C, H, W]
+        self.gradients = None
+        if out.requires_grad:
+            out.register_hook(self._backward_hook)
+
+    def _backward_hook(self, grad):
+        self.gradients = grad
 
     def close(self):
         if self._hook is not None:
@@ -67,9 +92,19 @@ class HiResCAM:
 
     def _normalize_cam(self, cam):
         # cam: [B, 1, H, W]
-        cam = cam - cam.amin(dim=(2, 3), keepdim=True)
-        cam = cam / (cam.amax(dim=(2, 3), keepdim=True) + 1e-6)
-        return cam
+        if cam.ndim != 4 or cam.size(1) != 1:
+            raise RuntimeError(f"HiResCAM produced invalid shape {tuple(cam.shape)}; expected [B, 1, H, W].")
+        if cam.numel() == 0:
+            raise RuntimeError("HiResCAM produced an empty saliency map.")
+        if not torch.isfinite(cam).all():
+            raise RuntimeError("HiResCAM produced NaN or Inf values.")
+
+        cam_min = cam.amin(dim=(2, 3), keepdim=True)
+        cam_max = cam.amax(dim=(2, 3), keepdim=True)
+        denom = cam_max - cam_min
+        if torch.any(denom <= 1e-12):
+            raise RuntimeError("HiResCAM saliency map has no dynamic range.")
+        return (cam - cam_min) / denom
 
     def cam(self, x, target_class=None):
         """
@@ -83,10 +118,13 @@ class HiResCAM:
             acts = self.activations  # [B,C,H,W]
             if acts is None:
                 raise RuntimeError("HiResCAM activations are None. Hook not firing?")
+            if acts.ndim != 4:
+                raise RuntimeError(f"HiResCAM activations have invalid shape {tuple(acts.shape)}; expected [B, C, H, W].")
             if not acts.requires_grad:
                 raise RuntimeError("HiResCAM activations do not require gradients. Check grad/no_grad context.")
+            if not torch.is_tensor(logits) or logits.ndim != 2:
+                raise RuntimeError(f"HiResCAM expected model logits with shape [B, classes], got {type(logits).__name__}.")
 
-            # class score for predicted labels
             idx = torch.arange(x.size(0), device=x.device)
             if target_class is None:
                 pred = logits.argmax(dim=1)
@@ -97,19 +135,33 @@ class HiResCAM:
                     pred = torch.as_tensor(target_class, device=x.device, dtype=torch.long)
                     if pred.ndim == 0:
                         pred = pred.repeat(x.size(0))
+                    pred = pred.reshape(-1)
+            if pred.numel() != x.size(0):
+                raise RuntimeError("HiResCAM target_class must provide one class per input image.")
+            if torch.any(pred < 0) or torch.any(pred >= logits.size(1)):
+                raise RuntimeError("HiResCAM target_class contains an out-of-range class index.")
+
             score = logits[idx, pred]
-            grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]  # [B,C,H,W]
+            grads = torch.autograd.grad(score.sum(), acts, retain_graph=False, create_graph=False)[0]
+            if self.gradients is None:
+                self.gradients = grads
+            if self.gradients.shape != acts.shape:
+                raise RuntimeError(
+                    f"HiResCAM gradients have invalid shape {tuple(self.gradients.shape)}; "
+                    f"expected {tuple(acts.shape)}."
+                )
+            if not torch.isfinite(self.gradients).all():
+                raise RuntimeError("HiResCAM gradients contain NaN or Inf values.")
 
         acts_detached = acts.detach()
-        grads_detached = grads.detach()
+        grads_detached = self.gradients.detach()
         self.activations = None
+        self.gradients = None
 
-        # HiResCAM: element-wise product (no global average pooling of gradients)
         cam = (grads_detached * acts_detached).sum(dim=1, keepdim=True)  # [B,1,H,W]
         cam = F.relu(cam)
-
         cam = self._normalize_cam(cam)
-        cam = F.interpolate(cam, size=x.shape[-2:], mode="bilinear", align_corners=False)  # to input size
+        cam = F.interpolate(cam, size=x.shape[-2:], mode="bilinear", align_corners=False)
         return cam
 
 
@@ -118,14 +170,22 @@ def compute_saliency_map(model: nn.Module, image_tensor: torch.Tensor, target_cl
 
     Returns a [H, W] tensor in [0, 1] on CPU.
     """
+    if not torch.is_tensor(image_tensor):
+        raise RuntimeError("compute_saliency_map expected image_tensor to be a torch.Tensor.")
     if image_tensor.ndim == 3:
         x = image_tensor.unsqueeze(0)
-    else:
+    elif image_tensor.ndim == 4:
         x = image_tensor
+    else:
+        raise RuntimeError(f"compute_saliency_map expected a [C, H, W] or [B, C, H, W] tensor, got {tuple(image_tensor.shape)}.")
+    if x.numel() == 0:
+        raise RuntimeError("compute_saliency_map received an empty image tensor.")
+    if not torch.is_floating_point(x):
+        raise RuntimeError("compute_saliency_map requires a floating point image tensor.")
 
     model.eval()
-    device = next(model.parameters()).device
-    x = x.to(device)
+    device = _model_device(model)
+    x = x.detach().clone().to(device).requires_grad_(True)
 
     _, target_module = resolve_cam_target_module(model, cam_layer)
     cam_runner = HiResCAM(model, target_module)
@@ -135,8 +195,30 @@ def compute_saliency_map(model: nn.Module, image_tensor: torch.Tensor, target_cl
         cam_runner.close()
 
     cam = cam[:, 0]
-    cam = cam - cam.amin(dim=(1, 2), keepdim=True)
-    cam = cam / (cam.amax(dim=(1, 2), keepdim=True) + 1e-6)
-    cam = cam[0].detach().cpu()
-    return cam
+    if cam.ndim != 3 or cam.size(0) < 1:
+        raise RuntimeError(f"compute_saliency_map produced invalid CAM shape {tuple(cam.shape)}; expected [B, H, W].")
+    if cam.shape[-2:] != x.shape[-2:]:
+        raise RuntimeError(
+            f"compute_saliency_map produced CAM shape {tuple(cam.shape[-2:])}, "
+            f"expected input shape {tuple(x.shape[-2:])}."
+        )
+    if cam.numel() == 0:
+        raise RuntimeError("compute_saliency_map produced an empty saliency map.")
+    if not torch.isfinite(cam).all():
+        raise RuntimeError("compute_saliency_map produced NaN or Inf values.")
 
+    cam_min = cam.amin(dim=(1, 2), keepdim=True)
+    cam_max = cam.amax(dim=(1, 2), keepdim=True)
+    denom = cam_max - cam_min
+    if torch.any(denom <= 1e-12):
+        raise RuntimeError("compute_saliency_map produced a saliency map with no dynamic range.")
+    cam = (cam - cam_min) / denom
+    cam = cam[0].detach().cpu()
+
+    if cam.ndim != 2:
+        raise RuntimeError(f"compute_saliency_map produced invalid saliency shape {tuple(cam.shape)}; expected [H, W].")
+    if not torch.isfinite(cam).all():
+        raise RuntimeError("compute_saliency_map produced NaN or Inf values after normalization.")
+    if float(cam.min()) < -1e-6 or float(cam.max()) > 1.0 + 1e-6:
+        raise RuntimeError("compute_saliency_map produced values outside [0, 1].")
+    return cam

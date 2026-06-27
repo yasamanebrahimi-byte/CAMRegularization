@@ -1,0 +1,112 @@
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset
+
+from cam_masking import compute_saliency_map
+from cutout import CutoutAugmentedDataset
+
+
+class ToyTeacher(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv2d(3, 2, kernel_size=3, padding=1, bias=False)
+        self.relu = nn.ReLU()
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(2, 2, bias=False)
+
+        with torch.no_grad():
+            self.conv.weight.zero_()
+            self.conv.weight[0, 0, 1, 1] = 1.0
+            self.conv.weight[0, 1, 0, 1] = 0.5
+            self.conv.weight[1, 2, 1, 1] = 1.0
+            self.conv.weight[1, 0, 1, 0] = 0.25
+            self.fc.weight.copy_(torch.tensor([[1.0, 0.2], [0.2, 1.0]]))
+
+    def forward(self, x):
+        x = self.relu(self.conv(x))
+        x = self.pool(x).flatten(1)
+        return self.fc(x)
+
+
+class TinyImageDataset(Dataset):
+    def __init__(self):
+        base = torch.linspace(0.05, 1.0, steps=16 * 16, dtype=torch.float32).reshape(1, 16, 16)
+        self.images = [base.repeat(3, 1, 1), torch.flip(base, dims=[1]).repeat(3, 1, 1)]
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+        return self.images[index].clone(), index % 2
+
+
+def _build_teacher():
+    teacher = ToyTeacher().eval()
+    for param in teacher.parameters():
+        param.requires_grad_(False)
+    return teacher
+
+
+def _assert_valid_saliency():
+    teacher = _build_teacher()
+    image, _ = TinyImageDataset()[0]
+    saliency = compute_saliency_map(teacher, image, cam_layer="conv")
+    assert saliency.ndim == 2, saliency.shape
+    assert saliency.shape == image.shape[-2:], saliency.shape
+    assert torch.isfinite(saliency).all()
+    assert float(saliency.min()) >= -1e-6
+    assert float(saliency.max()) <= 1.0 + 1e-6
+    assert float(saliency.max() - saliency.min()) > 1e-6
+
+
+def _dataset(mode, teacher, cam_layer="conv"):
+    return CutoutAugmentedDataset(
+        base_dataset=TinyImageDataset(),
+        cutout_mode=mode,
+        cutout_m=1,
+        cutout_size=4,
+        cutout_area=None,
+        mean=(0.0, 0.0, 0.0),
+        std=(1.0, 1.0, 1.0),
+        seed=123,
+        teacher_model=teacher,
+        cam_layer=cam_layer,
+        debug_log_limit=0,
+    )
+
+
+def _assert_cam_mode_raises_without_random_fallback(mode):
+    ds = _dataset(mode, _build_teacher(), cam_layer="missing_layer")
+    try:
+        ds[1]
+    except RuntimeError as exc:
+        message = str(exc)
+        assert "CAM cutout failed" in message
+        assert "dataset index 0" in message
+        assert f"cutout_mode={mode}" in message
+        assert "missing_layer" in message
+    else:
+        raise AssertionError(f"{mode} did not raise when CAM layer was broken")
+
+
+def _assert_random_still_works():
+    ds = _dataset("random", teacher=None, cam_layer="missing_layer")
+    image, target = ds[1]
+    assert image.shape == (3, 16, 16)
+    assert target == 0
+
+
+def main():
+    _assert_valid_saliency()
+    for mode in ("cam_low", "cam_high"):
+        valid_ds = _dataset(mode, _build_teacher())
+        image, target = valid_ds[1]
+        assert image.shape == (3, 16, 16)
+        assert target == 0
+        _assert_cam_mode_raises_without_random_fallback(mode)
+    _assert_random_still_works()
+    print("CAM cutout validation passed.")
+
+
+if __name__ == "__main__":
+    main()

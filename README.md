@@ -45,6 +45,12 @@ python train.py --dataset cifar100 --model resnet18 --data_dir ./data --cutout_m
 
 CAM cutout modes require both `--teacher_model` and `--teacher_checkpoint` when `--cutout_m > 0`.
 
+Quick local CAM validation without dataset downloads:
+
+```bash
+python validate_cam_cutout.py
+```
+
 ## Current Cutout Flags
 
 - `--cutout_mode {none,random,cam_low,cam_high}`: choose the training augmentation mode.

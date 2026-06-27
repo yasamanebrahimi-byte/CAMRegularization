@@ -22,6 +22,18 @@ from logger import get_logger, SimpleLogger
 from pathlib import Path
 from cutout import CutoutAugmentedDataset
 
+
+def _log(logger, level: str, msg: str, *args) -> None:
+    log_fn = getattr(logger, level, None) or getattr(logger, "info", None)
+    if log_fn is None:
+        print(msg % args if args else msg)
+        return
+    try:
+        log_fn(msg, *args)
+    except TypeError:
+        log_fn(msg % args if args else msg)
+
+
 def build_optimizer(args, model):
     optimizer_name = str(getattr(args, "optimizer", "sgd")).lower()
 
@@ -79,10 +91,7 @@ def _load_teacher_model(args, num_classes: int, input_size: int, logger, device)
 
     missing, unexpected = model.load_state_dict(cleaned, strict=False)
     if missing or unexpected:
-        if hasattr(logger, "warning"):
-            logger.warning("Teacher checkpoint load: missing=%s unexpected=%s", missing, unexpected)
-        else:
-            logger.info(f"Teacher checkpoint load: missing={missing} unexpected={unexpected}")
+        _log(logger, "warning", "Teacher checkpoint load: missing=%s unexpected=%s", missing, unexpected)
     model = model.to(device)
     model.eval()
 
@@ -90,6 +99,37 @@ def _load_teacher_model(args, num_classes: int, input_size: int, logger, device)
         p.requires_grad_(False)
 
     return model
+
+
+def _validate_cam_cutout_generation(cutout_ds: CutoutAugmentedDataset, cutout_mode: str, logger, max_samples: int = 3) -> None:
+    if cutout_mode not in {"cam_low", "cam_high"}:
+        return
+    if not isinstance(cutout_ds, CutoutAugmentedDataset):
+        raise RuntimeError("CAM cutout validation requires a CutoutAugmentedDataset.")
+    if cutout_ds.cutout_m <= 0:
+        return
+
+    max_checks = max(1, int(max_samples))
+    checked = 0
+    try:
+        for base_index in range(cutout_ds._base_len):
+            for aug_index in range(1, cutout_ds.cutout_m + 1):
+                dataset_index = base_index * (cutout_ds.cutout_m + 1) + aug_index
+                cutout_ds[dataset_index]
+                checked += 1
+                if checked >= max_checks:
+                    break
+            if checked >= max_checks:
+                break
+    except Exception as exc:
+        _log(logger, "error", "CAM cutout validation failed.")
+        raise RuntimeError(f"CAM cutout validation failed for mode {cutout_mode}: {exc}") from exc
+
+    if checked == 0:
+        _log(logger, "error", "CAM cutout validation failed.")
+        raise RuntimeError(f"CAM cutout validation failed for mode {cutout_mode}: no augmented samples were generated.")
+
+    _log(logger, "info", "Validated CAM cutout generation for mode %s", cutout_mode)
 
 
 def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
@@ -118,9 +158,12 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
         saliency_candidate_percent=saliency_candidate_percent,
         teacher_model=teacher_model,
         cam_layer=cam_layer,
+        logger=logger,
     )
 
-    logger.info(
+    _log(
+        logger,
+        "info",
         "Cutout enabled: mode=%s m=%s size=%s area=%s",
         cutout_mode,
         cutout_m,
@@ -139,7 +182,11 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger):
         loader_kwargs["persistent_workers"] = True
         loader_kwargs["prefetch_factor"] = getattr(train_dl, "prefetch_factor", 2)
 
-    return DataLoader(cutout_ds, **loader_kwargs)
+    wrapped_loader = DataLoader(cutout_ds, **loader_kwargs)
+    if cutout_mode in {"cam_low", "cam_high"}:
+        _validate_cam_cutout_generation(cutout_ds, cutout_mode, logger)
+    return wrapped_loader
+
 
 def train_with_config(
     args,
@@ -171,7 +218,7 @@ def train_with_config(
             args.dataset, args.data_dir, effective_batch_size, args.num_workers,
             **dataset_kwargs,
         )
-    
+
     inferred_num_classes = infer_num_classes_from_loader(train_dl)
     num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(args.dataset)
     input_size = infer_input_size_from_loader(train_dl, default_input_size)
@@ -206,14 +253,14 @@ def train_with_config(
 
     # scheduler
     if args.scheduler == "multistep":
-        ms=[int(x) for x in args.milestones.split(",") if x.strip()]
-        main_sched = optim.lr_scheduler.MultiStepLR(optimizer,milestones=ms,gamma=args.gamma)
+        ms = [int(x) for x in args.milestones.split(",") if x.strip()]
+        main_sched = optim.lr_scheduler.MultiStepLR(optimizer, milestones=ms, gamma=args.gamma)
     else:
-        main_sched = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=max(1,args.epochs-args.warmup_epochs),eta_min=args.min_lr)
+        main_sched = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, args.epochs - args.warmup_epochs), eta_min=args.min_lr)
 
     if args.warmup_epochs > 0:
-        warmup_sched = optim.lr_scheduler.LinearLR(optimizer,start_factor=1e-3,total_iters=args.warmup_epochs)
-        scheduler = optim.lr_scheduler.SequentialLR(optimizer,schedulers=[warmup_sched,main_sched],milestones=[args.warmup_epochs])
+        warmup_sched = optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-3, total_iters=args.warmup_epochs)
+        scheduler = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sched, main_sched], milestones=[args.warmup_epochs])
     else:
         scheduler = main_sched
 
@@ -308,11 +355,11 @@ def train_with_config(
                 checkpoint_path,
             )
             logger.info(f"Saved best model checkpoint to {checkpoint_path}")
-    
+
     # Print final results to console
     print(f"\nBest tracked ({'val' if val_dl is not None else 'test'}): {best*100:.2f}%")
     print(f"Final test: loss {te_loss:.4f} acc1 {te_a1*100:.2f}%")
-    
+
     # Generate plots if we saved metrics
     if metrics_csv is not None and run_dir is not None:
         plot_metrics(
@@ -321,11 +368,11 @@ def train_with_config(
             model_name=getattr(args, "model", None),
             dataset_name=getattr(args, "dataset", None),
         )
-    
+
     result = {
         "final_test_acc1": final_test_acc1,
         "best_val_acc": best,
-        "final_test_loss": final_test_loss
+        "final_test_loss": final_test_loss,
     }
     if return_model:
         return result, model
@@ -345,9 +392,10 @@ def main():
     logger = get_logger(__name__, log_file=log_path, console=False)
 
     logger.info(f"Run parameters: {json.dumps(vars(args), sort_keys=True)}")
-    
+
     # Train and return metrics
     train_with_config(args, run_dir=run_dir, logger=logger)
+
 
 if __name__ == "__main__":
     main()

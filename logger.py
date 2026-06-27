@@ -4,11 +4,13 @@ import io
 from pathlib import Path
 from typing import Optional
 
+
 def _ensure_log_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+
 def _attach_file_handler(logger: logging.Logger, path: Path, mode: str = "a") -> None:
-    """Remove existing FileHandler(s) on logger and attach a new one for `path`."""
+    """Remove existing FileHandler(s) on logger and attach a new one for the path."""
     # Remove existing FileHandler instances
     for h in list(logger.handlers):
         if isinstance(h, logging.FileHandler):
@@ -52,6 +54,7 @@ def _remove_console_handlers(logger: logging.Logger) -> None:
         if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
             logger.removeHandler(h)
 
+
 """
 Return a logger configured with optional console and file handlers.
 Each logger instance is configured independently (no global shared log file).
@@ -60,7 +63,7 @@ def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None,
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
-    
+
     if console:
         _ensure_console_handler(logger)
     else:
@@ -72,6 +75,18 @@ def get_logger(name: str = "CAMRegularization", log_file: Optional[Path] = None,
 
     return logger
 
+
 class SimpleLogger:
-    def info(self, msg):
-        print(msg)
+    def _format(self, msg, *args):
+        if args:
+            return str(msg) % args
+        return str(msg)
+
+    def info(self, msg, *args):
+        print(self._format(msg, *args))
+
+    def warning(self, msg, *args):
+        print(self._format(msg, *args))
+
+    def error(self, msg, *args):
+        print(self._format(msg, *args))

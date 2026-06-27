@@ -10,7 +10,14 @@ from cam_masking import compute_saliency_map
 from logger import get_logger
 
 
-logger = get_logger(__name__)
+module_logger = get_logger(__name__)
+
+
+def _log_info(log, msg, *args):
+    try:
+        log.info(msg, *args)
+    except TypeError:
+        log.info(msg % args if args else msg)
 
 
 def _expand_stat(values, channels: int) -> Tuple[float, ...]:
@@ -61,7 +68,20 @@ def _select_cam_window(
     candidate_percent: float,
     rng: random.Random,
 ) -> Tuple[int, int]:
+    if not torch.is_tensor(saliency):
+        raise RuntimeError("CAM saliency must be a torch.Tensor.")
+    if saliency.ndim != 2:
+        raise RuntimeError(f"CAM saliency must have shape [H, W], got {tuple(saliency.shape)}.")
+    if saliency.numel() == 0:
+        raise RuntimeError("CAM saliency map is empty.")
+    if not torch.isfinite(saliency).all():
+        raise RuntimeError("CAM saliency map contains NaN or Inf values.")
+    if mode not in {"cam_low", "cam_high"}:
+        raise RuntimeError(f"Unsupported CAM cutout mode '{mode}'.")
+
     height, width = int(saliency.shape[-2]), int(saliency.shape[-1])
+    if size <= 0:
+        raise RuntimeError(f"Cutout size must be positive, got {size}.")
     if height < size or width < size:
         return 0, 0
 
@@ -69,7 +89,7 @@ def _select_cam_window(
     scores = scores.flatten()
     total = scores.numel()
     if total == 0:
-        return 0, 0
+        raise RuntimeError("CAM cutout produced no candidate windows.")
 
     percent = float(candidate_percent)
     percent = max(0.0, min(100.0, percent))
@@ -100,6 +120,8 @@ class CutoutAugmentedDataset(Dataset):
         saliency_candidate_percent: float = 10.0,
         teacher_model: Optional[torch.nn.Module] = None,
         cam_layer: str = "auto",
+        debug_log_limit: int = 5,
+        logger=None,
     ):
         self.base_dataset = base_dataset
         self.cutout_mode = str(cutout_mode or "none").lower()
@@ -112,6 +134,9 @@ class CutoutAugmentedDataset(Dataset):
         self.saliency_candidate_percent = float(saliency_candidate_percent)
         self.teacher_model = teacher_model
         self.cam_layer = cam_layer
+        self.logger = logger or module_logger
+        self._cam_window_log_limit = max(0, int(debug_log_limit))
+        self._cam_window_logs_emitted = 0
 
         self._enabled = self.cutout_m > 0 and self.cutout_mode in {"random", "cam_low", "cam_high"}
         self._base_len = len(self.base_dataset)
@@ -120,6 +145,24 @@ class CutoutAugmentedDataset(Dataset):
         if not self._enabled:
             return self._base_len
         return self._base_len * (self.cutout_m + 1)
+
+    def _log_cam_window(self, base_index: int, aug_index: int, top: int, left: int, size: int) -> None:
+        if self.cutout_mode not in {"cam_low", "cam_high"}:
+            return
+        if self._cam_window_logs_emitted >= self._cam_window_log_limit:
+            return
+        _log_info(
+            self.logger,
+            "CAM cutout window: index=%s copy=%s cutout_mode=%s top=%s left=%s height=%s width=%s",
+            base_index,
+            aug_index,
+            self.cutout_mode,
+            top,
+            left,
+            size,
+            size,
+        )
+        self._cam_window_logs_emitted += 1
 
     def __getitem__(self, index: int):
         if not self._enabled:
@@ -141,27 +184,34 @@ class CutoutAugmentedDataset(Dataset):
 
         if self.cutout_mode == "random":
             top, left = _sample_random_window(height, width, size, rng)
+        elif self.cutout_mode in {"cam_low", "cam_high"}:
+            if self.teacher_model is None:
+                raise RuntimeError(
+                    f"CAM cutout requires teacher_model for dataset index {base_index}, "
+                    f"cutout_mode={self.cutout_mode}."
+                )
+            try:
+                saliency = compute_saliency_map(
+                    self.teacher_model,
+                    image,
+                    target_class=None,
+                    cam_layer=self.cam_layer,
+                )
+                top, left = _select_cam_window(
+                    saliency,
+                    size,
+                    self.cutout_mode,
+                    self.saliency_candidate_percent,
+                    rng,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"CAM cutout failed for dataset index {base_index}, "
+                    f"cutout_mode={self.cutout_mode}: {exc}"
+                ) from exc
+            self._log_cam_window(base_index, aug_index, top, left, size)
         else:
-            top, left = None, None
-            if self.teacher_model is not None:
-                try:
-                    saliency = compute_saliency_map(
-                        self.teacher_model,
-                        image,
-                        target_class=None,
-                        cam_layer=self.cam_layer,
-                    )
-                    top, left = _select_cam_window(
-                        saliency,
-                        size,
-                        self.cutout_mode,
-                        self.saliency_candidate_percent,
-                        rng,
-                    )
-                except Exception as exc:
-                    logger.warning("CAM cutout failed for index %s; falling back to random. Error: %s", base_index, exc)
-            if top is None or left is None:
-                top, left = _sample_random_window(height, width, size, rng)
+            raise RuntimeError(f"Unsupported cutout_mode '{self.cutout_mode}'.")
 
         image = image.clone()
         black = _black_value(self.mean, self.std, int(image.shape[0]), image.device, image.dtype)
