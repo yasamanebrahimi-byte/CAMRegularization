@@ -170,9 +170,64 @@ def _assert_saliency_cache_reuses_cpu_pt():
             cutout.compute_saliency_map = original_compute
 
 
+def _assert_window_cache_reuses_coordinates():
+    settings = {
+        "dataset": "tiny",
+        "grayscale": False,
+        "student_model": "toy",
+        "teacher_model": "toy",
+        "teacher_checkpoint": {"path": "toy.pt", "sha256": "toy", "mtime_ns": 0},
+        "cam_layer": "conv",
+        "input_size": 16,
+    }
+    original_compute = cutout.compute_saliency_map
+    original_select = cutout._select_cam_window
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            ds = _dataset(
+                "cam_low",
+                _build_teacher(),
+                cutout_m=2,
+                cam_cache_dir=tmpdir,
+                cam_cache_settings=settings,
+            )
+            first_image, _ = ds[1]
+            second_image, _ = ds[2]
+            assert first_image.shape == (3, 16, 16)
+            assert second_image.shape == (3, 16, 16)
+            assert sorted((Path(tmpdir) / "windows").rglob("*.json"))
+
+            def fail_compute(*_args, **_kwargs):
+                raise AssertionError("window cache should avoid saliency loading")
+
+            def fail_select(*_args, **_kwargs):
+                raise AssertionError("window cache should avoid CAM window selection")
+
+            cutout.compute_saliency_map = fail_compute
+            cutout._select_cam_window = fail_select
+            cached_ds = _dataset(
+                "cam_low",
+                teacher=None,
+                cutout_m=2,
+                cam_cache_dir=tmpdir,
+                cam_cache_settings=settings,
+            )
+            cached_image, cached_target = cached_ds[1]
+            cached_image2, cached_target2 = cached_ds[2]
+            assert cached_image.shape == (3, 16, 16)
+            assert cached_image2.shape == (3, 16, 16)
+            assert cached_target == 0
+            assert cached_target2 == 0
+        finally:
+            cutout.compute_saliency_map = original_compute
+            cutout._select_cam_window = original_select
+
+
 def main():
     _assert_valid_saliency()
     _assert_saliency_cache_reuses_cpu_pt()
+    _assert_window_cache_reuses_coordinates()
     for mode in ("cam_low", "cam_high"):
         valid_ds = _dataset(mode, _build_teacher())
         image, target = valid_ds[1]

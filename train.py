@@ -76,7 +76,10 @@ def _cam_cache_required(args) -> bool:
     cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
     cutout_m = int(getattr(args, "cutout_m", 0))
     cam_precompute_only = bool(getattr(args, "cam_precompute_only", False))
-    return cutout_mode in {"cam_low", "cam_high"} and (cutout_m > 0 or cam_precompute_only)
+    cam_precompute_windows = bool(getattr(args, "cam_precompute_windows", False))
+    return cutout_mode in {"cam_low", "cam_high"} and (
+        cutout_m > 0 or cam_precompute_only or cam_precompute_windows
+    )
 
 
 def _slug_cache_component(value) -> str:
@@ -159,14 +162,24 @@ def _dataset_kwargs_from_args(args) -> dict:
 
 def _validate_cam_precompute_args(args) -> None:
     cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
+    option_name = "--cam_precompute_windows" if getattr(args, "cam_precompute_windows", False) else "--cam_precompute_only"
     if cutout_mode not in {"cam_low", "cam_high"}:
-        raise ValueError("--cam_precompute_only is only valid with --cutout_mode cam_low or cam_high.")
+        raise ValueError(f"{option_name} is only valid with --cutout_mode cam_low or cam_high.")
     if not str(getattr(args, "teacher_checkpoint", "") or "").strip():
-        raise ValueError("--cam_precompute_only requires --teacher_checkpoint.")
+        raise ValueError(f"{option_name} requires --teacher_checkpoint.")
     if not str(getattr(args, "teacher_model", "") or "").strip():
-        raise ValueError("--cam_precompute_only requires --teacher_model.")
+        raise ValueError(f"{option_name} requires --teacher_model.")
     if not bool(getattr(args, "deterministic_train_transforms", False)):
-        raise ValueError("--cam_precompute_only requires --deterministic_train_transforms.")
+        raise ValueError(f"{option_name} requires --deterministic_train_transforms.")
+
+    if bool(getattr(args, "cam_precompute_windows", False)):
+        cutout_m = int(getattr(args, "cutout_m", 0))
+        if cutout_m <= 0:
+            raise ValueError("--cam_precompute_windows requires --cutout_m > 0.")
+        cutout_size = int(getattr(args, "cutout_size", 0))
+        cutout_area = getattr(args, "cutout_area", None)
+        if (cutout_size <= 0) and (cutout_area is None or float(cutout_area) <= 0.0):
+            raise ValueError("--cam_precompute_windows requires --cutout_size or --cutout_area.")
 
 
 def _load_teacher_model(args, num_classes: int, input_size: int, logger, device):
@@ -275,6 +288,7 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, 
         cam_layer=cam_layer,
         cam_cache_dir=cam_cache_dir,
         cam_cache_settings=cam_cache_settings,
+        debug_cam_timing=bool(getattr(args, "debug_cam_timing", False)),
         logger=logger,
     )
 
@@ -295,9 +309,9 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, 
         "pin_memory": getattr(train_dl, "pin_memory", True),
         "drop_last": getattr(train_dl, "drop_last", False),
     }
-    if getattr(train_dl, "persistent_workers", False):
+    if int(getattr(train_dl, "num_workers", 0) or 0) > 0:
         loader_kwargs["persistent_workers"] = True
-        loader_kwargs["prefetch_factor"] = getattr(train_dl, "prefetch_factor", 2)
+        loader_kwargs["prefetch_factor"] = getattr(train_dl, "prefetch_factor", 2) or 2
 
     wrapped_loader = DataLoader(cutout_ds, **loader_kwargs)
     if cutout_mode in {"cam_low", "cam_high"}:
@@ -316,6 +330,8 @@ def precompute_cam_cache_with_config(args, run_dir=None, logger=None):
 
     cutout_mode = str(getattr(effective_args, "cutout_mode", "none") or "none").lower()
     cutout_m = int(getattr(effective_args, "cutout_m", 0))
+    precompute_windows = bool(getattr(effective_args, "cam_precompute_windows", False))
+    precompute_saliency = bool(getattr(effective_args, "cam_precompute_only", False)) or not precompute_windows
     if cutout_m < 0:
         raise ValueError("cutout_m must be >= 0.")
 
@@ -377,6 +393,7 @@ def precompute_cam_cache_with_config(args, run_dir=None, logger=None):
         cam_layer=cam_layer,
         cam_cache_dir=cam_cache_dir,
         cam_cache_settings=cam_cache_settings,
+        debug_cam_timing=bool(getattr(effective_args, "debug_cam_timing", False)),
         logger=logger,
     )
 
@@ -384,23 +401,66 @@ def precompute_cam_cache_with_config(args, run_dir=None, logger=None):
     _log(
         logger,
         "info",
-        "Precomputing CAM saliency cache for %s training samples into %s.",
+        "Precomputing CAM %s for %s training samples into %s.",
+        "saliency and window caches" if precompute_windows and precompute_saliency else (
+            "window cache" if precompute_windows else "saliency cache"
+        ),
         total,
         cam_cache_dir,
     )
 
+    total_windows = total * cutout_ds.cutout_m if precompute_windows else 0
+    created_windows = 0
+    cached_windows = 0
     for base_index in range(total):
         image, _target = cutout_ds.base_dataset[base_index]
         if not torch.is_tensor(image):
             raise ValueError("CAM cache precompute expects the training dataset to return tensors.")
-        cutout_ds._get_cam_saliency(base_index, image)
+
+        saliency = None
+        if precompute_saliency:
+            saliency = cutout_ds._get_cam_saliency(base_index, image)
+        if precompute_windows:
+            created, cached = cutout_ds.precompute_cam_windows_for_sample(base_index, image, saliency=saliency)
+            created_windows += created
+            cached_windows += cached
 
         completed = base_index + 1
         if completed == total or completed % 500 == 0:
-            _log(logger, "info", "CAM cache precompute progress: %s/%s samples", completed, total)
+            if precompute_windows:
+                _log(
+                    logger,
+                    "info",
+                    "CAM cache precompute progress: %s/%s samples | windows created=%s cached=%s/%s",
+                    completed,
+                    total,
+                    created_windows,
+                    cached_windows,
+                    total_windows,
+                )
+            else:
+                _log(logger, "info", "CAM cache precompute progress: %s/%s samples", completed, total)
 
-    _log(logger, "info", "CAM cache precomputation complete: %s samples cached in %s", total, cam_cache_dir)
-    return {"cache_dir": cam_cache_dir, "samples": total}
+    if precompute_windows:
+        _log(
+            logger,
+            "info",
+            "CAM cache precomputation complete: %s samples, %s/%s windows created, %s cached in %s",
+            total,
+            created_windows,
+            total_windows,
+            cached_windows,
+            cam_cache_dir,
+        )
+    else:
+        _log(logger, "info", "CAM cache precomputation complete: %s samples cached in %s", total, cam_cache_dir)
+    return {
+        "cache_dir": cam_cache_dir,
+        "samples": total,
+        "windows_created": created_windows,
+        "windows_cached": cached_windows,
+        "windows_total": total_windows,
+    }
 
 
 def train_with_config(
@@ -591,8 +651,12 @@ def train_with_config(
 
 def main():
     args = build_parser().parse_args()
-    if getattr(args, "cam_precompute_only", False):
+    precompute_requested = bool(getattr(args, "cam_precompute_only", False)) or bool(
+        getattr(args, "cam_precompute_windows", False)
+    )
+    if precompute_requested:
         _validate_cam_precompute_args(args)
+    if getattr(args, "cam_precompute_only", False):
         args.num_workers = 0
     _resolve_cam_cache_dir(args)
 
@@ -610,6 +674,8 @@ def main():
     if args.cam_precompute_only:
         precompute_cam_cache_with_config(args, run_dir=run_dir, logger=logger)
     else:
+        if getattr(args, "cam_precompute_windows", False):
+            precompute_cam_cache_with_config(args, run_dir=run_dir, logger=logger)
         train_with_config(args, run_dir=run_dir, logger=logger)
 
 

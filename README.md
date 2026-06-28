@@ -43,11 +43,11 @@ Use the teacher checkpoint for high-saliency cutout:
 python train.py --dataset cifar100 --model resnet18 --data_dir ./data --cutout_mode cam_high --cutout_m 4 --cutout_area 0.10 --teacher_model resnet18 --teacher_checkpoint ./runs/teacher_cifar100/best_model.pt --cam_layer auto --run_name cam_high_cifar100
 ```
 
-CAM cutout modes require both `--teacher_model` and `--teacher_checkpoint` when `--cutout_m > 0`. CAM saliency maps are cached as CPU `.pt` tensors under `--cam_cache_dir`; when omitted, the default is `data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/`. For fast CAM training with workers, precompute the CAM cache first, then rerun training in cache-only worker mode.
+CAM cutout modes require both `--teacher_model` and `--teacher_checkpoint` when `--cutout_m > 0`. CAM saliency maps are cached as CPU `.pt` tensors under `--cam_cache_dir`; when omitted, the default is `data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/`. CAM window coordinates are cached under `--cam_cache_dir/windows` so later epochs can reuse the selected `top/left/size` without repeating CAM pooling and top-k selection. For fast CAM training with workers, precompute the CAM cache first, then rerun training in cache-only worker mode.
 
 ## Fast CAM Cache Workflow
 
-For CAM-low or CAM-high runs with `--num_workers > 0`, first populate the saliency cache with workers disabled and deterministic train transforms:
+For CAM-low or CAM-high runs with `--num_workers > 0`, first populate the saliency cache with workers disabled and deterministic train transforms. Add `--cam_precompute_windows` when you also want to warm the window cache for `aug_index=1..cutout_m` before training, which is especially useful on 224x224 datasets such as MalImg and RawMal-TF:
 
 ```bash
 python train.py \
@@ -69,7 +69,8 @@ python train.py \
   --cam_layer auto \
   --cam_cache_dir /content/cam_cache/cifar100/resnet18/seed42 \
   --deterministic_train_transforms \
-  --cam_precompute_only
+  --cam_precompute_only \
+  --cam_precompute_windows
 ```
 
 Then run CAM training with workers against the populated cache:
@@ -116,6 +117,8 @@ python validate_cam_cutout.py
 - `--cam_cache_dir`: directory for cached CAM saliency maps. Defaults to `data/cam_cache/<dataset>/<teacher_model>/<teacher_checkpoint_hash>/`.
 - `--saliency_candidate_percent`: percent of candidate windows considered for CAM-based placement.
 - `--cam_precompute_only`: populate the CAM saliency cache and exit without training. Requires CAM cutout, a teacher checkpoint, and `--deterministic_train_transforms`.
+- `--cam_precompute_windows`: populate CAM cutout window coordinates for `aug_index=1..cutout_m`; use with `--cam_precompute_only` to exit after precomputing, or without it to warm windows before training.
+- `--debug_cam_timing`: log lightweight timing diagnostics for CAM cache path creation, saliency loading, window selection, and masking.
 - `--grayscale`: load supported image datasets as grayscale.
 - `--include_regex`: include only matching input paths for supported file-based datasets.
 

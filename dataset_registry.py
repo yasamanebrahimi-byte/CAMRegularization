@@ -852,12 +852,13 @@ def _build_dataloaders(
     batch_size: int,
     num_workers: int,
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    worker_kwargs = _dataloader_worker_kwargs(num_workers)
     train_dl = DataLoader(
         train_ds,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        **worker_kwargs,
     )
     val_dl = (
         DataLoader(
@@ -865,7 +866,7 @@ def _build_dataloaders(
             batch_size=256,
             shuffle=False,
             num_workers=num_workers,
-            pin_memory=True,
+            **worker_kwargs,
         )
         if val_ds is not None
         else None
@@ -875,9 +876,17 @@ def _build_dataloaders(
         batch_size=256,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        **worker_kwargs,
     )
     return train_dl, val_dl, test_dl
+
+
+def _dataloader_worker_kwargs(num_workers: int) -> Dict[str, Any]:
+    kwargs: Dict[str, Any] = {"pin_memory": True}
+    if int(num_workers) > 0:
+        kwargs["persistent_workers"] = True
+        kwargs["prefetch_factor"] = 2
+    return kwargs
 
 
 def _build_train_dataloader(train_ds, batch_size: int, num_workers: int) -> DataLoader:
@@ -886,7 +895,7 @@ def _build_train_dataloader(train_ds, batch_size: int, num_workers: int) -> Data
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        **_dataloader_worker_kwargs(num_workers),
     )
 
 def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split: float = 0.0, 

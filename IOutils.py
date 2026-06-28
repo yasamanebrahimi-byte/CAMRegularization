@@ -132,6 +132,22 @@ def add_cutout_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         default=False,
         help="Populate the CAM saliency cache and exit without training.",
     )
+    parser.add_argument(
+        "--cam_precompute_windows",
+        action="store_true",
+        default=False,
+        help=(
+            "Precompute CAM cutout window coordinates for aug_index=1..cutout_m. "
+            "With --cam_precompute_only, fills saliency and window caches then exits; "
+            "without it, warms the window cache before training."
+        ),
+    )
+    parser.add_argument(
+        "--debug_cam_timing",
+        action="store_true",
+        default=False,
+        help="Log lightweight CAM cutout timing diagnostics for the first few augmented samples.",
+    )
     parser.add_argument("--grayscale", action="store_true", default=False)
     parser.add_argument("--include_regex", type=str, default="")
     return parser
