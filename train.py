@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from model_registry import get_model
 from dataset_registry import (
     get_dataset_loaders,
+    get_train_loader,
     get_num_classes,
     get_default_input_size,
     get_normalization_params,
@@ -74,7 +75,8 @@ def _extract_state_dict(checkpoint):
 def _cam_cache_required(args) -> bool:
     cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
     cutout_m = int(getattr(args, "cutout_m", 0))
-    return cutout_m > 0 and cutout_mode in {"cam_low", "cam_high"}
+    cam_precompute_only = bool(getattr(args, "cam_precompute_only", False))
+    return cutout_mode in {"cam_low", "cam_high"} and (cutout_m > 0 or cam_precompute_only)
 
 
 def _slug_cache_component(value) -> str:
@@ -141,7 +143,30 @@ def _build_cam_cache_settings(args, checkpoint_info, input_size: int) -> dict:
         "teacher_checkpoint": checkpoint_info,
         "cam_layer": str(getattr(args, "cam_layer", "auto") or "auto"),
         "input_size": int(input_size),
+        "deterministic_train_transforms": bool(getattr(args, "deterministic_train_transforms", False)),
     }
+
+
+def _dataset_kwargs_from_args(args) -> dict:
+    return {
+        "val_split": args.val_split,
+        "seed": args.seed,
+        "grayscale": getattr(args, "grayscale", False),
+        "include_regex": getattr(args, "include_regex", ""),
+        "deterministic_train_transforms": getattr(args, "deterministic_train_transforms", False),
+    }
+
+
+def _validate_cam_precompute_args(args) -> None:
+    cutout_mode = str(getattr(args, "cutout_mode", "none") or "none").lower()
+    if cutout_mode not in {"cam_low", "cam_high"}:
+        raise ValueError("--cam_precompute_only is only valid with --cutout_mode cam_low or cam_high.")
+    if not str(getattr(args, "teacher_checkpoint", "") or "").strip():
+        raise ValueError("--cam_precompute_only requires --teacher_checkpoint.")
+    if not str(getattr(args, "teacher_model", "") or "").strip():
+        raise ValueError("--cam_precompute_only requires --teacher_model.")
+    if not bool(getattr(args, "deterministic_train_transforms", False)):
+        raise ValueError("--cam_precompute_only requires --deterministic_train_transforms.")
 
 
 def _load_teacher_model(args, num_classes: int, input_size: int, logger, device):
@@ -231,7 +256,9 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, 
             _log(
                 logger,
                 "info",
-                "CAM cache-only mode for DataLoader workers; cache misses will raise. Populate the cache first with --num_workers 0.",
+                "CAM cache-only mode for DataLoader workers; cache misses will raise. "
+                "Run the same command once with --cam_precompute_only --num_workers 0 "
+                "--deterministic_train_transforms before high-worker training.",
             )
 
     cutout_ds = CutoutAugmentedDataset(
@@ -278,6 +305,104 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, 
     return wrapped_loader
 
 
+def precompute_cam_cache_with_config(args, run_dir=None, logger=None):
+    logger = logger or SimpleLogger()
+    _validate_cam_precompute_args(args)
+
+    effective_args = deepcopy(args)
+    if int(getattr(effective_args, "num_workers", 0) or 0) != 0:
+        _log(logger, "info", "Forcing num_workers=0 for CAM cache precomputation.")
+    effective_args.num_workers = 0
+
+    cutout_mode = str(getattr(effective_args, "cutout_mode", "none") or "none").lower()
+    cutout_m = int(getattr(effective_args, "cutout_m", 0))
+    if cutout_m < 0:
+        raise ValueError("cutout_m must be >= 0.")
+
+    set_seed(effective_args.seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    _log(
+        logger,
+        "info",
+        "CAM cache precompute device: %s | cuda: %s | gpu: %s",
+        device,
+        torch.cuda.is_available(),
+        torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+    )
+
+    effective_batch_size = int(effective_args.batch_size)
+    default_input_size = get_default_input_size(effective_args.dataset)
+    dataset_kwargs = _dataset_kwargs_from_args(effective_args)
+    dataset_kwargs["deterministic_train_transforms"] = True
+
+    train_dl = get_train_loader(
+        effective_args.dataset,
+        effective_args.data_dir,
+        effective_batch_size,
+        0,
+        **dataset_kwargs,
+    )
+
+    inferred_num_classes = infer_num_classes_from_loader(train_dl)
+    num_classes = inferred_num_classes if inferred_num_classes is not None else get_num_classes(effective_args.dataset)
+    input_size = infer_input_size_from_loader(train_dl, default_input_size)
+
+    teacher_model = _load_teacher_model(
+        effective_args,
+        num_classes=num_classes,
+        input_size=input_size,
+        logger=logger,
+        device=device,
+    )
+    cam_cache_dir, checkpoint_info = _resolve_cam_cache_dir(effective_args, logger=logger)
+    cam_cache_settings = _build_cam_cache_settings(effective_args, checkpoint_info, input_size=input_size)
+    mean, std = get_normalization_params(effective_args.dataset)
+
+    cutout_size = int(getattr(effective_args, "cutout_size", 0))
+    cutout_area = getattr(effective_args, "cutout_area", None)
+    saliency_candidate_percent = float(getattr(effective_args, "saliency_candidate_percent", 10.0))
+    cam_layer = str(getattr(effective_args, "cam_layer", "auto") or "auto")
+
+    cutout_ds = CutoutAugmentedDataset(
+        base_dataset=train_dl.dataset,
+        cutout_mode=cutout_mode,
+        cutout_m=max(1, cutout_m),
+        cutout_size=cutout_size if cutout_size > 0 else None,
+        cutout_area=cutout_area,
+        mean=mean,
+        std=std,
+        seed=int(getattr(effective_args, "seed", 0)),
+        saliency_candidate_percent=saliency_candidate_percent,
+        teacher_model=teacher_model,
+        cam_layer=cam_layer,
+        cam_cache_dir=cam_cache_dir,
+        cam_cache_settings=cam_cache_settings,
+        logger=logger,
+    )
+
+    total = len(cutout_ds.base_dataset)
+    _log(
+        logger,
+        "info",
+        "Precomputing CAM saliency cache for %s training samples into %s.",
+        total,
+        cam_cache_dir,
+    )
+
+    for base_index in range(total):
+        image, _target = cutout_ds.base_dataset[base_index]
+        if not torch.is_tensor(image):
+            raise ValueError("CAM cache precompute expects the training dataset to return tensors.")
+        cutout_ds._get_cam_saliency(base_index, image)
+
+        completed = base_index + 1
+        if completed == total or completed % 500 == 0:
+            _log(logger, "info", "CAM cache precompute progress: %s/%s samples", completed, total)
+
+    _log(logger, "info", "CAM cache precomputation complete: %s samples cached in %s", total, cam_cache_dir)
+    return {"cache_dir": cam_cache_dir, "samples": total}
+
+
 def train_with_config(
     args,
     run_dir=None,
@@ -297,12 +422,7 @@ def train_with_config(
 
     # Load dataset using registry unless explicit loaders are provided
     if train_dl is None or test_dl is None:
-        dataset_kwargs = {
-            "val_split": args.val_split,
-            "seed": args.seed,
-            "grayscale": getattr(args, "grayscale", False),
-            "include_regex": getattr(args, "include_regex", ""),
-        }
+        dataset_kwargs = _dataset_kwargs_from_args(args)
 
         train_dl, val_dl, test_dl = get_dataset_loaders(
             args.dataset, args.data_dir, effective_batch_size, args.num_workers,
@@ -471,6 +591,9 @@ def train_with_config(
 
 def main():
     args = build_parser().parse_args()
+    if getattr(args, "cam_precompute_only", False):
+        _validate_cam_precompute_args(args)
+        args.num_workers = 0
     _resolve_cam_cache_dir(args)
 
     # saving results (creates run dir) and setup per-run logging
@@ -484,8 +607,10 @@ def main():
 
     logger.info(f"Run parameters: {json.dumps(vars(args), sort_keys=True)}")
 
-    # Train and return metrics
-    train_with_config(args, run_dir=run_dir, logger=logger)
+    if args.cam_precompute_only:
+        precompute_cam_cache_with_config(args, run_dir=run_dir, logger=logger)
+    else:
+        train_with_config(args, run_dir=run_dir, logger=logger)
 
 
 if __name__ == "__main__":

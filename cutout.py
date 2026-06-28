@@ -17,6 +17,11 @@ from logger import get_logger
 
 module_logger = get_logger(__name__)
 _CAM_CACHE_VERSION = 1
+_CAM_WORKER_CACHE_MISS_HINT = (
+    "CAM cache miss during worker training. Run the same command once with "
+    "--cam_precompute_only --num_workers 0 --deterministic_train_transforms, "
+    "then rerun training with num_workers > 0."
+)
 
 
 def _log_info(log, msg, *args):
@@ -368,15 +373,14 @@ class CutoutAugmentedDataset(Dataset):
         if self.teacher_model is None:
             raise RuntimeError(
                 f"CAM cutout cache miss for dataset index {base_index}, but no teacher_model is available. "
-                "Populate the cache with num_workers=0 or provide a teacher_model."
+                f"{_CAM_WORKER_CACHE_MISS_HINT}"
             )
 
         worker = get_worker_info()
         if worker is not None and _model_device_type(self.teacher_model) == "cuda":
             raise RuntimeError(
                 f"CAM cutout cache miss for dataset index {base_index} inside DataLoader worker {worker.id}. "
-                "CUDA saliency cannot be computed in forked workers. Populate the CAM cache first with "
-                "--num_workers 0, then rerun with workers."
+                f"CUDA saliency cannot be computed in forked workers. {_CAM_WORKER_CACHE_MISS_HINT}"
             )
 
         saliency = compute_saliency_map(

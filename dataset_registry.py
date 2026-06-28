@@ -879,17 +879,35 @@ def _build_dataloaders(
     )
     return train_dl, val_dl, test_dl
 
+
+def _build_train_dataloader(train_ds, batch_size: int, num_workers: int) -> DataLoader:
+    return DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
 def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split: float = 0.0, 
     seed: int = 42, **kwargs) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     grayscale = bool(kwargs.get("grayscale", False))
+    deterministic_train_transforms = bool(kwargs.get("deterministic_train_transforms", False))
+    train_only = bool(kwargs.get("_train_only", False))
     mean = (0.5071, 0.4867, 0.4408)
     std = (0.2675, 0.2565, 0.2761)
-    train_tfms = T.Compose([
-        T.RandomCrop(32, padding=4),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean, std),
-    ])
+    if deterministic_train_transforms:
+        train_tfms = T.Compose([
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
+    else:
+        train_tfms = T.Compose([
+            T.RandomCrop(32, padding=4),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
     test_tfms = T.Compose([
         T.ToTensor(),
         T.Normalize(mean, std),
@@ -899,6 +917,9 @@ def _cifar100_loader(data_dir: str, batch_size: int, num_workers: int,val_split:
     train_ds = torchvision.datasets.CIFAR100(
         root=data_dir, train=True, download=True, transform=train_tfms
     )
+    if train_only:
+        train_ds, _ = _split_train_val(train_ds, train_ds, val_split, seed)
+        return _build_train_dataloader(train_ds, batch_size, num_workers)
     train_val_ds = torchvision.datasets.CIFAR100(
         root=data_dir, train=True, download=True, transform=test_tfms
     )
@@ -1076,6 +1097,8 @@ def _malimg_loader(
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     grayscale = bool(kwargs.get("grayscale", False))
     include_regex = kwargs.get("include_regex")
+    deterministic_train_transforms = bool(kwargs.get("deterministic_train_transforms", False))
+    train_only = bool(kwargs.get("_train_only", False))
     kaggle_dataset = "manmandes/malimg"
     root = Path(data_dir)
     malimg_root = _ensure_kaggle_dataset_available(
@@ -1130,12 +1153,19 @@ def _malimg_loader(
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
-    train_tfms = T.Compose([
-        T.Resize((image_size, image_size)),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean, std),
-    ])
+    if deterministic_train_transforms:
+        train_tfms = T.Compose([
+            T.Resize((image_size, image_size)),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
+    else:
+        train_tfms = T.Compose([
+            T.Resize((image_size, image_size)),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
     test_tfms = T.Compose([
         T.Resize((image_size, image_size)),
         T.ToTensor(),
@@ -1145,9 +1175,12 @@ def _malimg_loader(
     test_tfms = _prepend_grayscale_transform(test_tfms, grayscale)
 
     train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+    train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+    if train_only:
+        return _build_train_dataloader(train_ds, batch_size, num_workers)
+
     val_ds = torchvision.datasets.ImageFolder(root=str(val_dir), transform=test_tfms)
     test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
-    train_ds = _filter_dataset_by_regex(train_ds, include_regex)
     val_ds = _filter_dataset_by_regex(val_ds, include_regex)
     test_ds = _filter_dataset_by_regex(test_ds, include_regex)
 
@@ -1376,6 +1409,8 @@ def _drive_zip_loader(
 ) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
     grayscale = bool(kwargs.get("grayscale", False))
     include_regex = kwargs.get("include_regex")
+    deterministic_train_transforms = bool(kwargs.get("deterministic_train_transforms", False))
+    train_only = bool(kwargs.get("_train_only", False))
     image_size = int(kwargs.get("image_size", 224))
     if image_size <= 0:
         raise ValueError(f"Invalid image_size={image_size}. Expected a positive integer.")
@@ -1383,13 +1418,21 @@ def _drive_zip_loader(
     resize_size = int(round(image_size / 0.875))
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
-    train_tfms = T.Compose([
-        T.Resize(resize_size),
-        T.RandomResizedCrop(image_size),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean, std),
-    ])
+    if deterministic_train_transforms:
+        train_tfms = T.Compose([
+            T.Resize(resize_size),
+            T.CenterCrop(image_size),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
+    else:
+        train_tfms = T.Compose([
+            T.Resize(resize_size),
+            T.RandomResizedCrop(image_size),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            T.Normalize(mean, std),
+        ])
     test_tfms = T.Compose([
         T.Resize(resize_size),
         T.CenterCrop(image_size),
@@ -1407,9 +1450,12 @@ def _drive_zip_loader(
 
     if layout == "train_val_test":
         train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "train"), transform=train_tfms)
+        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+        if train_only:
+            return _build_train_dataloader(train_ds, batch_size, num_workers)
+
         val_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "val"), transform=test_tfms)
         test_ds = torchvision.datasets.ImageFolder(root=str(dataset_root / "test"), transform=test_tfms)
-        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
         val_ds = _filter_dataset_by_regex(val_ds, include_regex)
         test_ds = _filter_dataset_by_regex(test_ds, include_regex)
         if val_split and val_split > 0.0:
@@ -1420,9 +1466,13 @@ def _drive_zip_loader(
         train_dir = dataset_root / "train"
         test_dir = dataset_root / "test"
         train_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=train_tfms)
+        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
+        if train_only:
+            train_ds, _ = _split_train_val(train_ds, train_ds, val_split, seed)
+            return _build_train_dataloader(train_ds, batch_size, num_workers)
+
         train_val_ds = torchvision.datasets.ImageFolder(root=str(train_dir), transform=test_tfms)
         test_ds = torchvision.datasets.ImageFolder(root=str(test_dir), transform=test_tfms)
-        train_ds = _filter_dataset_by_regex(train_ds, include_regex)
         train_val_ds = _filter_dataset_by_regex(train_val_ds, include_regex)
         test_ds = _filter_dataset_by_regex(test_ds, include_regex)
         train_ds, val_ds = _split_train_val(train_ds, train_val_ds, val_split, seed)
@@ -1431,9 +1481,7 @@ def _drive_zip_loader(
         return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
     full_train_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=train_tfms)
-    full_eval_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=test_tfms)
     full_train_ds = _filter_dataset_by_regex(full_train_ds, include_regex)
-    full_eval_ds = _filter_dataset_by_regex(full_eval_ds, include_regex)
 
     eval_split = val_split if (val_split and val_split > 0.0) else 0.1
     if not val_split or val_split <= 0.0:
@@ -1465,6 +1513,11 @@ def _drive_zip_loader(
     )
 
     train_ds = Subset(full_train_ds, train_idx)
+    if train_only:
+        return _build_train_dataloader(train_ds, batch_size, num_workers)
+
+    full_eval_ds = torchvision.datasets.ImageFolder(root=str(dataset_root), transform=test_tfms)
+    full_eval_ds = _filter_dataset_by_regex(full_eval_ds, include_regex)
     val_ds = Subset(full_eval_ds, val_idx)
     test_ds = Subset(full_eval_ds, test_idx)
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
@@ -1548,6 +1601,18 @@ def get_dataset_loaders(dataset_name: str, data_dir: str, batch_size: int,
     dataset_info = _get_dataset_info(dataset_name)
     loader = dataset_info["loader"]
     return loader(data_dir, batch_size, num_workers, **kwargs)
+
+
+def get_train_loader(dataset_name: str, data_dir: str, batch_size: int, 
+    num_workers: int, **kwargs) -> DataLoader:
+    dataset_info = _get_dataset_info(dataset_name)
+    loader = dataset_info["loader"]
+    train_kwargs = dict(kwargs)
+    train_kwargs["_train_only"] = True
+    loaded = loader(data_dir, batch_size, num_workers, **train_kwargs)
+    if isinstance(loaded, tuple):
+        return loaded[0]
+    return loaded
 
 def get_num_classes(dataset_name: str) -> int:
     return _get_dataset_info(dataset_name)["num_classes"]

@@ -68,6 +68,12 @@ def add_data_loading_args(
     parser.add_argument("--batch_size", type=int, default=batch_size_default)
     parser.add_argument("--num_workers", type=int, default=num_workers_default)
     parser.add_argument("--val_split", type=non_negative_float, default=val_split_default)
+    parser.add_argument(
+        "--deterministic_train_transforms",
+        action="store_true",
+        default=False,
+        help="Use deterministic train transforms instead of stochastic train-time augmentation.",
+    )
     return parser
 
 
@@ -120,6 +126,12 @@ def add_cutout_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
     parser.add_argument("--cam_layer", type=str, default="auto")
     parser.add_argument("--saliency_candidate_percent", type=float, default=10.0)
+    parser.add_argument(
+        "--cam_precompute_only",
+        action="store_true",
+        default=False,
+        help="Populate the CAM saliency cache and exit without training.",
+    )
     parser.add_argument("--grayscale", action="store_true", default=False)
     parser.add_argument("--include_regex", type=str, default="")
     return parser
