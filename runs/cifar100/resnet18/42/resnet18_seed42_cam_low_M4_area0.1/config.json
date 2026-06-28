@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1782593698202894709,
+    "mtime_ns": 1782609008931694770,
     "path": "/content/CAMRegularization/runs/cifar100/resnet18/42/resnet18_seed42_none/best_model.pt",
     "sha256": "22828d4129f80d87fc8a41e7605eb6ba2abc47f37ecb710ae5077698ccf928dd",
     "size": 44961355
@@ -12,14 +12,16 @@
   "adamw_eps": 1e-08,
   "amp": true,
   "batch_size": 128,
-  "cam_cache_dir": "./data/cam_cache/cifar100/resnet18/22828d4129f80d87",
+  "cam_cache_dir": "/content/cam_cache/cifar100/resnet18/seed42",
   "cam_layer": "auto",
+  "cam_precompute_only": false,
   "cutout_area": 0.1,
   "cutout_m": 4,
   "cutout_mode": "cam_low",
   "cutout_size": 0,
   "data_dir": "./data",
   "dataset": "cifar100",
+  "deterministic_train_transforms": true,
   "epochs": 100,
   "gamma": 0.1,
   "grayscale": false,
