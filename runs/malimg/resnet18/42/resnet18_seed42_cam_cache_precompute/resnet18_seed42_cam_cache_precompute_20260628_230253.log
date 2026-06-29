@@ -1,0 +1,32 @@
+2026-06-28 23:02:53 - __main__ - INFO - Run parameters: {"_cam_checkpoint_fingerprint": {"mtime_ns": 1782687752795338550, "path": "/content/CAMRegularization/runs/malimg/resnet18/42/resnet18_seed42_none/best_model.pt", "sha256": "077794e333fe89bb3348e9036576a3a56143ca93c7944688a88a045e3f9c1d98", "size": 44838155}, "adamw_betas": [0.9, 0.999], "adamw_eps": 1e-08, "amp": true, "batch_size": 128, "cam_cache_dir": "/content/cam_cache/malimg/resnet18/seed42", "cam_layer": "auto", "cam_precompute_only": true, "cam_precompute_windows": false, "cutout_area": 0.1, "cutout_m": 1, "cutout_mode": "cam_low", "cutout_size": 0, "data_dir": "./data", "dataset": "malimg", "debug_cam_timing": false, "deterministic_train_transforms": true, "epochs": 100, "gamma": 0.1, "grayscale": false, "include_regex": "", "label_smoothing": 0.0, "log_every": 100, "lr": 0.1, "milestones": "60,80", "min_lr": 1e-05, "model": "resnet18", "momentum": 0.9, "nesterov": false, "num_workers": 0, "optimizer": "sgd", "out_dir": "runs/malimg/resnet18/42", "run_name": "resnet18_seed42_cam_cache_precompute", "saliency_candidate_percent": 10.0, "scheduler": "cosine", "seed": 42, "teacher_checkpoint": "runs/malimg/resnet18/42/resnet18_seed42_none/best_model.pt", "teacher_checkpoint_sha256": "077794e333fe89bb3348e9036576a3a56143ca93c7944688a88a045e3f9c1d98", "teacher_model": "resnet18", "val_split": 0.1, "warmup_epochs": 5, "weight_decay": 0.0005}
+2026-06-28 23:02:54 - __main__ - INFO - CAM cache precompute device: cuda | cuda: True | gpu: NVIDIA A100-SXM4-80GB
+2026-06-28 23:03:48 - __main__ - INFO - CAM saliency cache directory: /content/cam_cache/malimg/resnet18/seed42
+2026-06-28 23:03:48 - __main__ - INFO - CAM saliency cache enabled: /content/cam_cache/malimg/resnet18/seed42
+2026-06-28 23:03:48 - __main__ - INFO - CAM window cache enabled: /content/cam_cache/malimg/resnet18/seed42/windows
+2026-06-28 23:03:48 - __main__ - INFO - Precomputing CAM saliency cache for 7459 training samples into /content/cam_cache/malimg/resnet18/seed42.
+2026-06-28 23:03:48 - __main__ - INFO - CAM cache miss: /content/cam_cache/malimg/resnet18/seed42/8d/85/8d85c63de94e2f99564b1744b728b9292550567585b17250d917f86d31e867f6.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache saved: /content/cam_cache/malimg/resnet18/seed42/8d/85/8d85c63de94e2f99564b1744b728b9292550567585b17250d917f86d31e867f6.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache miss: /content/cam_cache/malimg/resnet18/seed42/ab/84/ab840025e94a2a911846d3b518bb24dc6ac5958bb0c458bc7e82e833e43fd717.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache saved: /content/cam_cache/malimg/resnet18/seed42/ab/84/ab840025e94a2a911846d3b518bb24dc6ac5958bb0c458bc7e82e833e43fd717.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache miss: /content/cam_cache/malimg/resnet18/seed42/41/f6/41f6a91ca1f9f4bad3bf4bb99c8b84b28b65759a4bf03d8feca51552be984cd6.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache saved: /content/cam_cache/malimg/resnet18/seed42/41/f6/41f6a91ca1f9f4bad3bf4bb99c8b84b28b65759a4bf03d8feca51552be984cd6.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache miss: /content/cam_cache/malimg/resnet18/seed42/95/aa/95aa23fe52b2b490d932a6d5ffb34ba908daa926214649d9ed9d57b9aff590b0.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache saved: /content/cam_cache/malimg/resnet18/seed42/95/aa/95aa23fe52b2b490d932a6d5ffb34ba908daa926214649d9ed9d57b9aff590b0.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache miss: /content/cam_cache/malimg/resnet18/seed42/e9/a0/e9a002ffafbac3a73208db45ce104479066b726dcd1f2c6fa6c627242e3837d7.pt
+2026-06-28 23:03:49 - __main__ - INFO - CAM cache saved: /content/cam_cache/malimg/resnet18/seed42/e9/a0/e9a002ffafbac3a73208db45ce104479066b726dcd1f2c6fa6c627242e3837d7.pt
+2026-06-28 23:03:54 - __main__ - INFO - CAM cache precompute progress: 500/7459 samples
+2026-06-28 23:03:58 - __main__ - INFO - CAM cache precompute progress: 1000/7459 samples
+2026-06-28 23:04:03 - __main__ - INFO - CAM cache precompute progress: 1500/7459 samples
+2026-06-28 23:04:08 - __main__ - INFO - CAM cache precompute progress: 2000/7459 samples
+2026-06-28 23:04:12 - __main__ - INFO - CAM cache precompute progress: 2500/7459 samples
+2026-06-28 23:04:17 - __main__ - INFO - CAM cache precompute progress: 3000/7459 samples
+2026-06-28 23:04:22 - __main__ - INFO - CAM cache precompute progress: 3500/7459 samples
+2026-06-28 23:04:27 - __main__ - INFO - CAM cache precompute progress: 4000/7459 samples
+2026-06-28 23:04:33 - __main__ - INFO - CAM cache precompute progress: 4500/7459 samples
+2026-06-28 23:04:38 - __main__ - INFO - CAM cache precompute progress: 5000/7459 samples
+2026-06-28 23:04:43 - __main__ - INFO - CAM cache precompute progress: 5500/7459 samples
+2026-06-28 23:04:48 - __main__ - INFO - CAM cache precompute progress: 6000/7459 samples
+2026-06-28 23:04:55 - __main__ - INFO - CAM cache precompute progress: 6500/7459 samples
+2026-06-28 23:05:03 - __main__ - INFO - CAM cache precompute progress: 7000/7459 samples
+2026-06-28 23:05:11 - __main__ - INFO - CAM cache precompute progress: 7459/7459 samples
+2026-06-28 23:05:11 - __main__ - INFO - CAM cache precomputation complete: 7459 samples cached in /content/cam_cache/malimg/resnet18/seed42
