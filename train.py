@@ -549,6 +549,7 @@ def train_with_config(
             "eval_loss",
             "eval_acc1",
             "eval_split",
+            "val_split",
         ]
         append_csv(metrics_csv, [], header=header, mode="w")  # write mode to replace existing file
 
@@ -585,6 +586,7 @@ def train_with_config(
                     f"{ev_loss:.6f}",
                     f"{ev_a1:.6f}",
                     split,
+                    str(args.val_split),
                 ],
             )
 
