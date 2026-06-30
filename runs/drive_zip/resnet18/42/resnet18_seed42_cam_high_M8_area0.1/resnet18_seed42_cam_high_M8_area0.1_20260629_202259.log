@@ -1,0 +1,484 @@
+2026-06-29 20:22:59 - __main__ - INFO - Run parameters: {"_cam_checkpoint_fingerprint": {"mtime_ns": 1782764264231383622, "path": "/content/CAMRegularization/runs/drive_zip/resnet18/42/resnet18_seed42_none/best_model.pt", "sha256": "85d2c3d70beccd49a4aa88110be7aa921f87399f95258d6469a8c867bcd8e72f", "size": 44821963}, "adamw_betas": [0.9, 0.999], "adamw_eps": 1e-08, "amp": true, "batch_size": 128, "cam_cache_dir": "/content/cam_cache/drive_zip/resnet18/seed42", "cam_layer": "auto", "cam_precompute_only": false, "cam_precompute_windows": false, "cutout_area": 0.1, "cutout_m": 8, "cutout_mode": "cam_high", "cutout_size": 0, "data_dir": "./data", "dataset": "drive_zip", "debug_cam_timing": false, "deterministic_train_transforms": true, "epochs": 100, "gamma": 0.1, "grayscale": true, "include_regex": "_grayscale\\.tiff$", "label_smoothing": 0.0, "log_every": 100, "lr": 0.1, "milestones": "60,80", "min_lr": 1e-05, "model": "resnet18", "momentum": 0.9, "nesterov": false, "num_workers": 4, "optimizer": "sgd", "out_dir": "runs/drive_zip/resnet18/42", "run_name": "resnet18_seed42_cam_high_M8_area0.1", "saliency_candidate_percent": 10.0, "scheduler": "cosine", "seed": 42, "teacher_checkpoint": "runs/drive_zip/resnet18/42/resnet18_seed42_none/best_model.pt", "teacher_checkpoint_sha256": "85d2c3d70beccd49a4aa88110be7aa921f87399f95258d6469a8c867bcd8e72f", "teacher_model": "resnet18", "val_split": 0.1, "warmup_epochs": 5, "weight_decay": 0.0005}
+2026-06-29 20:23:00 - __main__ - INFO - device: cuda | cuda: True | gpu: NVIDIA A100-SXM4-80GB
+2026-06-29 20:23:03 - __main__ - INFO - Model: resnet18 | Dataset: drive_zip | Classes: 17 | Optimizer: sgd
+2026-06-29 20:23:04 - __main__ - INFO - CAM saliency cache directory: /content/cam_cache/drive_zip/resnet18/seed42
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache-only mode for DataLoader workers; cache misses will raise. Run the same command once with --cam_precompute_only --num_workers 0 --deterministic_train_transforms before high-worker training.
+2026-06-29 20:23:04 - __main__ - INFO - CAM saliency cache enabled: /content/cam_cache/drive_zip/resnet18/seed42
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache enabled: /content/cam_cache/drive_zip/resnet18/seed42/windows
+2026-06-29 20:23:04 - __main__ - INFO - Cutout enabled: mode=cam_high m=8 size=None area=0.1
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/02/b5/02b5b962581ed5fb107f1e05c1c7b18a0ae81b934b720a3631d6f938362247aa.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/ba/75/ba75fbf7de1f35303a09ad81fe7395fc7fff161c859325dce500ea9f9b581a9a.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/02/b5/02b5b962581ed5fb107f1e05c1c7b18a0ae81b934b720a3631d6f938362247aa.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=0 copy=1 cutout_mode=cam_high top=138 left=62 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/40/d3/40d3035a6a10862ca6f0eeab4291a1f67afe57db67d0179e927e9ff3e36f1f1c.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/ba/75/ba75fbf7de1f35303a09ad81fe7395fc7fff161c859325dce500ea9f9b581a9a.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/40/d3/40d3035a6a10862ca6f0eeab4291a1f67afe57db67d0179e927e9ff3e36f1f1c.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=0 copy=2 cutout_mode=cam_high top=152 left=42 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/7f/8e/7f8ec62de309074bffee14fd62df04e3ecaf3cc5cff49c9cd02b88b67f2bac00.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/ba/75/ba75fbf7de1f35303a09ad81fe7395fc7fff161c859325dce500ea9f9b581a9a.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/7f/8e/7f8ec62de309074bffee14fd62df04e3ecaf3cc5cff49c9cd02b88b67f2bac00.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=0 copy=3 cutout_mode=cam_high top=150 left=49 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - Validated CAM cutout generation for mode cam_high
+2026-06-29 20:23:04 - __main__ - INFO - 
+Epoch 1/100 | lr 0.000100
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/0a/42/0a42077150c85354f7897ec4883b25b69000b4f3683a4d5729a9db8f1513e7e3.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/dc/2c/dc2c35e41ae365106eb6b9e79148fbf1b4a00f4c80ead917fd624e45ae09e9a6.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/e5/c4/e5c4936664674f7418e060f9e4b19b0e0f43b53eff330afdf0fec589b7ded553.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/39/e9/39e902ab5aa915e13b2c59ff7d46160f484d53a3d42c8557ff9bde28eb8c4724.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/85/32/85320cb7f2e519218840acbc2905285beb78a70e450f47fc6f78179c7672d9f1.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/4c/9b/4c9b23e4316e1e200290940633f2af89e62d647288a60d38324e6ecf46fd11b1.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/d8/b2/d8b27919246acfa03b93b5c79ad0e00429e8817cd9b37ba0f0d5610ae1644f0b.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/b2/44/b244f84296c1ac24ff6ea592e5a5619dc955bbe96d72e122acb8dd7648e30d82.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/e5/c4/e5c4936664674f7418e060f9e4b19b0e0f43b53eff330afdf0fec589b7ded553.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/dc/2c/dc2c35e41ae365106eb6b9e79148fbf1b4a00f4c80ead917fd624e45ae09e9a6.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/0a/42/0a42077150c85354f7897ec4883b25b69000b4f3683a4d5729a9db8f1513e7e3.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=462 copy=4 cutout_mode=cam_high top=120 left=63 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=1261 copy=2 cutout_mode=cam_high top=55 left=77 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=5470 copy=2 cutout_mode=cam_high top=94 left=116 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/d8/b2/d8b27919246acfa03b93b5c79ad0e00429e8817cd9b37ba0f0d5610ae1644f0b.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=3070 copy=3 cutout_mode=cam_high top=99 left=80 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/7b/a3/7ba3f4d1a370591509502449094775f065235ac75f14c08c26c332a81e979184.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/aa/a1/aaa1fef4f1c181a13134071b6aea4b2afed691381b7c83aef482feb2d9ee9dd2.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/bc/67/bc67136e72160bf3267dd1a20494f0c88b8e85d3347958a74eb655a5b7c53c7e.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/09/63/09636016623c5e124eeb1b054bcd36868e4c9e47469b1b8a2f9eecf1d8afb393.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/77/a2/77a21244b83a5e9813d560f95d4e53e9fe93119fa600fb5fc6d2daa179bac3b5.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache miss: /content/cam_cache/drive_zip/resnet18/seed42/windows/6b/6d/6b6d3d52b0ba740629a73b40d692be287bbd1571d5e6e2454ad89db93b17922c.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/11/04/1104360c6ec4e1ac3dcaa900b9796f669696eef82c10e4131c0dc4e981eb828e.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM cache hit: /content/cam_cache/drive_zip/resnet18/seed42/bb/e6/bbe6adb2a24a608f326825c8630137f65729f35d876301cee6b50033fc03a2d2.pt
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/aa/a1/aaa1fef4f1c181a13134071b6aea4b2afed691381b7c83aef482feb2d9ee9dd2.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=1275 copy=7 cutout_mode=cam_high top=63 left=52 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/7b/a3/7ba3f4d1a370591509502449094775f065235ac75f14c08c26c332a81e979184.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=3198 copy=5 cutout_mode=cam_high top=98 left=72 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/77/a2/77a21244b83a5e9813d560f95d4e53e9fe93119fa600fb5fc6d2daa179bac3b5.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=13556 copy=6 cutout_mode=cam_high top=113 left=82 height=71 width=71
+2026-06-29 20:23:04 - __main__ - INFO - CAM window cache saved: /content/cam_cache/drive_zip/resnet18/seed42/windows/6b/6d/6b6d3d52b0ba740629a73b40d692be287bbd1571d5e6e2454ad89db93b17922c.json
+2026-06-29 20:23:04 - __main__ - INFO - CAM cutout window: index=9555 copy=1 cutout_mode=cam_high top=78 left=71 height=71 width=71
+2026-06-29 20:56:51 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/7f/8e/7f8ec62de309074bffee14fd62df04e3ecaf3cc5cff49c9cd02b88b67f2bac00.json
+2026-06-29 21:25:01 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/40/d3/40d3035a6a10862ca6f0eeab4291a1f67afe57db67d0179e927e9ff3e36f1f1c.json
+2026-06-29 21:36:47 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/02/b5/02b5b962581ed5fb107f1e05c1c7b18a0ae81b934b720a3631d6f938362247aa.json
+2026-06-29 21:41:14 - __main__ - INFO - Train: loss 2.4469 acc1 28.83%
+2026-06-29 21:41:14 - __main__ - INFO - Val:   loss 2.1995 acc1 33.97%
+2026-06-29 21:41:14 - __main__ - INFO - saved best: 33.97%
+2026-06-29 21:41:14 - __main__ - INFO - 
+Epoch 2/100 | lr 0.020080
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/8a/8a/8a8a4017eddf509eaf7cd99b9b10636e48a6762f46777b8c5eb067a5bcec5cd6.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/68/b2/68b299b3b9b75cfe553d2e091093f5f1d20f8a7cf548c2517abb70050ddb076e.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/7d/f3/7df32dce1388712cf9cd75d4ff0101077616a1433b5da889518329d18aba3ad9.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/3d/1d/3d1dbb0c98635ba2cde2a27a2e72a0aaef66ca9467e2488c32dc316f67e34995.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/5a/6e/5a6eda2557f07ce6ee7917b6831647c4c5f9d0034f358c791d739a321f49786b.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/c2/e7/c2e7dad4b7fb7e3211bd736b3c8b6b146b84915d612143f1046c37101b268b75.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/e1/a1/e1a1bcd7c0a4d26939f568cf4127ea40c98f8b292b8c16bd0359a55b8c59759b.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/bf/a6/bfa6ac1b6ecfee6fe0ff1091a33336fb1642dc8186306c93e3ce929575948e0a.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/06/bd/06bd1ba6055e72d4bbb4ba827eeb43b68c6c30352c3f75cc06e737f22a4f8eb5.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/03/23/0323a1b83a73610dc1686fbd8da2b31064c6c302f2600a61509a3aaea87ae5af.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/71/9a/719a505a60709f54646395618e3c0d0e4090018be88a7dcbdca420327afc7f47.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/9e/79/9e79e4dd348b37757a7969262d82000b0a79e07ca7026dbe46cd1f2b5d047673.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/ac/00/ac00a21da7752431eb0019b0ff360effba3eff2a34c806bd73f5a5323d34bb8f.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/50/7a/507a3e18b5959c64d2cd38d4e38eab4db684150771265e3f36730fd28d581059.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/ae/40/ae40307991fb88f845712c25e064cee9015b00ccb4b4395bfb5cafc8b50411c5.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/49/4a/494abb1739ac95a08176fbaf091007f53bd138b6fe67985519ddbe9de4a49b4d.json
+2026-06-29 21:41:14 - __main__ - INFO - CAM window cache hit: /content/cam_cache/drive_zip/resnet18/seed42/windows/e4/e8/e4e82efaccca1653ddcb6fc4d902520fc31574ddce49383bf98d2ed93ddd1a32.json
+2026-06-29 21:43:00 - __main__ - INFO - Train: loss 1.0709 acc1 64.59%
+2026-06-29 21:43:00 - __main__ - INFO - Val:   loss 1.4492 acc1 63.97%
+2026-06-29 21:43:00 - __main__ - INFO - saved best: 63.97%
+2026-06-29 21:43:00 - __main__ - INFO - 
+Epoch 3/100 | lr 0.040060
+2026-06-29 21:44:45 - __main__ - INFO - Train: loss 0.4605 acc1 85.55%
+2026-06-29 21:44:45 - __main__ - INFO - Val:   loss 1.4610 acc1 67.63%
+2026-06-29 21:44:45 - __main__ - INFO - saved best: 67.63%
+2026-06-29 21:44:45 - __main__ - INFO - 
+Epoch 4/100 | lr 0.060040
+2026-06-29 21:46:31 - __main__ - INFO - Train: loss 0.3008 acc1 90.25%
+2026-06-29 21:46:31 - __main__ - INFO - Val:   loss 1.4858 acc1 66.85%
+2026-06-29 21:46:31 - __main__ - INFO - 
+Epoch 5/100 | lr 0.080020
+2026-06-29 21:48:16 - __main__ - INFO - Train: loss 0.2773 acc1 90.89%
+2026-06-29 21:48:16 - __main__ - INFO - Val:   loss 1.4736 acc1 64.67%
+2026-06-29 21:48:16 - __main__ - INFO - 
+Epoch 6/100 | lr 0.100000
+2026-06-29 21:50:02 - __main__ - INFO - Train: loss 0.3048 acc1 90.13%
+2026-06-29 21:50:02 - __main__ - INFO - Val:   loss 1.8646 acc1 60.18%
+2026-06-29 21:50:02 - __main__ - INFO - 
+Epoch 7/100 | lr 0.099973
+2026-06-29 21:51:47 - __main__ - INFO - Train: loss 0.2506 acc1 91.70%
+2026-06-29 21:51:47 - __main__ - INFO - Val:   loss 1.4741 acc1 65.14%
+2026-06-29 21:51:47 - __main__ - INFO - 
+Epoch 8/100 | lr 0.099891
+2026-06-29 21:53:33 - __main__ - INFO - Train: loss 0.2266 acc1 92.46%
+2026-06-29 21:53:33 - __main__ - INFO - Val:   loss 1.5244 acc1 65.03%
+2026-06-29 21:53:33 - __main__ - INFO - 
+Epoch 9/100 | lr 0.099754
+2026-06-29 21:55:19 - __main__ - INFO - Train: loss 0.2148 acc1 92.74%
+2026-06-29 21:55:19 - __main__ - INFO - Val:   loss 1.6837 acc1 61.85%
+2026-06-29 21:55:19 - __main__ - INFO - 
+Epoch 10/100 | lr 0.099563
+2026-06-29 21:57:04 - __main__ - INFO - Train: loss 0.2183 acc1 92.58%
+2026-06-29 21:57:04 - __main__ - INFO - Val:   loss 1.7464 acc1 59.24%
+2026-06-29 21:57:04 - __main__ - INFO - 
+Epoch 11/100 | lr 0.099318
+2026-06-29 21:58:51 - __main__ - INFO - Train: loss 0.2059 acc1 92.99%
+2026-06-29 21:58:51 - __main__ - INFO - Val:   loss 1.5175 acc1 63.59%
+2026-06-29 21:58:51 - __main__ - INFO - 
+Epoch 12/100 | lr 0.099019
+2026-06-29 22:00:37 - __main__ - INFO - Train: loss 0.2047 acc1 93.09%
+2026-06-29 22:00:37 - __main__ - INFO - Val:   loss 1.6132 acc1 62.99%
+2026-06-29 22:00:37 - __main__ - INFO - 
+Epoch 13/100 | lr 0.098666
+2026-06-29 22:02:22 - __main__ - INFO - Train: loss 0.2054 acc1 92.97%
+2026-06-29 22:02:22 - __main__ - INFO - Val:   loss 1.6409 acc1 64.26%
+2026-06-29 22:02:22 - __main__ - INFO - 
+Epoch 14/100 | lr 0.098261
+2026-06-29 22:04:08 - __main__ - INFO - Train: loss 0.2031 acc1 92.97%
+2026-06-29 22:04:08 - __main__ - INFO - Val:   loss 1.5753 acc1 62.25%
+2026-06-29 22:04:08 - __main__ - INFO - 
+Epoch 15/100 | lr 0.097802
+2026-06-29 22:05:53 - __main__ - INFO - Train: loss 0.1637 acc1 94.22%
+2026-06-29 22:05:53 - __main__ - INFO - Val:   loss 1.5325 acc1 66.17%
+2026-06-29 22:05:53 - __main__ - INFO - 
+Epoch 16/100 | lr 0.097291
+2026-06-29 22:07:39 - __main__ - INFO - Train: loss 0.2123 acc1 92.73%
+2026-06-29 22:07:39 - __main__ - INFO - Val:   loss 1.4344 acc1 67.60%
+2026-06-29 22:07:39 - __main__ - INFO - 
+Epoch 17/100 | lr 0.096729
+2026-06-29 22:09:25 - __main__ - INFO - Train: loss 0.2161 acc1 92.72%
+2026-06-29 22:09:25 - __main__ - INFO - Val:   loss 1.4874 acc1 66.87%
+2026-06-29 22:09:25 - __main__ - INFO - 
+Epoch 18/100 | lr 0.096115
+2026-06-29 22:11:12 - __main__ - INFO - Train: loss 0.1934 acc1 93.27%
+2026-06-29 22:11:12 - __main__ - INFO - Val:   loss 1.4052 acc1 67.69%
+2026-06-29 22:11:12 - __main__ - INFO - saved best: 67.69%
+2026-06-29 22:11:12 - __main__ - INFO - 
+Epoch 19/100 | lr 0.095451
+2026-06-29 22:12:57 - __main__ - INFO - Train: loss 0.1762 acc1 93.82%
+2026-06-29 22:12:57 - __main__ - INFO - Val:   loss 1.5329 acc1 64.69%
+2026-06-29 22:12:57 - __main__ - INFO - 
+Epoch 20/100 | lr 0.094737
+2026-06-29 22:14:43 - __main__ - INFO - Train: loss 0.1810 acc1 93.68%
+2026-06-29 22:14:43 - __main__ - INFO - Val:   loss 1.5883 acc1 65.65%
+2026-06-29 22:14:43 - __main__ - INFO - 
+Epoch 21/100 | lr 0.093974
+2026-06-29 22:16:29 - __main__ - INFO - Train: loss 0.1858 acc1 93.51%
+2026-06-29 22:16:29 - __main__ - INFO - Val:   loss 1.4907 acc1 67.25%
+2026-06-29 22:16:29 - __main__ - INFO - 
+Epoch 22/100 | lr 0.093164
+2026-06-29 22:18:15 - __main__ - INFO - Train: loss 0.1858 acc1 93.52%
+2026-06-29 22:18:15 - __main__ - INFO - Val:   loss 1.4600 acc1 67.20%
+2026-06-29 22:18:15 - __main__ - INFO - 
+Epoch 23/100 | lr 0.092306
+2026-06-29 22:20:00 - __main__ - INFO - Train: loss 0.1322 acc1 95.12%
+2026-06-29 22:20:00 - __main__ - INFO - Val:   loss 3.4850 acc1 37.16%
+2026-06-29 22:20:00 - __main__ - INFO - 
+Epoch 24/100 | lr 0.091401
+2026-06-29 22:21:46 - __main__ - INFO - Train: loss 0.2408 acc1 91.90%
+2026-06-29 22:21:46 - __main__ - INFO - Val:   loss 1.5779 acc1 60.93%
+2026-06-29 22:21:46 - __main__ - INFO - 
+Epoch 25/100 | lr 0.090452
+2026-06-29 22:23:31 - __main__ - INFO - Train: loss 0.1731 acc1 93.90%
+2026-06-29 22:23:31 - __main__ - INFO - Val:   loss 1.8005 acc1 64.41%
+2026-06-29 22:23:31 - __main__ - INFO - 
+Epoch 26/100 | lr 0.089458
+2026-06-29 22:25:17 - __main__ - INFO - Train: loss 0.1736 acc1 93.88%
+2026-06-29 22:25:17 - __main__ - INFO - Val:   loss 1.6803 acc1 63.90%
+2026-06-29 22:25:17 - __main__ - INFO - 
+Epoch 27/100 | lr 0.088421
+2026-06-29 22:27:02 - __main__ - INFO - Train: loss 0.1714 acc1 93.92%
+2026-06-29 22:27:02 - __main__ - INFO - Val:   loss 1.4978 acc1 65.92%
+2026-06-29 22:27:02 - __main__ - INFO - 
+Epoch 28/100 | lr 0.087342
+2026-06-29 22:28:48 - __main__ - INFO - Train: loss 0.1229 acc1 95.40%
+2026-06-29 22:28:48 - __main__ - INFO - Val:   loss 1.3062 acc1 68.48%
+2026-06-29 22:28:48 - __main__ - INFO - saved best: 68.48%
+2026-06-29 22:28:48 - __main__ - INFO - 
+Epoch 29/100 | lr 0.086223
+2026-06-29 22:30:34 - __main__ - INFO - Train: loss 0.2069 acc1 92.92%
+2026-06-29 22:30:34 - __main__ - INFO - Val:   loss 1.4381 acc1 66.51%
+2026-06-29 22:30:34 - __main__ - INFO - 
+Epoch 30/100 | lr 0.085063
+2026-06-29 22:32:20 - __main__ - INFO - Train: loss 0.1216 acc1 95.44%
+2026-06-29 22:32:20 - __main__ - INFO - Val:   loss 3.2360 acc1 35.20%
+2026-06-29 22:32:20 - __main__ - INFO - 
+Epoch 31/100 | lr 0.083866
+2026-06-29 22:34:05 - __main__ - INFO - Train: loss 0.2232 acc1 92.45%
+2026-06-29 22:34:05 - __main__ - INFO - Val:   loss 1.5996 acc1 65.16%
+2026-06-29 22:34:05 - __main__ - INFO - 
+Epoch 32/100 | lr 0.082631
+2026-06-29 22:35:51 - __main__ - INFO - Train: loss 0.1576 acc1 94.38%
+2026-06-29 22:35:51 - __main__ - INFO - Val:   loss 1.5279 acc1 65.84%
+2026-06-29 22:35:51 - __main__ - INFO - 
+Epoch 33/100 | lr 0.081361
+2026-06-29 22:37:36 - __main__ - INFO - Train: loss 0.1592 acc1 94.28%
+2026-06-29 22:37:36 - __main__ - INFO - Val:   loss 1.6669 acc1 65.90%
+2026-06-29 22:37:36 - __main__ - INFO - 
+Epoch 34/100 | lr 0.080056
+2026-06-29 22:39:22 - __main__ - INFO - Train: loss 0.1530 acc1 94.52%
+2026-06-29 22:39:22 - __main__ - INFO - Val:   loss 1.6640 acc1 66.87%
+2026-06-29 22:39:22 - __main__ - INFO - 
+Epoch 35/100 | lr 0.078719
+2026-06-29 22:41:08 - __main__ - INFO - Train: loss 0.1552 acc1 94.39%
+2026-06-29 22:41:08 - __main__ - INFO - Val:   loss 1.5436 acc1 65.93%
+2026-06-29 22:41:08 - __main__ - INFO - 
+Epoch 36/100 | lr 0.077350
+2026-06-29 22:42:53 - __main__ - INFO - Train: loss 0.1569 acc1 94.36%
+2026-06-29 22:42:53 - __main__ - INFO - Val:   loss 1.5642 acc1 62.26%
+2026-06-29 22:42:53 - __main__ - INFO - 
+Epoch 37/100 | lr 0.075951
+2026-06-29 22:44:40 - __main__ - INFO - Train: loss 0.1353 acc1 95.03%
+2026-06-29 22:44:40 - __main__ - INFO - Val:   loss 1.3679 acc1 67.97%
+2026-06-29 22:44:40 - __main__ - INFO - 
+Epoch 38/100 | lr 0.074524
+2026-06-29 22:46:26 - __main__ - INFO - Train: loss 0.0982 acc1 96.11%
+2026-06-29 22:46:26 - __main__ - INFO - Val:   loss 3.1843 acc1 35.91%
+2026-06-29 22:46:26 - __main__ - INFO - 
+Epoch 39/100 | lr 0.073070
+2026-06-29 22:48:11 - __main__ - INFO - Train: loss 0.2478 acc1 91.68%
+2026-06-29 22:48:11 - __main__ - INFO - Val:   loss 1.6891 acc1 64.79%
+2026-06-29 22:48:11 - __main__ - INFO - 
+Epoch 40/100 | lr 0.071591
+2026-06-29 22:49:57 - __main__ - INFO - Train: loss 0.1579 acc1 94.32%
+2026-06-29 22:49:57 - __main__ - INFO - Val:   loss 1.5767 acc1 66.00%
+2026-06-29 22:49:57 - __main__ - INFO - 
+Epoch 41/100 | lr 0.070088
+2026-06-29 22:51:42 - __main__ - INFO - Train: loss 0.0920 acc1 96.25%
+2026-06-29 22:51:42 - __main__ - INFO - Val:   loss 1.3302 acc1 67.83%
+2026-06-29 22:51:42 - __main__ - INFO - 
+Epoch 42/100 | lr 0.068563
+2026-06-29 22:53:28 - __main__ - INFO - Train: loss 0.1767 acc1 93.77%
+2026-06-29 22:53:28 - __main__ - INFO - Val:   loss 1.5438 acc1 61.34%
+2026-06-29 22:53:28 - __main__ - INFO - 
+Epoch 43/100 | lr 0.067018
+2026-06-29 22:55:14 - __main__ - INFO - Train: loss 0.1602 acc1 94.31%
+2026-06-29 22:55:14 - __main__ - INFO - Val:   loss 1.4155 acc1 66.87%
+2026-06-29 22:55:14 - __main__ - INFO - 
+Epoch 44/100 | lr 0.065454
+2026-06-29 22:57:00 - __main__ - INFO - Train: loss 0.0839 acc1 96.58%
+2026-06-29 22:57:00 - __main__ - INFO - Val:   loss 1.3337 acc1 66.82%
+2026-06-29 22:57:00 - __main__ - INFO - 
+Epoch 45/100 | lr 0.063874
+2026-06-29 22:58:45 - __main__ - INFO - Train: loss 0.2365 acc1 92.19%
+2026-06-29 22:58:45 - __main__ - INFO - Val:   loss 1.5283 acc1 65.93%
+2026-06-29 22:58:45 - __main__ - INFO - 
+Epoch 46/100 | lr 0.062278
+2026-06-29 23:00:31 - __main__ - INFO - Train: loss 0.1034 acc1 96.06%
+2026-06-29 23:00:31 - __main__ - INFO - Val:   loss 1.3290 acc1 67.89%
+2026-06-29 23:00:31 - __main__ - INFO - 
+Epoch 47/100 | lr 0.060669
+2026-06-29 23:02:17 - __main__ - INFO - Train: loss 0.0793 acc1 96.74%
+2026-06-29 23:02:17 - __main__ - INFO - Val:   loss 1.3085 acc1 68.18%
+2026-06-29 23:02:17 - __main__ - INFO - 
+Epoch 48/100 | lr 0.059048
+2026-06-29 23:04:02 - __main__ - INFO - Train: loss 0.2374 acc1 92.12%
+2026-06-29 23:04:02 - __main__ - INFO - Val:   loss 1.4293 acc1 67.69%
+2026-06-29 23:04:02 - __main__ - INFO - 
+Epoch 49/100 | lr 0.057417
+2026-06-29 23:05:48 - __main__ - INFO - Train: loss 0.0812 acc1 96.65%
+2026-06-29 23:05:48 - __main__ - INFO - Val:   loss 1.2892 acc1 67.23%
+2026-06-29 23:05:48 - __main__ - INFO - 
+Epoch 50/100 | lr 0.055779
+2026-06-29 23:07:34 - __main__ - INFO - Train: loss 0.1085 acc1 95.85%
+2026-06-29 23:07:34 - __main__ - INFO - Val:   loss 3.3397 acc1 33.72%
+2026-06-29 23:07:34 - __main__ - INFO - 
+Epoch 51/100 | lr 0.054134
+2026-06-29 23:09:20 - __main__ - INFO - Train: loss 0.2071 acc1 93.08%
+2026-06-29 23:09:20 - __main__ - INFO - Val:   loss 1.4647 acc1 66.89%
+2026-06-29 23:09:20 - __main__ - INFO - 
+Epoch 52/100 | lr 0.052484
+2026-06-29 23:11:06 - __main__ - INFO - Train: loss 0.0805 acc1 96.70%
+2026-06-29 23:11:06 - __main__ - INFO - Val:   loss 1.3595 acc1 67.71%
+2026-06-29 23:11:06 - __main__ - INFO - 
+Epoch 53/100 | lr 0.050832
+2026-06-29 23:12:51 - __main__ - INFO - Train: loss 0.1749 acc1 93.91%
+2026-06-29 23:12:51 - __main__ - INFO - Val:   loss 1.4254 acc1 65.49%
+2026-06-29 23:12:51 - __main__ - INFO - 
+Epoch 54/100 | lr 0.049178
+2026-06-29 23:14:37 - __main__ - INFO - Train: loss 0.1014 acc1 96.13%
+2026-06-29 23:14:37 - __main__ - INFO - Val:   loss 1.3021 acc1 68.38%
+2026-06-29 23:14:37 - __main__ - INFO - 
+Epoch 55/100 | lr 0.047526
+2026-06-29 23:16:23 - __main__ - INFO - Train: loss 0.0696 acc1 97.11%
+2026-06-29 23:16:23 - __main__ - INFO - Val:   loss 1.3731 acc1 68.05%
+2026-06-29 23:16:23 - __main__ - INFO - 
+Epoch 56/100 | lr 0.045876
+2026-06-29 23:18:09 - __main__ - INFO - Train: loss 0.1876 acc1 93.62%
+2026-06-29 23:18:09 - __main__ - INFO - Val:   loss 1.2666 acc1 66.91%
+2026-06-29 23:18:09 - __main__ - INFO - 
+Epoch 57/100 | lr 0.044231
+2026-06-29 23:19:55 - __main__ - INFO - Train: loss 0.0888 acc1 96.48%
+2026-06-29 23:19:55 - __main__ - INFO - Val:   loss 1.3199 acc1 68.07%
+2026-06-29 23:19:55 - __main__ - INFO - 
+Epoch 58/100 | lr 0.042593
+2026-06-29 23:21:41 - __main__ - INFO - Train: loss 0.0663 acc1 97.21%
+2026-06-29 23:21:41 - __main__ - INFO - Val:   loss 1.2957 acc1 68.22%
+2026-06-29 23:21:41 - __main__ - INFO - 
+Epoch 59/100 | lr 0.040962
+2026-06-29 23:23:27 - __main__ - INFO - Train: loss 0.0657 acc1 97.30%
+2026-06-29 23:23:27 - __main__ - INFO - Val:   loss 1.4116 acc1 67.71%
+2026-06-29 23:23:27 - __main__ - INFO - 
+Epoch 60/100 | lr 0.039341
+2026-06-29 23:25:12 - __main__ - INFO - Train: loss 0.2030 acc1 93.21%
+2026-06-29 23:25:12 - __main__ - INFO - Val:   loss 1.3707 acc1 68.00%
+2026-06-29 23:25:12 - __main__ - INFO - 
+Epoch 61/100 | lr 0.037732
+2026-06-29 23:26:58 - __main__ - INFO - Train: loss 0.0692 acc1 97.08%
+2026-06-29 23:26:58 - __main__ - INFO - Val:   loss 1.3023 acc1 67.47%
+2026-06-29 23:26:58 - __main__ - INFO - 
+Epoch 62/100 | lr 0.036136
+2026-06-29 23:28:44 - __main__ - INFO - Train: loss 0.0612 acc1 97.42%
+2026-06-29 23:28:44 - __main__ - INFO - Val:   loss 1.3044 acc1 69.46%
+2026-06-29 23:28:44 - __main__ - INFO - saved best: 69.46%
+2026-06-29 23:28:44 - __main__ - INFO - 
+Epoch 63/100 | lr 0.034556
+2026-06-29 23:30:30 - __main__ - INFO - Train: loss 0.1646 acc1 94.40%
+2026-06-29 23:30:30 - __main__ - INFO - Val:   loss 1.6523 acc1 65.01%
+2026-06-29 23:30:30 - __main__ - INFO - 
+Epoch 64/100 | lr 0.032992
+2026-06-29 23:32:15 - __main__ - INFO - Train: loss 0.0794 acc1 96.81%
+2026-06-29 23:32:15 - __main__ - INFO - Val:   loss 1.3520 acc1 67.62%
+2026-06-29 23:32:15 - __main__ - INFO - 
+Epoch 65/100 | lr 0.031447
+2026-06-29 23:34:01 - __main__ - INFO - Train: loss 0.0584 acc1 97.56%
+2026-06-29 23:34:01 - __main__ - INFO - Val:   loss 1.3325 acc1 67.45%
+2026-06-29 23:34:01 - __main__ - INFO - 
+Epoch 66/100 | lr 0.029922
+2026-06-29 23:35:46 - __main__ - INFO - Train: loss 0.0552 acc1 97.72%
+2026-06-29 23:35:46 - __main__ - INFO - Val:   loss 1.3342 acc1 67.44%
+2026-06-29 23:35:46 - __main__ - INFO - 
+Epoch 67/100 | lr 0.028419
+2026-06-29 23:37:33 - __main__ - INFO - Train: loss 0.0693 acc1 97.31%
+2026-06-29 23:37:33 - __main__ - INFO - Val:   loss 1.7780 acc1 57.19%
+2026-06-29 23:37:33 - __main__ - INFO - 
+Epoch 68/100 | lr 0.026940
+2026-06-29 23:39:18 - __main__ - INFO - Train: loss 0.1444 acc1 94.94%
+2026-06-29 23:39:18 - __main__ - INFO - Val:   loss 1.3766 acc1 68.90%
+2026-06-29 23:39:18 - __main__ - INFO - 
+Epoch 69/100 | lr 0.025486
+2026-06-29 23:41:04 - __main__ - INFO - Train: loss 0.0557 acc1 97.62%
+2026-06-29 23:41:04 - __main__ - INFO - Val:   loss 1.3331 acc1 68.95%
+2026-06-29 23:41:04 - __main__ - INFO - 
+Epoch 70/100 | lr 0.024059
+2026-06-29 23:42:50 - __main__ - INFO - Train: loss 0.0485 acc1 97.93%
+2026-06-29 23:42:50 - __main__ - INFO - Val:   loss 1.3607 acc1 69.06%
+2026-06-29 23:42:50 - __main__ - INFO - 
+Epoch 71/100 | lr 0.022660
+2026-06-29 23:44:36 - __main__ - INFO - Train: loss 0.0469 acc1 98.09%
+2026-06-29 23:44:36 - __main__ - INFO - Val:   loss 1.3241 acc1 69.08%
+2026-06-29 23:44:36 - __main__ - INFO - 
+Epoch 72/100 | lr 0.021291
+2026-06-29 23:46:22 - __main__ - INFO - Train: loss 0.0482 acc1 98.05%
+2026-06-29 23:46:22 - __main__ - INFO - Val:   loss 1.2862 acc1 68.14%
+2026-06-29 23:46:22 - __main__ - INFO - 
+Epoch 73/100 | lr 0.019954
+2026-06-29 23:48:09 - __main__ - INFO - Train: loss 0.0478 acc1 98.10%
+2026-06-29 23:48:09 - __main__ - INFO - Val:   loss 1.3899 acc1 67.55%
+2026-06-29 23:48:09 - __main__ - INFO - 
+Epoch 74/100 | lr 0.018649
+2026-06-29 23:49:55 - __main__ - INFO - Train: loss 0.0466 acc1 98.18%
+2026-06-29 23:49:55 - __main__ - INFO - Val:   loss 1.4037 acc1 67.42%
+2026-06-29 23:49:55 - __main__ - INFO - 
+Epoch 75/100 | lr 0.017379
+2026-06-29 23:51:41 - __main__ - INFO - Train: loss 0.1378 acc1 95.44%
+2026-06-29 23:51:41 - __main__ - INFO - Val:   loss 1.3441 acc1 67.09%
+2026-06-29 23:51:41 - __main__ - INFO - 
+Epoch 76/100 | lr 0.016144
+2026-06-29 23:53:27 - __main__ - INFO - Train: loss 0.0604 acc1 97.51%
+2026-06-29 23:53:27 - __main__ - INFO - Val:   loss 1.3646 acc1 68.43%
+2026-06-29 23:53:27 - __main__ - INFO - 
+Epoch 77/100 | lr 0.014947
+2026-06-29 23:55:13 - __main__ - INFO - Train: loss 0.0440 acc1 98.16%
+2026-06-29 23:55:13 - __main__ - INFO - Val:   loss 1.3243 acc1 69.11%
+2026-06-29 23:55:13 - __main__ - INFO - 
+Epoch 78/100 | lr 0.013787
+2026-06-29 23:56:59 - __main__ - INFO - Train: loss 0.0376 acc1 98.40%
+2026-06-29 23:56:59 - __main__ - INFO - Val:   loss 1.3475 acc1 68.07%
+2026-06-29 23:56:59 - __main__ - INFO - 
+Epoch 79/100 | lr 0.012668
+2026-06-29 23:58:45 - __main__ - INFO - Train: loss 0.0321 acc1 98.63%
+2026-06-29 23:58:45 - __main__ - INFO - Val:   loss 1.3258 acc1 68.60%
+2026-06-29 23:58:45 - __main__ - INFO - 
+Epoch 80/100 | lr 0.011589
+2026-06-30 00:00:31 - __main__ - INFO - Train: loss 0.0294 acc1 98.74%
+2026-06-30 00:00:31 - __main__ - INFO - Val:   loss 1.3106 acc1 68.77%
+2026-06-30 00:00:31 - __main__ - INFO - 
+Epoch 81/100 | lr 0.010552
+2026-06-30 00:02:17 - __main__ - INFO - Train: loss 0.0282 acc1 98.79%
+2026-06-30 00:02:17 - __main__ - INFO - Val:   loss 1.3501 acc1 68.53%
+2026-06-30 00:02:17 - __main__ - INFO - 
+Epoch 82/100 | lr 0.009558
+2026-06-30 00:04:03 - __main__ - INFO - Train: loss 0.0276 acc1 98.83%
+2026-06-30 00:04:03 - __main__ - INFO - Val:   loss 1.3252 acc1 68.79%
+2026-06-30 00:04:03 - __main__ - INFO - 
+Epoch 83/100 | lr 0.008609
+2026-06-30 00:05:49 - __main__ - INFO - Train: loss 0.0261 acc1 98.90%
+2026-06-30 00:05:49 - __main__ - INFO - Val:   loss 1.3145 acc1 69.28%
+2026-06-30 00:05:49 - __main__ - INFO - 
+Epoch 84/100 | lr 0.007704
+2026-06-30 00:07:35 - __main__ - INFO - Train: loss 0.0244 acc1 98.95%
+2026-06-30 00:07:35 - __main__ - INFO - Val:   loss 1.3257 acc1 68.85%
+2026-06-30 00:07:35 - __main__ - INFO - 
+Epoch 85/100 | lr 0.006846
+2026-06-30 00:09:21 - __main__ - INFO - Train: loss 0.0234 acc1 98.99%
+2026-06-30 00:09:21 - __main__ - INFO - Val:   loss 1.3147 acc1 68.76%
+2026-06-30 00:09:21 - __main__ - INFO - 
+Epoch 86/100 | lr 0.006036
+2026-06-30 00:11:07 - __main__ - INFO - Train: loss 0.0221 acc1 99.03%
+2026-06-30 00:11:07 - __main__ - INFO - Val:   loss 1.3190 acc1 69.30%
+2026-06-30 00:11:07 - __main__ - INFO - 
+Epoch 87/100 | lr 0.005273
+2026-06-30 00:12:53 - __main__ - INFO - Train: loss 0.0213 acc1 99.08%
+2026-06-30 00:12:53 - __main__ - INFO - Val:   loss 1.2867 acc1 68.85%
+2026-06-30 00:12:53 - __main__ - INFO - 
+Epoch 88/100 | lr 0.004559
+2026-06-30 00:14:39 - __main__ - INFO - Train: loss 0.0206 acc1 99.11%
+2026-06-30 00:14:39 - __main__ - INFO - Val:   loss 1.3050 acc1 68.51%
+2026-06-30 00:14:39 - __main__ - INFO - 
+Epoch 89/100 | lr 0.003895
+2026-06-30 00:16:25 - __main__ - INFO - Train: loss 0.0198 acc1 99.16%
+2026-06-30 00:16:25 - __main__ - INFO - Val:   loss 1.2790 acc1 68.97%
+2026-06-30 00:16:25 - __main__ - INFO - 
+Epoch 90/100 | lr 0.003281
+2026-06-30 00:18:11 - __main__ - INFO - Train: loss 0.0188 acc1 99.21%
+2026-06-30 00:18:11 - __main__ - INFO - Val:   loss 1.2996 acc1 68.94%
+2026-06-30 00:18:11 - __main__ - INFO - 
+Epoch 91/100 | lr 0.002719
+2026-06-30 00:19:57 - __main__ - INFO - Train: loss 0.0180 acc1 99.26%
+2026-06-30 00:19:57 - __main__ - INFO - Val:   loss 1.3057 acc1 68.77%
+2026-06-30 00:19:57 - __main__ - INFO - 
+Epoch 92/100 | lr 0.002208
+2026-06-30 00:21:43 - __main__ - INFO - Train: loss 0.0169 acc1 99.30%
+2026-06-30 00:21:43 - __main__ - INFO - Val:   loss 1.2985 acc1 69.00%
+2026-06-30 00:21:43 - __main__ - INFO - 
+Epoch 93/100 | lr 0.001749
+2026-06-30 00:23:28 - __main__ - INFO - Train: loss 0.0160 acc1 99.36%
+2026-06-30 00:23:28 - __main__ - INFO - Val:   loss 1.3035 acc1 69.13%
+2026-06-30 00:23:28 - __main__ - INFO - 
+Epoch 94/100 | lr 0.001344
+2026-06-30 00:25:14 - __main__ - INFO - Train: loss 0.0149 acc1 99.37%
+2026-06-30 00:25:14 - __main__ - INFO - Val:   loss 1.3082 acc1 68.97%
+2026-06-30 00:25:14 - __main__ - INFO - 
+Epoch 95/100 | lr 0.000991
+2026-06-30 00:27:01 - __main__ - INFO - Train: loss 0.0140 acc1 99.42%
+2026-06-30 00:27:01 - __main__ - INFO - Val:   loss 1.2948 acc1 69.11%
+2026-06-30 00:27:01 - __main__ - INFO - 
+Epoch 96/100 | lr 0.000692
+2026-06-30 00:28:46 - __main__ - INFO - Train: loss 0.0132 acc1 99.46%
+2026-06-30 00:28:46 - __main__ - INFO - Val:   loss 1.2953 acc1 69.11%
+2026-06-30 00:28:46 - __main__ - INFO - 
+Epoch 97/100 | lr 0.000447
+2026-06-30 00:30:32 - __main__ - INFO - Train: loss 0.0126 acc1 99.48%
+2026-06-30 00:30:32 - __main__ - INFO - Val:   loss 1.2948 acc1 69.05%
+2026-06-30 00:30:32 - __main__ - INFO - 
+Epoch 98/100 | lr 0.000256
+2026-06-30 00:32:18 - __main__ - INFO - Train: loss 0.0121 acc1 99.50%
+2026-06-30 00:32:18 - __main__ - INFO - Val:   loss 1.2998 acc1 68.69%
+2026-06-30 00:32:18 - __main__ - INFO - 
+Epoch 99/100 | lr 0.000119
+2026-06-30 00:34:04 - __main__ - INFO - Train: loss 0.0117 acc1 99.52%
+2026-06-30 00:34:04 - __main__ - INFO - Val:   loss 1.2957 acc1 69.08%
+2026-06-30 00:34:04 - __main__ - INFO - 
+Epoch 100/100 | lr 0.000037
+2026-06-30 00:35:50 - __main__ - INFO - Train: loss 0.0115 acc1 99.54%
+2026-06-30 00:35:50 - __main__ - INFO - Val:   loss 1.2951 acc1 68.91%
+2026-06-30 00:35:50 - __main__ - INFO - Loaded best checkpoint weights for final test evaluation.
+2026-06-30 00:35:52 - __main__ - INFO - 
+Best tracked (val): 69.46%
+2026-06-30 00:35:52 - __main__ - INFO - Final test: loss 1.3153 acc1 67.99%
+2026-06-30 00:35:52 - __main__ - INFO - Saved best model checkpoint to runs/drive_zip/resnet18/42/resnet18_seed42_cam_high_M8_area0.1/best_model.pt
