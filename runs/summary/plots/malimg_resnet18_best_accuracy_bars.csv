@@ -1,0 +1,8 @@
+dataset_folder,dataset_display,config_model,seed,condition_key,condition_label,run_name,best_eval_accuracy,final_eval_accuracy,best_epoch,best_acc_improvement_over_none
+malimg,MalImg,resnet18,42,none,none,resnet18_seed42_none,0.993208,0.990619,97.0,0.0
+malimg,MalImg,resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.991595,0.984463,43.0,-0.0016129999999999756
+malimg,MalImg,resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.991595,0.984463,36.0,-0.0016129999999999756
+malimg,MalImg,resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.993548,0.987053,21.0,0.00034000000000000696
+malimg,MalImg,resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.990619,0.987053,34.0,-0.0025889999999999525
+malimg,MalImg,resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.993845,0.990278,48.0,0.0006369999999999987
+malimg,MalImg,resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.993208,0.990619,64.0,0.0

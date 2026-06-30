@@ -1,0 +1,4 @@
+dataset_display,config_model,none,random_M4,random_M8,cam_low_M4,cam_high_M4,cam_low_M8,cam_high_M8
+CIFAR100,resnet18,0.620531,0.619968,0.623656,0.634984,0.581468,0.626413,0.579435
+MalImg,resnet18,0.993208,0.991595,0.991595,0.993548,0.990619,0.993845,0.993208
+RawMal-TF (drive_zip),resnet18,0.726386,0.702989,0.705044,0.700934,0.696606,0.702744,0.694618

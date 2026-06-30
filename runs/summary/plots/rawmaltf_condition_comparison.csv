@@ -1,0 +1,8 @@
+dataset_folder,dataset_display,config_model,seed,condition_key,condition_label,run_name,best_eval_accuracy,final_eval_accuracy,best_epoch,best_acc_improvement_over_none,best_acc_improvement_over_random
+drive_zip,RawMal-TF (drive_zip),resnet18,42,none,none,resnet18_seed42_none,0.726386,0.724711,59.0,0.0,
+drive_zip,RawMal-TF (drive_zip),resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.702989,0.700757,90.0,-0.023397,
+drive_zip,RawMal-TF (drive_zip),resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.705044,0.702812,87.0,-0.021341999999999972,
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.700934,0.694618,65.0,-0.02545200000000003,-0.002055000000000029
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.696606,0.69127,88.0,-0.02978000000000003,-0.0063830000000000275
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.702744,0.695802,72.0,-0.02364199999999994,-0.0022999999999999687
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.694618,0.689106,62.0,-0.03176800000000002,-0.010426000000000046

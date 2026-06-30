@@ -1,0 +1,22 @@
+dataset_folder,dataset_display,config_model,seed,condition_key,condition_label,run_name,final_eval_accuracy,best_eval_accuracy
+cifar100,CIFAR100,resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.575092,0.581468
+cifar100,CIFAR100,resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.564614,0.579435
+cifar100,CIFAR100,resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.631227,0.634984
+cifar100,CIFAR100,resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.614798,0.626413
+cifar100,CIFAR100,resnet18,42,none,none,resnet18_seed42_none,0.619508,0.620531
+cifar100,CIFAR100,resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.617647,0.619968
+cifar100,CIFAR100,resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.61335,0.623656
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.69127,0.696606
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.689106,0.694618
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.694618,0.700934
+drive_zip,RawMal-TF (drive_zip),resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.695802,0.702744
+drive_zip,RawMal-TF (drive_zip),resnet18,42,none,none,resnet18_seed42_none,0.724711,0.726386
+drive_zip,RawMal-TF (drive_zip),resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.700757,0.702989
+drive_zip,RawMal-TF (drive_zip),resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.702812,0.705044
+malimg,MalImg,resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.987053,0.990619
+malimg,MalImg,resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.990619,0.993208
+malimg,MalImg,resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.987053,0.993548
+malimg,MalImg,resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.990278,0.993845
+malimg,MalImg,resnet18,42,none,none,resnet18_seed42_none,0.990619,0.993208
+malimg,MalImg,resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.984463,0.991595
+malimg,MalImg,resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.984463,0.991595
