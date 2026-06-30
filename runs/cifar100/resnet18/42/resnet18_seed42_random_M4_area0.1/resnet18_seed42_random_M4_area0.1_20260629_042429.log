@@ -1,0 +1,422 @@
+2026-06-29 04:24:29 - __main__ - INFO - Run parameters: {"adamw_betas": [0.9, 0.999], "adamw_eps": 1e-08, "amp": true, "batch_size": 128, "cam_cache_dir": "", "cam_layer": "auto", "cam_precompute_only": false, "cam_precompute_windows": false, "cutout_area": 0.1, "cutout_m": 4, "cutout_mode": "random", "cutout_size": 0, "data_dir": "./data", "dataset": "cifar100", "debug_cam_timing": false, "deterministic_train_transforms": true, "epochs": 100, "gamma": 0.1, "grayscale": false, "include_regex": "", "label_smoothing": 0.0, "log_every": 100, "lr": 0.1, "milestones": "60,80", "min_lr": 1e-05, "model": "resnet18", "momentum": 0.9, "nesterov": false, "num_workers": 4, "optimizer": "sgd", "out_dir": "runs/cifar100/resnet18/42", "run_name": "resnet18_seed42_random_M4_area0.1", "saliency_candidate_percent": 10.0, "scheduler": "cosine", "seed": 42, "teacher_checkpoint": "", "teacher_model": "", "val_split": 0.1, "warmup_epochs": 5, "weight_decay": 0.0005}
+2026-06-29 04:24:29 - __main__ - INFO - device: cuda | cuda: True | gpu: NVIDIA A100-SXM4-40GB
+2026-06-29 04:24:33 - __main__ - INFO - Model: resnet18 | Dataset: cifar100 | Classes: 100 | Optimizer: sgd
+2026-06-29 04:24:33 - __main__ - INFO - Cutout enabled: mode=random m=4 size=None area=0.1
+2026-06-29 04:24:33 - __main__ - INFO - 
+Epoch 1/100 | lr 0.000100
+2026-06-29 04:25:02 - __main__ - INFO - Train: loss 4.4862 acc1 3.55%
+2026-06-29 04:25:02 - __main__ - INFO - Val:   loss 4.3154 acc1 5.45%
+2026-06-29 04:25:02 - __main__ - INFO - saved best: 5.45%
+2026-06-29 04:25:02 - __main__ - INFO - 
+Epoch 2/100 | lr 0.020080
+2026-06-29 04:25:29 - __main__ - INFO - Train: loss 2.5335 acc1 35.28%
+2026-06-29 04:25:29 - __main__ - INFO - Val:   loss 2.2785 acc1 42.24%
+2026-06-29 04:25:29 - __main__ - INFO - saved best: 42.24%
+2026-06-29 04:25:29 - __main__ - INFO - 
+Epoch 3/100 | lr 0.040060
+2026-06-29 04:25:56 - __main__ - INFO - Train: loss 1.2808 acc1 63.84%
+2026-06-29 04:25:56 - __main__ - INFO - Val:   loss 2.0141 acc1 50.56%
+2026-06-29 04:25:56 - __main__ - INFO - saved best: 50.56%
+2026-06-29 04:25:56 - __main__ - INFO - 
+Epoch 4/100 | lr 0.060040
+2026-06-29 04:26:23 - __main__ - INFO - Train: loss 0.7806 acc1 77.06%
+2026-06-29 04:26:23 - __main__ - INFO - Val:   loss 2.1627 acc1 49.22%
+2026-06-29 04:26:23 - __main__ - INFO - 
+Epoch 5/100 | lr 0.080020
+2026-06-29 04:26:50 - __main__ - INFO - Train: loss 0.7345 acc1 78.24%
+2026-06-29 04:26:50 - __main__ - INFO - Val:   loss 2.2940 acc1 47.28%
+2026-06-29 04:26:50 - __main__ - INFO - 
+Epoch 6/100 | lr 0.100000
+2026-06-29 04:27:17 - __main__ - INFO - Train: loss 0.7612 acc1 77.59%
+2026-06-29 04:27:17 - __main__ - INFO - Val:   loss 2.3972 acc1 44.41%
+2026-06-29 04:27:17 - __main__ - INFO - 
+Epoch 7/100 | lr 0.099973
+2026-06-29 04:27:43 - __main__ - INFO - Train: loss 0.6636 acc1 80.55%
+2026-06-29 04:27:43 - __main__ - INFO - Val:   loss 2.1523 acc1 50.12%
+2026-06-29 04:27:43 - __main__ - INFO - 
+Epoch 8/100 | lr 0.099891
+2026-06-29 04:28:11 - __main__ - INFO - Train: loss 0.6211 acc1 81.70%
+2026-06-29 04:28:11 - __main__ - INFO - Val:   loss 2.3256 acc1 47.40%
+2026-06-29 04:28:11 - __main__ - INFO - 
+Epoch 9/100 | lr 0.099754
+2026-06-29 04:28:39 - __main__ - INFO - Train: loss 0.5961 acc1 82.44%
+2026-06-29 04:28:39 - __main__ - INFO - Val:   loss 2.6208 acc1 45.39%
+2026-06-29 04:28:39 - __main__ - INFO - 
+Epoch 10/100 | lr 0.099563
+2026-06-29 04:29:07 - __main__ - INFO - Train: loss 0.5783 acc1 83.03%
+2026-06-29 04:29:07 - __main__ - INFO - Val:   loss 2.4493 acc1 46.72%
+2026-06-29 04:29:07 - __main__ - INFO - 
+Epoch 11/100 | lr 0.099318
+2026-06-29 04:29:33 - __main__ - INFO - Train: loss 0.5671 acc1 83.39%
+2026-06-29 04:29:33 - __main__ - INFO - Val:   loss 2.4592 acc1 47.01%
+2026-06-29 04:29:33 - __main__ - INFO - 
+Epoch 12/100 | lr 0.099019
+2026-06-29 04:30:00 - __main__ - INFO - Train: loss 0.5565 acc1 83.69%
+2026-06-29 04:30:00 - __main__ - INFO - Val:   loss 2.3075 acc1 48.22%
+2026-06-29 04:30:00 - __main__ - INFO - 
+Epoch 13/100 | lr 0.098666
+2026-06-29 04:30:28 - __main__ - INFO - Train: loss 0.5392 acc1 84.17%
+2026-06-29 04:30:28 - __main__ - INFO - Val:   loss 2.4975 acc1 47.36%
+2026-06-29 04:30:28 - __main__ - INFO - 
+Epoch 14/100 | lr 0.098261
+2026-06-29 04:30:55 - __main__ - INFO - Train: loss 0.5370 acc1 84.31%
+2026-06-29 04:30:55 - __main__ - INFO - Val:   loss 2.4033 acc1 47.07%
+2026-06-29 04:30:55 - __main__ - INFO - 
+Epoch 15/100 | lr 0.097802
+2026-06-29 04:31:21 - __main__ - INFO - Train: loss 0.5297 acc1 84.53%
+2026-06-29 04:31:21 - __main__ - INFO - Val:   loss 2.4101 acc1 46.98%
+2026-06-29 04:31:21 - __main__ - INFO - 
+Epoch 16/100 | lr 0.097291
+2026-06-29 04:31:49 - __main__ - INFO - Train: loss 0.5180 acc1 84.74%
+2026-06-29 04:31:49 - __main__ - INFO - Val:   loss 2.4646 acc1 46.82%
+2026-06-29 04:31:49 - __main__ - INFO - 
+Epoch 17/100 | lr 0.096729
+2026-06-29 04:32:18 - __main__ - INFO - Train: loss 0.5109 acc1 85.07%
+2026-06-29 04:32:18 - __main__ - INFO - Val:   loss 2.4786 acc1 46.98%
+2026-06-29 04:32:18 - __main__ - INFO - 
+Epoch 18/100 | lr 0.096115
+2026-06-29 04:32:46 - __main__ - INFO - Train: loss 0.5048 acc1 85.34%
+2026-06-29 04:32:46 - __main__ - INFO - Val:   loss 2.5080 acc1 46.52%
+2026-06-29 04:32:46 - __main__ - INFO - 
+Epoch 19/100 | lr 0.095451
+2026-06-29 04:33:13 - __main__ - INFO - Train: loss 0.5021 acc1 85.26%
+2026-06-29 04:33:13 - __main__ - INFO - Val:   loss 2.2959 acc1 49.59%
+2026-06-29 04:33:13 - __main__ - INFO - 
+Epoch 20/100 | lr 0.094737
+2026-06-29 04:33:41 - __main__ - INFO - Train: loss 0.4932 acc1 85.56%
+2026-06-29 04:33:41 - __main__ - INFO - Val:   loss 2.2256 acc1 50.00%
+2026-06-29 04:33:41 - __main__ - INFO - 
+Epoch 21/100 | lr 0.093974
+2026-06-29 04:34:08 - __main__ - INFO - Train: loss 0.4887 acc1 85.69%
+2026-06-29 04:34:08 - __main__ - INFO - Val:   loss 2.4863 acc1 46.73%
+2026-06-29 04:34:08 - __main__ - INFO - 
+Epoch 22/100 | lr 0.093164
+2026-06-29 04:34:35 - __main__ - INFO - Train: loss 0.4765 acc1 86.05%
+2026-06-29 04:34:35 - __main__ - INFO - Val:   loss 2.5398 acc1 46.17%
+2026-06-29 04:34:35 - __main__ - INFO - 
+Epoch 23/100 | lr 0.092306
+2026-06-29 04:35:03 - __main__ - INFO - Train: loss 0.4762 acc1 86.09%
+2026-06-29 04:35:03 - __main__ - INFO - Val:   loss 2.3962 acc1 47.61%
+2026-06-29 04:35:03 - __main__ - INFO - 
+Epoch 24/100 | lr 0.091401
+2026-06-29 04:35:31 - __main__ - INFO - Train: loss 0.4686 acc1 86.26%
+2026-06-29 04:35:31 - __main__ - INFO - Val:   loss 2.5373 acc1 46.14%
+2026-06-29 04:35:31 - __main__ - INFO - 
+Epoch 25/100 | lr 0.090452
+2026-06-29 04:36:00 - __main__ - INFO - Train: loss 0.4582 acc1 86.59%
+2026-06-29 04:36:00 - __main__ - INFO - Val:   loss 2.3935 acc1 47.22%
+2026-06-29 04:36:00 - __main__ - INFO - 
+Epoch 26/100 | lr 0.089458
+2026-06-29 04:36:29 - __main__ - INFO - Train: loss 0.4535 acc1 86.72%
+2026-06-29 04:36:29 - __main__ - INFO - Val:   loss 2.3912 acc1 49.19%
+2026-06-29 04:36:29 - __main__ - INFO - 
+Epoch 27/100 | lr 0.088421
+2026-06-29 04:36:57 - __main__ - INFO - Train: loss 0.4449 acc1 87.01%
+2026-06-29 04:36:57 - __main__ - INFO - Val:   loss 2.5496 acc1 46.78%
+2026-06-29 04:36:57 - __main__ - INFO - 
+Epoch 28/100 | lr 0.087342
+2026-06-29 04:37:25 - __main__ - INFO - Train: loss 0.4372 acc1 87.21%
+2026-06-29 04:37:25 - __main__ - INFO - Val:   loss 2.3225 acc1 48.80%
+2026-06-29 04:37:25 - __main__ - INFO - 
+Epoch 29/100 | lr 0.086223
+2026-06-29 04:37:54 - __main__ - INFO - Train: loss 0.4312 acc1 87.40%
+2026-06-29 04:37:54 - __main__ - INFO - Val:   loss 2.4928 acc1 47.73%
+2026-06-29 04:37:54 - __main__ - INFO - 
+Epoch 30/100 | lr 0.085063
+2026-06-29 04:38:22 - __main__ - INFO - Train: loss 0.4210 acc1 87.68%
+2026-06-29 04:38:22 - __main__ - INFO - Val:   loss 2.3683 acc1 49.23%
+2026-06-29 04:38:22 - __main__ - INFO - 
+Epoch 31/100 | lr 0.083866
+2026-06-29 04:38:50 - __main__ - INFO - Train: loss 0.4150 acc1 87.84%
+2026-06-29 04:38:50 - __main__ - INFO - Val:   loss 2.4632 acc1 48.51%
+2026-06-29 04:38:50 - __main__ - INFO - 
+Epoch 32/100 | lr 0.082631
+2026-06-29 04:39:18 - __main__ - INFO - Train: loss 0.4083 acc1 88.06%
+2026-06-29 04:39:18 - __main__ - INFO - Val:   loss 2.4843 acc1 47.84%
+2026-06-29 04:39:18 - __main__ - INFO - 
+Epoch 33/100 | lr 0.081361
+2026-06-29 04:39:45 - __main__ - INFO - Train: loss 0.3955 acc1 88.38%
+2026-06-29 04:39:45 - __main__ - INFO - Val:   loss 2.4906 acc1 47.69%
+2026-06-29 04:39:45 - __main__ - INFO - 
+Epoch 34/100 | lr 0.080056
+2026-06-29 04:40:12 - __main__ - INFO - Train: loss 0.3880 acc1 88.61%
+2026-06-29 04:40:12 - __main__ - INFO - Val:   loss 2.4218 acc1 48.40%
+2026-06-29 04:40:12 - __main__ - INFO - 
+Epoch 35/100 | lr 0.078719
+2026-06-29 04:40:40 - __main__ - INFO - Train: loss 0.3786 acc1 88.95%
+2026-06-29 04:40:40 - __main__ - INFO - Val:   loss 2.3633 acc1 48.62%
+2026-06-29 04:40:40 - __main__ - INFO - 
+Epoch 36/100 | lr 0.077350
+2026-06-29 04:41:08 - __main__ - INFO - Train: loss 0.3690 acc1 89.21%
+2026-06-29 04:41:08 - __main__ - INFO - Val:   loss 2.4791 acc1 48.47%
+2026-06-29 04:41:08 - __main__ - INFO - 
+Epoch 37/100 | lr 0.075951
+2026-06-29 04:41:35 - __main__ - INFO - Train: loss 0.3566 acc1 89.58%
+2026-06-29 04:41:35 - __main__ - INFO - Val:   loss 2.3042 acc1 50.80%
+2026-06-29 04:41:35 - __main__ - INFO - saved best: 50.80%
+2026-06-29 04:41:35 - __main__ - INFO - 
+Epoch 38/100 | lr 0.074524
+2026-06-29 04:42:03 - __main__ - INFO - Train: loss 0.3501 acc1 89.68%
+2026-06-29 04:42:03 - __main__ - INFO - Val:   loss 2.4750 acc1 47.78%
+2026-06-29 04:42:03 - __main__ - INFO - 
+Epoch 39/100 | lr 0.073070
+2026-06-29 04:42:31 - __main__ - INFO - Train: loss 0.3416 acc1 90.03%
+2026-06-29 04:42:31 - __main__ - INFO - Val:   loss 2.2627 acc1 50.60%
+2026-06-29 04:42:31 - __main__ - INFO - 
+Epoch 40/100 | lr 0.071591
+2026-06-29 04:42:58 - __main__ - INFO - Train: loss 0.3286 acc1 90.45%
+2026-06-29 04:42:58 - __main__ - INFO - Val:   loss 2.4500 acc1 48.17%
+2026-06-29 04:42:58 - __main__ - INFO - 
+Epoch 41/100 | lr 0.070088
+2026-06-29 04:43:26 - __main__ - INFO - Train: loss 0.3276 acc1 90.43%
+2026-06-29 04:43:26 - __main__ - INFO - Val:   loss 2.3378 acc1 49.74%
+2026-06-29 04:43:26 - __main__ - INFO - 
+Epoch 42/100 | lr 0.068563
+2026-06-29 04:43:53 - __main__ - INFO - Train: loss 0.3084 acc1 91.08%
+2026-06-29 04:43:53 - __main__ - INFO - Val:   loss 2.5287 acc1 48.37%
+2026-06-29 04:43:53 - __main__ - INFO - 
+Epoch 43/100 | lr 0.067018
+2026-06-29 04:44:21 - __main__ - INFO - Train: loss 0.3068 acc1 91.12%
+2026-06-29 04:44:21 - __main__ - INFO - Val:   loss 2.2913 acc1 50.19%
+2026-06-29 04:44:21 - __main__ - INFO - 
+Epoch 44/100 | lr 0.065454
+2026-06-29 04:44:48 - __main__ - INFO - Train: loss 0.2918 acc1 91.57%
+2026-06-29 04:44:48 - __main__ - INFO - Val:   loss 2.3122 acc1 51.42%
+2026-06-29 04:44:48 - __main__ - INFO - saved best: 51.42%
+2026-06-29 04:44:48 - __main__ - INFO - 
+Epoch 45/100 | lr 0.063874
+2026-06-29 04:45:16 - __main__ - INFO - Train: loss 0.2855 acc1 91.71%
+2026-06-29 04:45:16 - __main__ - INFO - Val:   loss 2.3131 acc1 50.27%
+2026-06-29 04:45:16 - __main__ - INFO - 
+Epoch 46/100 | lr 0.062278
+2026-06-29 04:45:44 - __main__ - INFO - Train: loss 0.2715 acc1 92.14%
+2026-06-29 04:45:44 - __main__ - INFO - Val:   loss 2.4558 acc1 48.40%
+2026-06-29 04:45:44 - __main__ - INFO - 
+Epoch 47/100 | lr 0.060669
+2026-06-29 04:46:12 - __main__ - INFO - Train: loss 0.2611 acc1 92.45%
+2026-06-29 04:46:12 - __main__ - INFO - Val:   loss 2.5167 acc1 49.13%
+2026-06-29 04:46:12 - __main__ - INFO - 
+Epoch 48/100 | lr 0.059048
+2026-06-29 04:46:40 - __main__ - INFO - Train: loss 0.2579 acc1 92.56%
+2026-06-29 04:46:40 - __main__ - INFO - Val:   loss 2.3145 acc1 51.14%
+2026-06-29 04:46:40 - __main__ - INFO - 
+Epoch 49/100 | lr 0.057417
+2026-06-29 04:47:07 - __main__ - INFO - Train: loss 0.2439 acc1 92.96%
+2026-06-29 04:47:07 - __main__ - INFO - Val:   loss 2.4278 acc1 48.95%
+2026-06-29 04:47:07 - __main__ - INFO - 
+Epoch 50/100 | lr 0.055779
+2026-06-29 04:47:33 - __main__ - INFO - Train: loss 0.2340 acc1 93.33%
+2026-06-29 04:47:33 - __main__ - INFO - Val:   loss 2.4173 acc1 49.40%
+2026-06-29 04:47:33 - __main__ - INFO - 
+Epoch 51/100 | lr 0.054134
+2026-06-29 04:48:00 - __main__ - INFO - Train: loss 0.2160 acc1 93.87%
+2026-06-29 04:48:00 - __main__ - INFO - Val:   loss 2.3001 acc1 49.76%
+2026-06-29 04:48:00 - __main__ - INFO - 
+Epoch 52/100 | lr 0.052484
+2026-06-29 04:48:27 - __main__ - INFO - Train: loss 0.2120 acc1 93.92%
+2026-06-29 04:48:27 - __main__ - INFO - Val:   loss 2.3292 acc1 49.69%
+2026-06-29 04:48:27 - __main__ - INFO - 
+Epoch 53/100 | lr 0.050832
+2026-06-29 04:48:54 - __main__ - INFO - Train: loss 0.2043 acc1 94.26%
+2026-06-29 04:48:54 - __main__ - INFO - Val:   loss 2.4132 acc1 49.51%
+2026-06-29 04:48:54 - __main__ - INFO - 
+Epoch 54/100 | lr 0.049178
+2026-06-29 04:49:21 - __main__ - INFO - Train: loss 0.1931 acc1 94.58%
+2026-06-29 04:49:21 - __main__ - INFO - Val:   loss 2.2559 acc1 51.62%
+2026-06-29 04:49:21 - __main__ - INFO - saved best: 51.62%
+2026-06-29 04:49:21 - __main__ - INFO - 
+Epoch 55/100 | lr 0.047526
+2026-06-29 04:49:48 - __main__ - INFO - Train: loss 0.1843 acc1 94.80%
+2026-06-29 04:49:48 - __main__ - INFO - Val:   loss 2.3696 acc1 49.77%
+2026-06-29 04:49:48 - __main__ - INFO - 
+Epoch 56/100 | lr 0.045876
+2026-06-29 04:50:15 - __main__ - INFO - Train: loss 0.1684 acc1 95.38%
+2026-06-29 04:50:15 - __main__ - INFO - Val:   loss 2.3969 acc1 47.94%
+2026-06-29 04:50:15 - __main__ - INFO - 
+Epoch 57/100 | lr 0.044231
+2026-06-29 04:50:42 - __main__ - INFO - Train: loss 0.1654 acc1 95.45%
+2026-06-29 04:50:42 - __main__ - INFO - Val:   loss 2.2641 acc1 50.08%
+2026-06-29 04:50:42 - __main__ - INFO - 
+Epoch 58/100 | lr 0.042593
+2026-06-29 04:51:09 - __main__ - INFO - Train: loss 0.1558 acc1 95.75%
+2026-06-29 04:51:09 - __main__ - INFO - Val:   loss 2.3921 acc1 49.80%
+2026-06-29 04:51:09 - __main__ - INFO - 
+Epoch 59/100 | lr 0.040962
+2026-06-29 04:51:36 - __main__ - INFO - Train: loss 0.1469 acc1 96.02%
+2026-06-29 04:51:36 - __main__ - INFO - Val:   loss 2.3391 acc1 49.52%
+2026-06-29 04:51:36 - __main__ - INFO - 
+Epoch 60/100 | lr 0.039341
+2026-06-29 04:52:02 - __main__ - INFO - Train: loss 0.1311 acc1 96.50%
+2026-06-29 04:52:02 - __main__ - INFO - Val:   loss 2.4157 acc1 50.23%
+2026-06-29 04:52:02 - __main__ - INFO - 
+Epoch 61/100 | lr 0.037732
+2026-06-29 04:52:29 - __main__ - INFO - Train: loss 0.1361 acc1 96.33%
+2026-06-29 04:52:29 - __main__ - INFO - Val:   loss 2.3038 acc1 49.97%
+2026-06-29 04:52:29 - __main__ - INFO - 
+Epoch 62/100 | lr 0.036136
+2026-06-29 04:52:55 - __main__ - INFO - Train: loss 0.1135 acc1 97.09%
+2026-06-29 04:52:55 - __main__ - INFO - Val:   loss 2.2698 acc1 50.98%
+2026-06-29 04:52:55 - __main__ - INFO - 
+Epoch 63/100 | lr 0.034556
+2026-06-29 04:53:23 - __main__ - INFO - Train: loss 0.1115 acc1 97.14%
+2026-06-29 04:53:23 - __main__ - INFO - Val:   loss 2.2296 acc1 51.00%
+2026-06-29 04:53:23 - __main__ - INFO - 
+Epoch 64/100 | lr 0.032992
+2026-06-29 04:53:50 - __main__ - INFO - Train: loss 0.0994 acc1 97.55%
+2026-06-29 04:53:50 - __main__ - INFO - Val:   loss 2.3664 acc1 49.05%
+2026-06-29 04:53:50 - __main__ - INFO - 
+Epoch 65/100 | lr 0.031447
+2026-06-29 04:54:17 - __main__ - INFO - Train: loss 0.1094 acc1 97.23%
+2026-06-29 04:54:17 - __main__ - INFO - Val:   loss 2.2609 acc1 51.43%
+2026-06-29 04:54:17 - __main__ - INFO - 
+Epoch 66/100 | lr 0.029922
+2026-06-29 04:54:45 - __main__ - INFO - Train: loss 0.0766 acc1 98.20%
+2026-06-29 04:54:45 - __main__ - INFO - Val:   loss 1.9991 acc1 54.90%
+2026-06-29 04:54:45 - __main__ - INFO - saved best: 54.90%
+2026-06-29 04:54:45 - __main__ - INFO - 
+Epoch 67/100 | lr 0.028419
+2026-06-29 04:55:12 - __main__ - INFO - Train: loss 0.0408 acc1 99.28%
+2026-06-29 04:55:12 - __main__ - INFO - Val:   loss 2.0977 acc1 53.62%
+2026-06-29 04:55:12 - __main__ - INFO - 
+Epoch 68/100 | lr 0.026940
+2026-06-29 04:55:39 - __main__ - INFO - Train: loss 0.1545 acc1 96.03%
+2026-06-29 04:55:39 - __main__ - INFO - Val:   loss 2.1922 acc1 52.02%
+2026-06-29 04:55:39 - __main__ - INFO - 
+Epoch 69/100 | lr 0.025486
+2026-06-29 04:56:07 - __main__ - INFO - Train: loss 0.0603 acc1 98.60%
+2026-06-29 04:56:07 - __main__ - INFO - Val:   loss 1.7719 acc1 58.37%
+2026-06-29 04:56:07 - __main__ - INFO - saved best: 58.37%
+2026-06-29 04:56:07 - __main__ - INFO - 
+Epoch 70/100 | lr 0.024059
+2026-06-29 04:56:35 - __main__ - INFO - Train: loss 0.0100 acc1 99.94%
+2026-06-29 04:56:35 - __main__ - INFO - Val:   loss 1.6517 acc1 61.05%
+2026-06-29 04:56:35 - __main__ - INFO - saved best: 61.05%
+2026-06-29 04:56:35 - __main__ - INFO - 
+Epoch 71/100 | lr 0.022660
+2026-06-29 04:57:02 - __main__ - INFO - Train: loss 0.0086 acc1 99.97%
+2026-06-29 04:57:02 - __main__ - INFO - Val:   loss 1.6599 acc1 61.45%
+2026-06-29 04:57:02 - __main__ - INFO - saved best: 61.45%
+2026-06-29 04:57:02 - __main__ - INFO - 
+Epoch 72/100 | lr 0.021291
+2026-06-29 04:57:29 - __main__ - INFO - Train: loss 0.0093 acc1 99.98%
+2026-06-29 04:57:29 - __main__ - INFO - Val:   loss 1.6876 acc1 61.22%
+2026-06-29 04:57:29 - __main__ - INFO - 
+Epoch 73/100 | lr 0.019954
+2026-06-29 04:57:56 - __main__ - INFO - Train: loss 0.2612 acc1 93.28%
+2026-06-29 04:57:56 - __main__ - INFO - Val:   loss 2.1826 acc1 49.21%
+2026-06-29 04:57:56 - __main__ - INFO - 
+Epoch 74/100 | lr 0.018649
+2026-06-29 04:58:23 - __main__ - INFO - Train: loss 0.1434 acc1 96.32%
+2026-06-29 04:58:23 - __main__ - INFO - Val:   loss 1.8654 acc1 56.95%
+2026-06-29 04:58:23 - __main__ - INFO - 
+Epoch 75/100 | lr 0.017379
+2026-06-29 04:58:49 - __main__ - INFO - Train: loss 0.0143 acc1 99.84%
+2026-06-29 04:58:49 - __main__ - INFO - Val:   loss 1.6611 acc1 60.11%
+2026-06-29 04:58:49 - __main__ - INFO - 
+Epoch 76/100 | lr 0.016144
+2026-06-29 04:59:17 - __main__ - INFO - Train: loss 0.0069 acc1 99.98%
+2026-06-29 04:59:17 - __main__ - INFO - Val:   loss 1.6251 acc1 61.88%
+2026-06-29 04:59:17 - __main__ - INFO - saved best: 61.88%
+2026-06-29 04:59:17 - __main__ - INFO - 
+Epoch 77/100 | lr 0.014947
+2026-06-29 04:59:44 - __main__ - INFO - Train: loss 0.0075 acc1 99.98%
+2026-06-29 04:59:44 - __main__ - INFO - Val:   loss 1.6710 acc1 61.49%
+2026-06-29 04:59:44 - __main__ - INFO - 
+Epoch 78/100 | lr 0.013787
+2026-06-29 05:00:11 - __main__ - INFO - Train: loss 0.0081 acc1 99.98%
+2026-06-29 05:00:11 - __main__ - INFO - Val:   loss 1.7020 acc1 61.71%
+2026-06-29 05:00:11 - __main__ - INFO - 
+Epoch 79/100 | lr 0.012668
+2026-06-29 05:00:38 - __main__ - INFO - Train: loss 0.0085 acc1 99.99%
+2026-06-29 05:00:38 - __main__ - INFO - Val:   loss 1.7208 acc1 61.95%
+2026-06-29 05:00:38 - __main__ - INFO - saved best: 61.95%
+2026-06-29 05:00:38 - __main__ - INFO - 
+Epoch 80/100 | lr 0.011589
+2026-06-29 05:01:05 - __main__ - INFO - Train: loss 0.0084 acc1 99.98%
+2026-06-29 05:01:05 - __main__ - INFO - Val:   loss 1.7415 acc1 61.67%
+2026-06-29 05:01:05 - __main__ - INFO - 
+Epoch 81/100 | lr 0.010552
+2026-06-29 05:01:32 - __main__ - INFO - Train: loss 0.0080 acc1 99.99%
+2026-06-29 05:01:32 - __main__ - INFO - Val:   loss 1.7773 acc1 61.53%
+2026-06-29 05:01:32 - __main__ - INFO - 
+Epoch 82/100 | lr 0.009558
+2026-06-29 05:01:59 - __main__ - INFO - Train: loss 0.0083 acc1 99.99%
+2026-06-29 05:01:59 - __main__ - INFO - Val:   loss 1.7720 acc1 62.00%
+2026-06-29 05:01:59 - __main__ - INFO - saved best: 62.00%
+2026-06-29 05:01:59 - __main__ - INFO - 
+Epoch 83/100 | lr 0.008609
+2026-06-29 05:02:27 - __main__ - INFO - Train: loss 0.0081 acc1 99.99%
+2026-06-29 05:02:27 - __main__ - INFO - Val:   loss 1.7874 acc1 61.29%
+2026-06-29 05:02:27 - __main__ - INFO - 
+Epoch 84/100 | lr 0.007704
+2026-06-29 05:02:53 - __main__ - INFO - Train: loss 0.0084 acc1 99.99%
+2026-06-29 05:02:53 - __main__ - INFO - Val:   loss 1.7891 acc1 61.66%
+2026-06-29 05:02:53 - __main__ - INFO - 
+Epoch 85/100 | lr 0.006846
+2026-06-29 05:03:21 - __main__ - INFO - Train: loss 0.0077 acc1 99.99%
+2026-06-29 05:03:21 - __main__ - INFO - Val:   loss 1.8013 acc1 61.33%
+2026-06-29 05:03:21 - __main__ - INFO - 
+Epoch 86/100 | lr 0.006036
+2026-06-29 05:03:47 - __main__ - INFO - Train: loss 0.0072 acc1 99.99%
+2026-06-29 05:03:47 - __main__ - INFO - Val:   loss 1.8182 acc1 61.27%
+2026-06-29 05:03:47 - __main__ - INFO - 
+Epoch 87/100 | lr 0.005273
+2026-06-29 05:04:14 - __main__ - INFO - Train: loss 0.0072 acc1 99.99%
+2026-06-29 05:04:14 - __main__ - INFO - Val:   loss 1.8220 acc1 61.16%
+2026-06-29 05:04:14 - __main__ - INFO - 
+Epoch 88/100 | lr 0.004559
+2026-06-29 05:04:41 - __main__ - INFO - Train: loss 0.0069 acc1 99.99%
+2026-06-29 05:04:41 - __main__ - INFO - Val:   loss 1.8410 acc1 61.43%
+2026-06-29 05:04:41 - __main__ - INFO - 
+Epoch 89/100 | lr 0.003895
+2026-06-29 05:05:08 - __main__ - INFO - Train: loss 0.0068 acc1 99.99%
+2026-06-29 05:05:08 - __main__ - INFO - Val:   loss 1.8483 acc1 61.59%
+2026-06-29 05:05:08 - __main__ - INFO - 
+Epoch 90/100 | lr 0.003281
+2026-06-29 05:05:36 - __main__ - INFO - Train: loss 0.0067 acc1 99.99%
+2026-06-29 05:05:36 - __main__ - INFO - Val:   loss 1.8545 acc1 61.71%
+2026-06-29 05:05:36 - __main__ - INFO - 
+Epoch 91/100 | lr 0.002719
+2026-06-29 05:06:03 - __main__ - INFO - Train: loss 0.0066 acc1 100.00%
+2026-06-29 05:06:03 - __main__ - INFO - Val:   loss 1.8706 acc1 61.34%
+2026-06-29 05:06:03 - __main__ - INFO - 
+Epoch 92/100 | lr 0.002208
+2026-06-29 05:06:30 - __main__ - INFO - Train: loss 0.0065 acc1 99.99%
+2026-06-29 05:06:30 - __main__ - INFO - Val:   loss 1.8766 acc1 61.45%
+2026-06-29 05:06:30 - __main__ - INFO - 
+Epoch 93/100 | lr 0.001749
+2026-06-29 05:06:57 - __main__ - INFO - Train: loss 0.0065 acc1 100.00%
+2026-06-29 05:06:57 - __main__ - INFO - Val:   loss 1.8904 acc1 61.75%
+2026-06-29 05:06:57 - __main__ - INFO - 
+Epoch 94/100 | lr 0.001344
+2026-06-29 05:07:25 - __main__ - INFO - Train: loss 0.0064 acc1 100.00%
+2026-06-29 05:07:25 - __main__ - INFO - Val:   loss 1.8832 acc1 61.65%
+2026-06-29 05:07:25 - __main__ - INFO - 
+Epoch 95/100 | lr 0.000991
+2026-06-29 05:07:52 - __main__ - INFO - Train: loss 0.0064 acc1 100.00%
+2026-06-29 05:07:52 - __main__ - INFO - Val:   loss 1.8938 acc1 61.66%
+2026-06-29 05:07:52 - __main__ - INFO - 
+Epoch 96/100 | lr 0.000692
+2026-06-29 05:08:20 - __main__ - INFO - Train: loss 0.0064 acc1 100.00%
+2026-06-29 05:08:20 - __main__ - INFO - Val:   loss 1.8990 acc1 61.82%
+2026-06-29 05:08:20 - __main__ - INFO - 
+Epoch 97/100 | lr 0.000447
+2026-06-29 05:08:47 - __main__ - INFO - Train: loss 0.0063 acc1 100.00%
+2026-06-29 05:08:47 - __main__ - INFO - Val:   loss 1.9025 acc1 61.69%
+2026-06-29 05:08:47 - __main__ - INFO - 
+Epoch 98/100 | lr 0.000256
+2026-06-29 05:09:14 - __main__ - INFO - Train: loss 0.0063 acc1 100.00%
+2026-06-29 05:09:14 - __main__ - INFO - Val:   loss 1.8977 acc1 61.65%
+2026-06-29 05:09:14 - __main__ - INFO - 
+Epoch 99/100 | lr 0.000119
+2026-06-29 05:09:42 - __main__ - INFO - Train: loss 0.0063 acc1 100.00%
+2026-06-29 05:09:42 - __main__ - INFO - Val:   loss 1.9026 acc1 61.53%
+2026-06-29 05:09:42 - __main__ - INFO - 
+Epoch 100/100 | lr 0.000037
+2026-06-29 05:10:09 - __main__ - INFO - Train: loss 0.0062 acc1 100.00%
+2026-06-29 05:10:09 - __main__ - INFO - Val:   loss 1.9024 acc1 61.76%
+2026-06-29 05:10:09 - __main__ - INFO - Loaded best checkpoint weights for final test evaluation.
+2026-06-29 05:10:10 - __main__ - INFO - 
+Best tracked (val): 62.00%
+2026-06-29 05:10:10 - __main__ - INFO - Final test: loss 1.7450 acc1 62.10%
+2026-06-29 05:10:10 - __main__ - INFO - Saved best model checkpoint to runs/cifar100/resnet18/42/resnet18_seed42_random_M4_area0.1/best_model.pt
