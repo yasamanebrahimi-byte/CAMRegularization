@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1784231615998915434,
+    "mtime_ns": 1784455338669278860,
     "path": "/content/CAMRegularization/runs/cifar100/resnet18/43/0.1/resnet18_seed43_none/best_model.pt",
     "sha256": "e4587d96affb17a9cf1f36832aa738bdfd2b6d67f2d7fa5ae73b45b272741e2e",
     "size": 44961547
