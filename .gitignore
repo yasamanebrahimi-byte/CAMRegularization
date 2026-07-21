@@ -1,0 +1,9 @@
+best_model.pt
+*.pth
+*.ckpt
+
+data/
+cam_cache/
+**/cam_cache/
+**pycache**/
+*.log
