@@ -1,9 +1,9 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1782689369354946907,
-    "path": "/content/CAMRegularization/runs/drive_zip/resnet18/42/resnet18_seed42_none/best_model.pt",
-    "sha256": "c9d7d246c12498633dac842270610de34985ec187753f97d92b9769773ee85ba",
-    "size": 44821835
+    "mtime_ns": 1784609536237151005,
+    "path": "/content/CAMRegularization/runs/drive_zip/resnet18/42/0.1/resnet18_seed42_none/best_model.pt",
+    "sha256": "e9cefd3cfd41081f980201330651809706ea0272d091cde8203a211e26aad6cd",
+    "size": 44821963
   },
   "adamw_betas": [
     0.9,
@@ -38,15 +38,15 @@
   "nesterov": false,
   "num_workers": 4,
   "optimizer": "sgd",
-  "out_dir": "runs/drive_zip/resnet18/42",
+  "out_dir": "runs/drive_zip/resnet18/42/0.1",
   "run_name": "resnet18_seed42_cam_low_M4_area0.1",
   "saliency_candidate_percent": 10.0,
   "scheduler": "cosine",
   "seed": 42,
-  "teacher_checkpoint": "runs/drive_zip/resnet18/42/resnet18_seed42_none/best_model.pt",
-  "teacher_checkpoint_sha256": "c9d7d246c12498633dac842270610de34985ec187753f97d92b9769773ee85ba",
+  "teacher_checkpoint": "runs/drive_zip/resnet18/42/0.1/resnet18_seed42_none/best_model.pt",
+  "teacher_checkpoint_sha256": "e9cefd3cfd41081f980201330651809706ea0272d091cde8203a211e26aad6cd",
   "teacher_model": "resnet18",
-  "val_split": 0.1,
+  "val_split": 0.05,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
