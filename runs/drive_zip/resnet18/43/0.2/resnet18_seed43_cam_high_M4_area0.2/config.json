@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1784881526952031488,
+    "mtime_ns": 1784922380369989005,
     "path": "/content/CAMRegularization/runs/drive_zip/resnet18/43/0.2/resnet18_seed43_none/best_model.pt",
     "sha256": "6d24079ead1dd20bf02b0feb49107f42412bffb636e1e436d9770db9e708eb58",
     "size": 44821963
