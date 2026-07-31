@@ -1,6 +1,3 @@
-*.pth
-*.ckpt
-
 data/
 cam_cache/
 **/cam_cache/
