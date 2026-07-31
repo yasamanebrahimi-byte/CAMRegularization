@@ -39,7 +39,7 @@
   "seed": 42,
   "teacher_checkpoint": "",
   "teacher_model": "",
-  "val_split": 0.2,
+  "val_split": 0.1,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
