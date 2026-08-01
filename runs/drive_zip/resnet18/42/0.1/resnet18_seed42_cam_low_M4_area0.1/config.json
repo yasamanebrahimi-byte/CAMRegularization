@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1785611905691309614,
+    "mtime_ns": 1785614780317279557,
     "path": "/content/CAMRegularization/runs/drive_zip/resnet18/42/0.1/resnet18_seed42_none/best_model.pt",
     "sha256": "e9cefd3cfd41081f980201330651809706ea0272d091cde8203a211e26aad6cd",
     "size": 44821963
@@ -24,7 +24,7 @@
   "dataset": "drive_zip",
   "debug_cam_timing": false,
   "deterministic_train_transforms": true,
-  "epochs": 1,
+  "epochs": 100,
   "gamma": 0.1,
   "grayscale": true,
   "include_regex": "_grayscale\\.tiff$",
