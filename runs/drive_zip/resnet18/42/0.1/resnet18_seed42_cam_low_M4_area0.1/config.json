@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1784609536237151005,
+    "mtime_ns": 1785611905691309614,
     "path": "/content/CAMRegularization/runs/drive_zip/resnet18/42/0.1/resnet18_seed42_none/best_model.pt",
     "sha256": "e9cefd3cfd41081f980201330651809706ea0272d091cde8203a211e26aad6cd",
     "size": 44821963
@@ -24,7 +24,7 @@
   "dataset": "drive_zip",
   "debug_cam_timing": false,
   "deterministic_train_transforms": true,
-  "epochs": 100,
+  "epochs": 1,
   "gamma": 0.1,
   "grayscale": true,
   "include_regex": "_grayscale\\.tiff$",
@@ -46,7 +46,7 @@
   "teacher_checkpoint": "runs/drive_zip/resnet18/42/0.1/resnet18_seed42_none/best_model.pt",
   "teacher_checkpoint_sha256": "e9cefd3cfd41081f980201330651809706ea0272d091cde8203a211e26aad6cd",
   "teacher_model": "resnet18",
-  "val_split": 0.05,
+  "val_split": 0.1,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
