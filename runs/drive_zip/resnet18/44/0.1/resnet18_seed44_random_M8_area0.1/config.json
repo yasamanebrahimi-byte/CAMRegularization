@@ -32,7 +32,7 @@
   "nesterov": false,
   "num_workers": 4,
   "optimizer": "sgd",
-  "out_dir": "runs/drive_zip/resnet18/44",
+  "out_dir": "runs/drive_zip/resnet18/44/0.1",
   "run_name": "resnet18_seed44_random_M8_area0.1",
   "saliency_candidate_percent": 10.0,
   "scheduler": "cosine",
