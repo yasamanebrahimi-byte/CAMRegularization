@@ -32,14 +32,14 @@
   "nesterov": false,
   "num_workers": 4,
   "optimizer": "sgd",
-  "out_dir": "runs/drive_zip/resnet18/44/0.2",
+  "out_dir": "runs/drive_zip/resnet18/44/0.3",
   "run_name": "resnet18_seed44_random_M4_area0.3",
   "saliency_candidate_percent": 10.0,
   "scheduler": "cosine",
   "seed": 44,
   "teacher_checkpoint": "",
   "teacher_model": "",
-  "val_split": 0.2,
+  "val_split": 0.1,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
