@@ -1,6 +1,6 @@
 {
   "_cam_checkpoint_fingerprint": {
-    "mtime_ns": 1785056903306047223,
+    "mtime_ns": 1785699188067158112,
     "path": "/content/CAMRegularization/runs/drive_zip/resnet18/44/0.05/resnet18_seed44_none/best_model.pt",
     "sha256": "7df510794c3e005d6414c30f24a37044d8efbb2414941ae724354c6a3b94793f",
     "size": 44821963
@@ -46,7 +46,7 @@
   "teacher_checkpoint": "runs/drive_zip/resnet18/44/0.05/resnet18_seed44_none/best_model.pt",
   "teacher_checkpoint_sha256": "7df510794c3e005d6414c30f24a37044d8efbb2414941ae724354c6a3b94793f",
   "teacher_model": "resnet18",
-  "val_split": 0.05,
+  "val_split": 0.1,
   "warmup_epochs": 5,
   "weight_decay": 0.0005
 }
