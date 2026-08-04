@@ -1,8 +1,0 @@
-family,condition_key,condition_label,best_eval_accuracy,improvement_over_none
-none,none,none,0.726386,0.0
-random,random_M4,random M4,0.702989,-0.023397
-random,random_M8,random M8,0.705044,-0.021341999999999972
-CAM,cam_low_M4,cam_low M4,0.700934,-0.02545200000000003
-CAM,cam_high_M4,cam_high M4,0.696606,-0.02978000000000003
-CAM,cam_low_M8,cam_low M8,0.702744,-0.02364199999999994
-CAM,cam_high_M8,cam_high M8,0.694618,-0.03176800000000002

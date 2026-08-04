@@ -1,8 +1,0 @@
-dataset_folder,dataset_display,config_model,seed,condition_key,condition_label,run_name,best_eval_accuracy,final_eval_accuracy,best_epoch,best_acc_improvement_over_none
-cifar100,CIFAR100,resnet18,42,none,none,resnet18_seed42_none,0.620531,0.619508,99.0,0.0
-cifar100,CIFAR100,resnet18,42,random_M4,random M4,resnet18_seed42_random_M4_area0.1,0.619968,0.617647,82.0,-0.0005630000000000912
-cifar100,CIFAR100,resnet18,42,random_M8,random M8,resnet18_seed42_random_M8_area0.1,0.623656,0.61335,83.0,0.0031249999999999334
-cifar100,CIFAR100,resnet18,42,cam_low_M4,cam_low M4,resnet18_seed42_cam_low_M4_area0.1,0.634984,0.631227,87.0,0.014452999999999938
-cifar100,CIFAR100,resnet18,42,cam_high_M4,cam_high M4,resnet18_seed42_cam_high_M4_area0.1,0.581468,0.575092,85.0,-0.03906300000000007
-cifar100,CIFAR100,resnet18,42,cam_low_M8,cam_low M8,resnet18_seed42_cam_low_M8_area0.1,0.626413,0.614798,81.0,0.005881999999999943
-cifar100,CIFAR100,resnet18,42,cam_high_M8,cam_high M8,resnet18_seed42_cam_high_M8_area0.1,0.579435,0.564614,88.0,-0.04109600000000002

@@ -1,0 +1,2 @@
+issue_type,dataset,architecture,seed,condition,mode,M,cutout_area,details,source_path
+duplicate_baseline_inconsistent,CIFAR-100,resnet18,44,No cutout,none,,,excluded_no_cutout_copy_differs_from_selected,runs/cifar100/resnet18/44/0.05/resnet18_seed44_none

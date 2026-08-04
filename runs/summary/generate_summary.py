@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Generate publication-oriented summaries from existing run artifacts.
+"""Generate across-seed validation summaries for the CAM cutout experiments.
 
-This script is intentionally self-contained and writes only under runs/summary.
-It does not retrain models and does not modify any existing run artifacts.
+This script reads run-level ``config.json`` and ``metrics.csv`` files under
+``runs/`` and writes only under ``runs/summary/``. It does not run training or
+modify source experiment artifacts.
 """
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import json
 import math
-import re
-from collections import defaultdict
-from datetime import datetime
+import shutil
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 import matplotlib
 
@@ -23,2014 +23,2203 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.patches import Patch
+from matplotlib.ticker import FuncFormatter
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-RUNS_ROOT = REPO_ROOT / "runs"
-SUMMARY_DIR = RUNS_ROOT / "summary"
+SUMMARY_DIR = Path(__file__).resolve().parent
+RUNS_ROOT = SUMMARY_DIR.parent
+REPO_ROOT = RUNS_ROOT.parent
+TABLES_DIR = SUMMARY_DIR / "tables"
 PLOTS_DIR = SUMMARY_DIR / "plots"
 
-REQUESTED_DATASET_DIRS = ["cifar100", "malimg", "rawmaltf"]
-EXTRA_DATASET_DIRS = ["drive_zip"]
-RAWMALTF_FOLDERS = {"rawmaltf", "drive_zip"}
+EXPECTED_DATASETS = ("cifar100", "drive_zip")
+DATASET_LABELS = {"cifar100": "CIFAR-100", "drive_zip": "RawMal-TF"}
+DATASET_SLUGS = {"cifar100": "cifar100", "drive_zip": "rawmal_tf"}
+EXPECTED_ARCHITECTURE = "resnet18"
+EXPECTED_SEEDS = (42, 43, 44)
+EXPECTED_EPOCHS = 100
+EXPECTED_AREAS = (0.05, 0.10, 0.20, 0.30)
+EXPECTED_MS = (4, 8)
+CONDITIONS = ("none", "random", "cam_low", "cam_high")
+AUGMENTED_CONDITIONS = ("random", "cam_low", "cam_high")
+REQUIRED_METRIC_COLUMNS = ("epoch", "train_loss", "train_acc1", "eval_loss", "eval_acc1")
+COLLAPSE_THRESHOLD = 0.05
 
-CONDITION_ORDER = [
-    "none",
-    "random_M4",
-    "random_M8",
-    "cam_low_M4",
-    "cam_high_M4",
-    "cam_low_M8",
-    "cam_high_M8",
-]
+PLOT_DIRS = (
+    "best_accuracy_by_area",
+    "final_accuracy_by_area",
+    "paired_cam_effects",
+    "aulc_by_area",
+    "learning_curves",
+    "stability",
+    "m8_minus_m4",
+    "mean_heatmaps",
+    "variability_heatmaps",
+    "mean_vs_variability",
+    "condition_comparisons",
+)
 
 CONDITION_LABELS = {
-    "none": "none",
-    "random_M4": "random M4",
-    "random_M8": "random M8",
-    "cam_low_M4": "cam_low M4",
-    "cam_high_M4": "cam_high M4",
-    "cam_low_M8": "cam_low M8",
-    "cam_high_M8": "cam_high M8",
+    "none": "No cutout",
+    "random": "Random cutout",
+    "cam_low": "Low-saliency cutout",
+    "cam_high": "High-saliency cutout",
+}
+CONDITION_SHORT_LABELS = {
+    "none": "No cutout",
+    "random": "Random",
+    "cam_low": "Low-saliency",
+    "cam_high": "High-saliency",
+}
+CONDITION_COLORS = {
+    "none": "#4d4d4d",
+    "random": "#0072B2",
+    "cam_low": "#009E73",
+    "cam_high": "#D55E00",
+}
+SEED_MARKERS = {42: "o", 43: "s", 44: "^"}
+M_MARKERS = {4: "o", 8: "s", None: "D"}
+
+PER_RUN_METRICS = (
+    "best_validation_accuracy",
+    "best_validation_epoch",
+    "final_validation_accuracy",
+    "best_to_final_degradation",
+    "validation_aulc",
+    "training_accuracy_at_best_validation_epoch",
+    "train_validation_gap_at_best_epoch",
+    "final_train_validation_gap",
+    "final20_validation_accuracy_mean",
+    "final20_validation_accuracy_std",
+    "maximum_validation_drawdown",
+    "collapse_event_count",
+)
+PAIRED_EFFECT_METRICS = (
+    "best_validation_accuracy",
+    "final_validation_accuracy",
+    "validation_aulc",
+    "best_to_final_degradation",
+    "maximum_validation_drawdown",
+)
+PERCENT_LIKE_METRICS = {
+    "best_validation_accuracy",
+    "final_validation_accuracy",
+    "best_to_final_degradation",
+    "validation_aulc",
+    "training_accuracy_at_best_validation_epoch",
+    "train_validation_gap_at_best_epoch",
+    "final_train_validation_gap",
+    "final20_validation_accuracy_mean",
+    "final20_validation_accuracy_std",
+    "maximum_validation_drawdown",
 }
 
-MODE_ORDER = {"none": 0, "random": 1, "cam_low": 2, "cam_high": 3}
-STRING_METRIC_COLUMNS = {
-    "split",
-    "evalsplit",
-    "validationsplitname",
-    "testsplitname",
-    "dataset",
-    "mode",
-    "cutoutmode",
-}
 
-CREATED_FILES: set[Path] = set()
-PLOTS_CREATED = 0
+def configure_matplotlib() -> None:
+    plt.rcParams.update(
+        {
+            "figure.dpi": 120,
+            "savefig.dpi": 300,
+            "font.size": 10,
+            "axes.titlesize": 12,
+            "axes.labelsize": 10,
+            "legend.fontsize": 9,
+            "xtick.labelsize": 9,
+            "ytick.labelsize": 9,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "grid.linewidth": 0.8,
+            "lines.linewidth": 2.0,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+        }
+    )
 
 
-def rel(path: Path) -> str:
+def clean_summary_dir() -> None:
+    """Remove stale generated artifacts while leaving this script in place."""
+    summary = SUMMARY_DIR.resolve()
+    script = Path(__file__).resolve()
+    for child in list(SUMMARY_DIR.iterdir()):
+        resolved = child.resolve()
+        if resolved == script:
+            continue
+        if summary not in resolved.parents:
+            raise RuntimeError(f"Refusing to remove path outside summary: {child}")
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    for dirname in PLOT_DIRS:
+        (PLOTS_DIR / dirname).mkdir(parents=True, exist_ok=True)
+
+
+def relative_path(path: Path) -> str:
     try:
-        return path.relative_to(REPO_ROOT).as_posix()
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
 
 
-def clean_scalar(value: Any) -> Any:
-    if value is None:
-        return ""
-    if isinstance(value, (np.integer,)):
-        return int(value)
-    if isinstance(value, (np.floating,)):
-        if math.isnan(float(value)) or math.isinf(float(value)):
-            return ""
-        return float(value)
-    if isinstance(value, float):
-        if math.isnan(value) or math.isinf(value):
-            return ""
-        return value
-    if isinstance(value, bool):
-        return value
-    return value
-
-
-def clean_records(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    cleaned: List[Dict[str, Any]] = []
-    for record in records:
-        cleaned.append({key: clean_scalar(value) for key, value in record.items()})
-    return cleaned
-
-
-def write_csv(path: Path, records: Iterable[Dict[str, Any]], fieldnames: Optional[List[str]] = None) -> None:
-    records = clean_records(records)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if fieldnames is None:
-        fieldnames = []
-        seen = set()
-        for record in records:
-            for key in record:
-                if key not in seen:
-                    seen.add(key)
-                    fieldnames.append(key)
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        for record in records:
-            writer.writerow(record)
-    CREATED_FILES.add(path)
-
-
-def write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    CREATED_FILES.add(path)
-
-
-def write_json(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(json_clean(data), indent=2, sort_keys=True), encoding="utf-8")
-    CREATED_FILES.add(path)
-
-
-def json_clean(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {str(key): json_clean(val) for key, val in value.items()}
-    if isinstance(value, list):
-        return [json_clean(item) for item in value]
-    if isinstance(value, tuple):
-        return [json_clean(item) for item in value]
-    if isinstance(value, (np.integer,)):
-        return int(value)
-    if isinstance(value, (np.floating,)):
-        value = float(value)
-    if isinstance(value, float):
-        if math.isnan(value) or math.isinf(value):
-            return None
-        return value
-    if isinstance(value, Path):
-        return rel(value)
-    return value
-
-
 def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
+    digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
-def normalize_name(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(name).lower())
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def parse_run_name(run_name: str) -> Dict[str, Any]:
-    parsed: Dict[str, Any] = {
-        "model": "",
-        "seed": "",
-        "cutout_mode": "",
-        "cutout_m": "",
-        "cutout_area": "",
-    }
-    seed_match = re.search(r"_seed(\d+)", run_name)
-    if seed_match:
-        parsed["seed"] = int(seed_match.group(1))
-        parsed["model"] = run_name[: seed_match.start()]
-
-    if "_cam_low" in run_name:
-        parsed["cutout_mode"] = "cam_low"
-    elif "_cam_high" in run_name:
-        parsed["cutout_mode"] = "cam_high"
-    elif "_random" in run_name:
-        parsed["cutout_mode"] = "random"
-    elif run_name.endswith("_none") or "_none" in run_name:
-        parsed["cutout_mode"] = "none"
-
-    m_match = re.search(r"_M(\d+)", run_name)
-    if m_match:
-        parsed["cutout_m"] = int(m_match.group(1))
-
-    area_match = re.search(r"_area([0-9.]+)", run_name)
-    if area_match:
-        area_text = area_match.group(1).rstrip(".")
-        try:
-            parsed["cutout_area"] = float(area_text)
-        except ValueError:
-            parsed["cutout_area"] = area_text
-    return parsed
+def canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
-def comparable_number(value: Any) -> Any:
-    if value is None or value == "":
-        return ""
+def display_dataset(dataset_id: Any) -> str:
+    return DATASET_LABELS.get(str(dataset_id), str(dataset_id or ""))
+
+
+def dataset_slug_from_label(dataset_label: str) -> str:
+    for dataset_id, label in DATASET_LABELS.items():
+        if dataset_label == label:
+            return DATASET_SLUGS[dataset_id]
+    return dataset_label.lower().replace(" ", "_").replace("-", "_")
+
+
+def safe_int(value: Any) -> int | None:
     try:
-        f = float(value)
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    try:
+        return int(value)
     except (TypeError, ValueError):
-        return value
-    if math.isnan(f):
+        return None
+
+
+def safe_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "" or pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def canonical_area(value: Any) -> float | None:
+    number = safe_float(value)
+    if number is None:
+        return None
+    for expected in EXPECTED_AREAS:
+        if abs(number - expected) < 1e-9:
+            return expected
+    return number
+
+
+def area_label(area: Any) -> str:
+    number = safe_float(area)
+    if number is None:
         return ""
-    if abs(f - round(f)) < 1e-12:
-        return int(round(f))
-    return round(f, 12)
+    return f"{number:.2f}"
 
 
-def dataset_display_name(dataset_folder: str, config_dataset: str = "") -> str:
-    if dataset_folder in RAWMALTF_FOLDERS or str(config_dataset).lower() in RAWMALTF_FOLDERS:
-        return "RawMal-TF (drive_zip)" if dataset_folder == "drive_zip" else "RawMal-TF"
-    if dataset_folder == "cifar100":
-        return "CIFAR100"
-    if dataset_folder == "malimg":
-        return "MalImg"
-    return dataset_folder or config_dataset
+def area_slug(area: float) -> str:
+    return f"area{area:.2f}".replace(".", "p")
 
 
-def condition_key(mode: Any, m_value: Any) -> str:
-    mode = str(mode or "").strip()
-    if mode == "none":
-        return "none"
-    m_value = comparable_number(m_value)
-    if m_value == "":
-        return mode
-    return f"{mode}_M{m_value}"
+def metric_label(metric: str) -> str:
+    labels = {
+        "best_validation_accuracy": "Best validation accuracy",
+        "best_validation_epoch": "Earliest best-validation epoch",
+        "final_validation_accuracy": "Final validation accuracy",
+        "best_to_final_degradation": "Best-to-final degradation",
+        "validation_aulc": "Normalized validation AULC",
+        "training_accuracy_at_best_validation_epoch": "Training accuracy at best-validation epoch",
+        "train_validation_gap_at_best_epoch": "Train-validation gap at best epoch",
+        "final_train_validation_gap": "Final train-validation gap",
+        "final20_validation_accuracy_mean": "Final-20 validation accuracy mean",
+        "final20_validation_accuracy_std": "Final-20 validation accuracy standard deviation",
+        "maximum_validation_drawdown": "Maximum validation drawdown",
+        "collapse_event_count": "Collapse-event count",
+    }
+    return labels.get(metric, metric.replace("_", " "))
 
 
-def condition_label(mode: Any, m_value: Any) -> str:
-    key = condition_key(mode, m_value)
-    return CONDITION_LABELS.get(key, key.replace("_", " "))
+def normalize_baseline_config(config: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(config)
+    normalized.pop("out_dir", None)
+    return normalized
 
 
-def condition_sort_key(key_or_label: str) -> Tuple[int, str]:
-    if key_or_label in CONDITION_ORDER:
-        return (CONDITION_ORDER.index(key_or_label), key_or_label)
-    normalized = key_or_label.replace(" ", "_")
-    if normalized in CONDITION_ORDER:
-        return (CONDITION_ORDER.index(normalized), normalized)
-    return (len(CONDITION_ORDER), str(key_or_label))
+def read_metrics(metrics_path: Path) -> tuple[pd.DataFrame | None, list[str]]:
+    issues: list[str] = []
+    if not metrics_path.exists():
+        return None, ["missing_metrics_csv"]
+    try:
+        frame = pd.read_csv(metrics_path)
+    except Exception as exc:  # noqa: BLE001 - the integrity table needs parser detail
+        return None, [f"metrics_csv_parse_error:{exc}"]
 
+    missing_columns = [column for column in REQUIRED_METRIC_COLUMNS if column not in frame.columns]
+    if missing_columns:
+        issues.append("missing_metric_columns:" + ",".join(missing_columns))
 
-def pick_column(columns: Sequence[str], candidates: Sequence[str], exclude_prefixes: Sequence[str] = ()) -> str:
-    normalized_to_original = {normalize_name(col): col for col in columns}
-    excluded = tuple(normalize_name(prefix) for prefix in exclude_prefixes)
-    for candidate in candidates:
-        norm = normalize_name(candidate)
-        if norm in normalized_to_original:
-            original = normalized_to_original[norm]
-            original_norm = normalize_name(original)
-            if not any(original_norm.startswith(prefix) for prefix in excluded):
-                return original
+    if len(frame) != EXPECTED_EPOCHS:
+        issues.append(f"wrong_epoch_count:{len(frame)}")
 
-    candidate_norms = [normalize_name(candidate) for candidate in candidates]
-    scored: List[Tuple[int, str]] = []
-    for col in columns:
-        norm_col = normalize_name(col)
-        if any(norm_col.startswith(prefix) for prefix in excluded):
+    if "epoch" in frame.columns:
+        epochs = pd.to_numeric(frame["epoch"], errors="coerce")
+        if len(frame) == EXPECTED_EPOCHS:
+            expected_epochs = np.arange(1, EXPECTED_EPOCHS + 1, dtype=float)
+            if epochs.isna().any() or not np.array_equal(epochs.to_numpy(dtype=float), expected_epochs):
+                issues.append("epoch_sequence_not_1_to_100")
+        frame["epoch"] = epochs
+
+    for column in REQUIRED_METRIC_COLUMNS:
+        if column not in frame.columns:
             continue
-        for idx, norm_candidate in enumerate(candidate_norms):
-            if norm_candidate and norm_candidate in norm_col:
-                scored.append((idx, col))
-                break
-    if scored:
-        scored.sort()
-        return scored[0][1]
-    return ""
+        numeric = pd.to_numeric(frame[column], errors="coerce")
+        if numeric.isna().any():
+            issues.append(f"non_numeric_metric_column:{column}")
+        frame[column] = numeric
+
+    if "eval_split" in frame.columns:
+        split_values = {str(value).strip().lower() for value in frame["eval_split"].dropna().unique()}
+        if split_values and split_values != {"val"}:
+            issues.append("eval_split_not_validation:" + ",".join(sorted(split_values)))
+
+    return frame, issues
 
 
-def metric_columns(df: Optional[pd.DataFrame]) -> Dict[str, str]:
-    if df is None:
-        return {"epoch": "", "train_acc": "", "eval_acc": "", "train_loss": "", "eval_loss": ""}
-    columns = list(df.columns)
-    epoch = pick_column(columns, ["epoch", "epochs"])
-    train_acc = pick_column(
-        columns,
-        [
-            "train_acc",
-            "train_acc1",
-            "train_accuracy",
-            "train_top1",
-            "top1_train",
-            "train_acc_top1",
-        ],
-    )
-    eval_acc = pick_column(
-        columns,
-        [
-            "val_acc",
-            "val_acc1",
-            "validation_acc",
-            "validation_accuracy",
-            "eval_acc",
-            "eval_acc1",
-            "eval_accuracy",
-            "test_acc",
-            "test_acc1",
-            "test_accuracy",
-            "accuracy",
-            "acc",
-            "acc1",
-        ],
-        exclude_prefixes=("train",),
-    )
-    train_loss = pick_column(columns, ["train_loss", "training_loss", "loss_train"])
-    eval_loss = pick_column(
-        columns,
-        ["val_loss", "validation_loss", "eval_loss", "test_loss", "loss_val", "loss_eval", "loss_test"],
-        exclude_prefixes=("train",),
-    )
-    return {
-        "epoch": epoch,
-        "train_acc": train_acc,
-        "eval_acc": eval_acc,
-        "train_loss": train_loss,
-        "eval_loss": eval_loss,
-    }
-
-
-def numeric_series(df: pd.DataFrame, column: str) -> pd.Series:
-    if not column or column not in df.columns:
-        return pd.Series(dtype=float)
-    return pd.to_numeric(df[column], errors="coerce")
-
-
-def finite_or_blank(value: Any) -> Any:
-    if value is None:
-        return ""
+def validate_path_metadata(config_path: Path, config: dict[str, Any], mode: str, area: float | None) -> list[str]:
+    issues: list[str] = []
     try:
-        f = float(value)
-    except (TypeError, ValueError):
-        return value
-    if math.isnan(f) or math.isinf(f):
-        return ""
-    return f
+        parts = config_path.resolve().relative_to(RUNS_ROOT.resolve()).parts
+    except ValueError:
+        return ["config_outside_runs_root"]
+
+    if len(parts) < 6:
+        return ["unexpected_or_old_flat_run_path"]
+
+    path_dataset, path_architecture, path_seed, path_area, run_folder = parts[:5]
+    config_dataset = config.get("dataset")
+    config_architecture = config.get("model", config.get("architecture"))
+    config_seed = config.get("seed")
+    if config_dataset is not None and path_dataset != str(config_dataset):
+        issues.append(f"path_dataset_mismatch:{path_dataset}")
+    if config_architecture is not None and path_architecture != str(config_architecture):
+        issues.append(f"path_architecture_mismatch:{path_architecture}")
+    if config_seed is not None and path_seed != str(config_seed):
+        issues.append(f"path_seed_mismatch:{path_seed}")
+    if mode == "none":
+        if canonical_area(path_area) not in EXPECTED_AREAS:
+            issues.append(f"baseline_path_area_unexpected:{path_area}")
+    elif area is not None and canonical_area(path_area) != area:
+        issues.append(f"path_cutout_area_mismatch:{path_area}")
+
+    run_name = str(config.get("run_name", ""))
+    if run_name and run_folder != run_name:
+        issues.append(f"run_name_folder_mismatch:{run_folder}")
+    return issues
 
 
-def value_at_index(series: pd.Series, idx: Any) -> Any:
-    if series.empty or idx is None or idx not in series.index:
-        return ""
-    return finite_or_blank(series.loc[idx])
-
-
-def last_valid_value(series: pd.Series) -> Any:
-    if series.empty:
-        return ""
-    valid = series.dropna()
-    if valid.empty:
-        return ""
-    return finite_or_blank(valid.iloc[-1])
-
-
-def best_max(series: pd.Series) -> Tuple[Any, Any]:
-    valid = series.dropna()
-    if valid.empty:
-        return "", None
-    idx = valid.idxmax()
-    return finite_or_blank(valid.loc[idx]), idx
-
-
-def best_min(series: pd.Series) -> Tuple[Any, Any]:
-    valid = series.dropna()
-    if valid.empty:
-        return "", None
-    idx = valid.idxmin()
-    return finite_or_blank(valid.loc[idx]), idx
-
-
-def safe_float(value: Any) -> Optional[float]:
-    if value is None or value == "":
-        return None
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
-        return None
-    if math.isnan(f) or math.isinf(f):
-        return None
-    return f
-
-
-def difference(value: Any, baseline: Any) -> Any:
-    value_f = safe_float(value)
-    base_f = safe_float(baseline)
-    if value_f is None or base_f is None:
-        return ""
-    return value_f - base_f
-
-
-def relative_difference_pct(value: Any, baseline: Any) -> Any:
-    value_f = safe_float(value)
-    base_f = safe_float(baseline)
-    if value_f is None or base_f is None or abs(base_f) < 1e-15:
-        return ""
-    return 100.0 * (value_f - base_f) / abs(base_f)
-
-
-def summary_stats_for_values(values: Sequence[Any]) -> Dict[str, Any]:
-    numeric = [float(v) for v in values if safe_float(v) is not None]
-    if not numeric:
-        return {"count": 0, "mean": None, "median": None, "min": None, "max": None, "positive_count": 0}
-    arr = np.asarray(numeric, dtype=float)
-    return {
-        "count": int(arr.size),
-        "mean": float(np.mean(arr)),
-        "median": float(np.median(arr)),
-        "min": float(np.min(arr)),
-        "max": float(np.max(arr)),
-        "positive_count": int(np.sum(arr > 0)),
-        "negative_count": int(np.sum(arr < 0)),
-        "zero_count": int(np.sum(np.isclose(arr, 0.0))),
-        "positive_fraction": float(np.mean(arr > 0)),
-    }
-
-
-def find_run_dirs() -> Tuple[List[Path], List[str]]:
-    warnings_out: List[str] = []
-    scan_names = []
-    for name in REQUESTED_DATASET_DIRS + EXTRA_DATASET_DIRS:
-        if name not in scan_names:
-            scan_names.append(name)
-
-    roots: List[Path] = []
-    for name in scan_names:
-        path = RUNS_ROOT / name
-        if path.exists() and path.is_dir():
-            roots.append(path)
-        elif name in REQUESTED_DATASET_DIRS:
-            warnings_out.append(f"Requested run folder runs/{name}/ is missing.")
-
-    run_dirs: List[Path] = []
-    for root in roots:
-        for path in sorted(root.rglob("*")):
-            if not path.is_dir():
-                continue
-            if SUMMARY_DIR == path or SUMMARY_DIR in path.parents:
-                continue
-            artifact_names = ["config.json", "metrics.csv", "metrics_plot.png", "best_model.pt"]
-            if any((path / artifact).exists() for artifact in artifact_names):
-                run_dirs.append(path)
-    return sorted(set(run_dirs)), warnings_out
-
-
-def load_run(run_dir: Path) -> Dict[str, Any]:
-    rel_parts = run_dir.relative_to(RUNS_ROOT).parts
-    dataset_folder = rel_parts[0] if rel_parts else ""
-    run_name = run_dir.name
-    parsed = parse_run_name(run_name)
-
-    config_path = run_dir / "config.json"
-    metrics_path = run_dir / "metrics.csv"
-    plot_path = run_dir / "metrics_plot.png"
-    best_model_path = run_dir / "best_model.pt"
-    log_files = sorted(
-        [
-            path
-            for path in run_dir.glob("*")
-            if path.is_file() and ("log" in path.name.lower() or path.suffix.lower() == ".log")
-        ]
+def discover_runs() -> tuple[list[dict[str, Any]], dict[int, pd.DataFrame]]:
+    records: list[dict[str, Any]] = []
+    metric_frames: dict[int, pd.DataFrame] = {}
+    config_paths = sorted(
+        path
+        for path in RUNS_ROOT.rglob("config.json")
+        if SUMMARY_DIR.resolve() not in path.resolve().parents
     )
 
-    config: Dict[str, Any] = {}
-    config_error = ""
-    config_hash = ""
-    if config_path.exists():
+    for run_id, config_path in enumerate(config_paths):
+        metrics_path = config_path.with_name("metrics.csv")
+        record: dict[str, Any] = {
+            "run_id": run_id,
+            "source_path": relative_path(config_path.parent),
+            "config_path": relative_path(config_path),
+            "metrics_path": relative_path(metrics_path),
+            "dataset_id": None,
+            "dataset": "",
+            "architecture": "",
+            "seed": None,
+            "condition": "",
+            "mode": "",
+            "M": None,
+            "cutout_area": None,
+            "config_epochs": None,
+            "metrics_epoch_count": None,
+            "required_columns_ok": False,
+            "epoch_sequence_ok": False,
+            "metrics_sha256": "",
+            "config_sha256": "",
+            "normalized_baseline_config_sha256": "",
+            "status": "invalid",
+            "analysis_valid": False,
+            "issues": [],
+        }
+
         try:
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-            config_hash = sha256_file(config_path)
-        except Exception as exc:  # noqa: BLE001 - report and continue.
-            config_error = str(exc)
+            config_text = config_path.read_text(encoding="utf-8")
+            config = json.loads(config_text)
+            record["config_sha256"] = sha256_text(config_text)
+        except Exception as exc:  # noqa: BLE001 - recorded for the integrity report
+            record["issues"].append(f"config_parse_error:{exc}")
+            records.append(record)
+            continue
 
-    metrics_df: Optional[pd.DataFrame] = None
-    metrics_error = ""
-    metrics_hash = ""
-    if metrics_path.exists():
-        try:
-            metrics_df = pd.read_csv(metrics_path)
-            metrics_hash = sha256_file(metrics_path)
-        except Exception as exc:  # noqa: BLE001 - report and continue.
-            metrics_error = str(exc)
+        dataset_id = config.get("dataset")
+        architecture = config.get("model", config.get("architecture"))
+        seed = safe_int(config.get("seed"))
+        mode = str(config.get("cutout_mode", ""))
+        m_value = safe_int(config.get("cutout_m"))
+        cutout_area = canonical_area(config.get("cutout_area"))
+        config_epochs = safe_int(config.get("epochs"))
 
-    cols = metric_columns(metrics_df)
-    epoch_series = numeric_series(metrics_df, cols["epoch"]) if metrics_df is not None else pd.Series(dtype=float)
-    observed_rows = int(len(metrics_df)) if metrics_df is not None else 0
-    observed_metric_epochs = int(epoch_series.dropna().nunique()) if not epoch_series.empty else observed_rows
-    first_epoch = finite_or_blank(epoch_series.dropna().iloc[0]) if not epoch_series.dropna().empty else ""
-    last_epoch = finite_or_blank(epoch_series.dropna().iloc[-1]) if not epoch_series.dropna().empty else ""
-
-    if len(rel_parts) >= 3:
-        model_folder = rel_parts[1]
-    else:
-        model_folder = config.get("model") or parsed.get("model") or ""
-
-    best_model_size = ""
-    best_model_mtime = ""
-    if best_model_path.exists():
-        try:
-            stat = best_model_path.stat()
-            best_model_size = stat.st_size
-            best_model_mtime = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
-        except OSError:
-            pass
-
-    return {
-        "run_dir": run_dir,
-        "run_path": rel(run_dir),
-        "dataset_folder": dataset_folder,
-        "dataset_display": dataset_display_name(dataset_folder, str(config.get("dataset", ""))),
-        "model_folder": model_folder,
-        "run_name": run_name,
-        "parsed": parsed,
-        "config": config,
-        "config_error": config_error,
-        "metrics_error": metrics_error,
-        "metrics_df": metrics_df,
-        "metric_cols": cols,
-        "config_exists": config_path.exists(),
-        "metrics_exists": metrics_path.exists(),
-        "metrics_plot_exists": plot_path.exists(),
-        "best_model_exists": best_model_path.exists(),
-        "best_model_size_bytes": best_model_size,
-        "best_model_mtime": best_model_mtime,
-        "log_files_count": len(log_files),
-        "log_files": ";".join(rel(path) for path in log_files),
-        "config_sha256": config_hash,
-        "metrics_sha256": metrics_hash,
-        "observed_metric_rows": observed_rows,
-        "observed_metric_epochs": observed_metric_epochs,
-        "first_epoch": first_epoch,
-        "last_epoch": last_epoch,
-        "notes": [],
-    }
-
-
-def make_inventory(runs: List[Dict[str, Any]], run_notes: Dict[str, List[str]]) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    for run in runs:
-        config = run["config"]
-        notes = list(dict.fromkeys(run["notes"] + run_notes.get(run["run_path"], [])))
-        has_blocking = any(note.startswith(("missing", "unreadable")) for note in notes)
-        has_warning = bool(notes)
-        status = "ok"
-        if has_blocking:
-            status = "incomplete"
-        elif has_warning:
-            status = "suspicious"
-        rows.append(
+        record.update(
             {
-                "dataset_folder": run["dataset_folder"],
-                "dataset_display": run["dataset_display"],
-                "model_folder": run["model_folder"],
-                "run_name": run["run_name"],
-                "run_path": run["run_path"],
-                "config_dataset": config.get("dataset", ""),
-                "config_model": config.get("model", ""),
-                "seed": config.get("seed", run["parsed"].get("seed", "")),
-                "cutout_mode": config.get("cutout_mode", run["parsed"].get("cutout_mode", "")),
-                "cutout_m": config.get("cutout_m", run["parsed"].get("cutout_m", "")),
-                "cutout_area": config.get("cutout_area", run["parsed"].get("cutout_area", "")),
-                "configured_epochs": config.get("epochs", ""),
-                "observed_metric_rows": run["observed_metric_rows"],
-                "observed_metric_epochs": run["observed_metric_epochs"],
-                "first_epoch": run["first_epoch"],
-                "last_epoch": run["last_epoch"],
-                "grayscale": config.get("grayscale", ""),
-                "include_regex": config.get("include_regex", ""),
-                "teacher_checkpoint": config.get("teacher_checkpoint", ""),
-                "teacher_checkpoint_sha256": config.get("teacher_checkpoint_sha256", ""),
-                "config_exists": run["config_exists"],
-                "metrics_exists": run["metrics_exists"],
-                "metrics_plot_exists": run["metrics_plot_exists"],
-                "best_model_exists": run["best_model_exists"],
-                "best_model_size_bytes": run["best_model_size_bytes"],
-                "best_model_mtime": run["best_model_mtime"],
-                "log_files_count": run["log_files_count"],
-                "log_files": run["log_files"],
-                "config_sha256": run["config_sha256"],
-                "metrics_sha256": run["metrics_sha256"],
-                "status": status,
-                "notes": "; ".join(notes),
+                "dataset_id": dataset_id,
+                "dataset": display_dataset(dataset_id),
+                "architecture": str(architecture or ""),
+                "seed": seed,
+                "mode": mode,
+                "condition": CONDITION_LABELS.get(mode, str(mode or "")),
+                "M": None if mode == "none" else m_value,
+                "cutout_area": None if mode == "none" else cutout_area,
+                "config_epochs": config_epochs,
             }
         )
-    return rows
+        if mode == "none":
+            record["normalized_baseline_config_sha256"] = sha256_text(canonical_json(normalize_baseline_config(config)))
 
+        if dataset_id not in EXPECTED_DATASETS:
+            record["issues"].append(f"unexpected_dataset:{dataset_id}")
+        if architecture != EXPECTED_ARCHITECTURE:
+            record["issues"].append(f"unexpected_architecture:{architecture}")
+        if seed not in EXPECTED_SEEDS:
+            record["issues"].append(f"unexpected_seed:{seed}")
+        if config_epochs != EXPECTED_EPOCHS:
+            record["issues"].append(f"unexpected_config_epoch_count:{config_epochs}")
+        if mode not in CONDITIONS:
+            record["issues"].append(f"unexpected_cutout_mode:{mode}")
+        elif mode == "none":
+            if m_value not in (0, None):
+                record["issues"].append(f"baseline_cutout_m_not_zero:{m_value}")
+            if cutout_area is not None:
+                record["issues"].append(f"baseline_cutout_area_not_null:{cutout_area}")
+        else:
+            if m_value not in EXPECTED_MS:
+                record["issues"].append(f"unexpected_cutout_m:{m_value}")
+            if cutout_area not in EXPECTED_AREAS:
+                record["issues"].append(f"unexpected_cutout_area:{cutout_area}")
 
-def summarize_run(run: Dict[str, Any]) -> Dict[str, Any]:
-    config = run["config"]
-    df = run["metrics_df"]
-    cols = run["metric_cols"]
-    mode = config.get("cutout_mode", run["parsed"].get("cutout_mode", ""))
-    m_value = config.get("cutout_m", run["parsed"].get("cutout_m", ""))
+        record["issues"].extend(validate_path_metadata(config_path, config, mode, cutout_area))
 
-    epoch = numeric_series(df, cols["epoch"]) if df is not None else pd.Series(dtype=float)
-    train_acc = numeric_series(df, cols["train_acc"]) if df is not None else pd.Series(dtype=float)
-    eval_acc = numeric_series(df, cols["eval_acc"]) if df is not None else pd.Series(dtype=float)
-    train_loss = numeric_series(df, cols["train_loss"]) if df is not None else pd.Series(dtype=float)
-    eval_loss = numeric_series(df, cols["eval_loss"]) if df is not None else pd.Series(dtype=float)
+        frame, metric_issues = read_metrics(metrics_path)
+        record["issues"].extend(metric_issues)
+        if metrics_path.exists():
+            record["metrics_sha256"] = sha256_file(metrics_path)
+        if frame is not None:
+            record["metrics_epoch_count"] = len(frame)
+            record["required_columns_ok"] = not any(issue.startswith("missing_metric_columns") for issue in metric_issues)
+            record["epoch_sequence_ok"] = "epoch_sequence_not_1_to_100" not in metric_issues and len(frame) == EXPECTED_EPOCHS
+            metric_frames[run_id] = frame
 
-    best_eval_acc, best_eval_idx = best_max(eval_acc)
-    best_eval_loss, best_eval_loss_idx = best_min(eval_loss)
-    best_train_acc, best_train_acc_idx = best_max(train_acc)
-    best_train_loss, best_train_loss_idx = best_min(train_loss)
-
-    final_train_acc = last_valid_value(train_acc)
-    final_eval_acc = last_valid_value(eval_acc)
-    final_train_loss = last_valid_value(train_loss)
-    final_eval_loss = last_valid_value(eval_loss)
-
-    best_epoch = value_at_index(epoch, best_eval_idx)
-    best_eval_loss_epoch = value_at_index(epoch, best_eval_loss_idx)
-    best_train_acc_epoch = value_at_index(epoch, best_train_acc_idx)
-    best_train_loss_epoch = value_at_index(epoch, best_train_loss_idx)
-
-    train_acc_at_best_eval = value_at_index(train_acc, best_eval_idx)
-    train_loss_at_best_eval = value_at_index(train_loss, best_eval_idx)
-    eval_loss_at_best_eval = value_at_index(eval_loss, best_eval_idx)
-
-    gap_best = difference(train_acc_at_best_eval, best_eval_acc)
-    gap_final = difference(final_train_acc, final_eval_acc)
-
-    eval_split = ""
-    if df is not None:
-        split_col = pick_column(df.columns, ["eval_split", "split", "val_split_name", "test_split_name"])
-        if split_col and split_col in df.columns and not df[split_col].dropna().empty:
-            eval_split = str(df[split_col].dropna().iloc[-1])
-
-    return {
-        "dataset_folder": run["dataset_folder"],
-        "dataset_display": run["dataset_display"],
-        "model_folder": run["model_folder"],
-        "run_name": run["run_name"],
-        "run_path": run["run_path"],
-        "config_dataset": config.get("dataset", ""),
-        "config_model": config.get("model", ""),
-        "seed": config.get("seed", run["parsed"].get("seed", "")),
-        "grayscale": config.get("grayscale", ""),
-        "include_regex": config.get("include_regex", ""),
-        "cutout_mode": mode,
-        "cutout_m": m_value,
-        "cutout_area": config.get("cutout_area", run["parsed"].get("cutout_area", "")),
-        "condition_key": condition_key(mode, m_value),
-        "condition_label": condition_label(mode, m_value),
-        "eval_split": eval_split,
-        "train_acc_col": cols["train_acc"],
-        "eval_acc_col": cols["eval_acc"],
-        "train_loss_col": cols["train_loss"],
-        "eval_loss_col": cols["eval_loss"],
-        "final_train_accuracy": final_train_acc,
-        "final_eval_accuracy": final_eval_acc,
-        "final_train_loss": final_train_loss,
-        "final_eval_loss": final_eval_loss,
-        "best_train_accuracy": best_train_acc,
-        "best_train_accuracy_epoch": best_train_acc_epoch,
-        "best_eval_accuracy": best_eval_acc,
-        "best_epoch": best_epoch,
-        "best_train_loss": best_train_loss,
-        "best_train_loss_epoch": best_train_loss_epoch,
-        "best_eval_loss": best_eval_loss,
-        "best_eval_loss_epoch": best_eval_loss_epoch,
-        "train_accuracy_at_best_epoch": train_acc_at_best_eval,
-        "train_loss_at_best_epoch": train_loss_at_best_eval,
-        "eval_loss_at_best_epoch": eval_loss_at_best_eval,
-        "generalization_gap_best_epoch": gap_best,
-        "generalization_gap_final": gap_final,
-        "baseline_none_run": "",
-        "best_acc_improvement_over_none": "",
-        "relative_best_acc_improvement_over_none_pct": "",
-        "baseline_random_run": "",
-        "best_acc_improvement_over_random": "",
-        "relative_best_acc_improvement_over_random_pct": "",
-        "notes": "",
-    }
-
-
-def baseline_group_key(row: Dict[str, Any]) -> Tuple[Any, ...]:
-    return (
-        row.get("dataset_folder", ""),
-        row.get("config_dataset", ""),
-        row.get("config_model", ""),
-        row.get("seed", ""),
-        row.get("grayscale", ""),
-        row.get("include_regex", ""),
-    )
-
-
-def random_group_key(row: Dict[str, Any]) -> Tuple[Any, ...]:
-    return baseline_group_key(row) + (comparable_number(row.get("cutout_m", "")), comparable_number(row.get("cutout_area", "")))
-
-
-def attach_improvements(summary_rows: List[Dict[str, Any]]) -> None:
-    none_baselines: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
-    random_baselines: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
-
-    for row in summary_rows:
-        if row.get("cutout_mode") == "none":
-            key = baseline_group_key(row)
-            if key not in none_baselines or safe_float(row.get("best_eval_accuracy")) is not None:
-                none_baselines[key] = row
-        if row.get("cutout_mode") == "random":
-            key = random_group_key(row)
-            if key not in random_baselines or safe_float(row.get("best_eval_accuracy")) is not None:
-                random_baselines[key] = row
-
-    for row in summary_rows:
-        none = none_baselines.get(baseline_group_key(row))
-        if none is not None:
-            row["baseline_none_run"] = none.get("run_name", "")
-            row["best_acc_improvement_over_none"] = difference(row.get("best_eval_accuracy"), none.get("best_eval_accuracy"))
-            row["relative_best_acc_improvement_over_none_pct"] = relative_difference_pct(
-                row.get("best_eval_accuracy"), none.get("best_eval_accuracy")
+        if record["issues"]:
+            unexpected_prefixes = (
+                "unexpected_dataset",
+                "unexpected_architecture",
+                "unexpected_seed",
+                "unexpected_cutout_mode",
+                "unexpected_cutout_m",
+                "unexpected_cutout_area",
+                "unexpected_or_old_flat_run_path",
+            )
+            record["status"] = (
+                "ignored_unexpected"
+                if any(str(issue).startswith(unexpected_prefixes) for issue in record["issues"])
+                else "invalid"
             )
         else:
-            row["notes"] = append_note(row.get("notes", ""), "missing matching no-cutout baseline")
+            record["status"] = "valid_candidate"
+        records.append(record)
 
-        if str(row.get("cutout_mode", "")).startswith("cam"):
-            random = random_baselines.get(random_group_key(row))
-            if random is not None:
-                row["baseline_random_run"] = random.get("run_name", "")
-                row["best_acc_improvement_over_random"] = difference(
-                    row.get("best_eval_accuracy"), random.get("best_eval_accuracy")
-                )
-                row["relative_best_acc_improvement_over_random_pct"] = relative_difference_pct(
-                    row.get("best_eval_accuracy"), random.get("best_eval_accuracy")
-                )
+    return records, metric_frames
+
+
+def select_analysis_runs(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], pd.DataFrame]:
+    candidates = [record for record in records if record["status"] == "valid_candidate"]
+    baselines: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+    augmented: dict[tuple[str, int, str, int, float], list[dict[str, Any]]] = defaultdict(list)
+    duplicate_rows: list[dict[str, Any]] = []
+
+    for record in candidates:
+        dataset_id = str(record["dataset_id"])
+        seed = int(record["seed"])
+        mode = str(record["mode"])
+        if mode == "none":
+            baselines[(dataset_id, seed)].append(record)
+        else:
+            augmented[(dataset_id, seed, mode, int(record["M"]), float(record["cutout_area"]))].append(record)
+
+    for (dataset_id, seed), group in baselines.items():
+        metric_counts = Counter(record["metrics_sha256"] for record in group)
+        normalized_config_counts = Counter(record["normalized_baseline_config_sha256"] for record in group)
+        raw_config_counts = Counter(record["config_sha256"] for record in group)
+        selected_metric_hash = sorted(metric_counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        selected_config_hash = sorted(normalized_config_counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        selected_pool = [
+            record
+            for record in group
+            if record["metrics_sha256"] == selected_metric_hash
+            and record["normalized_baseline_config_sha256"] == selected_config_hash
+        ]
+        selected = sorted(selected_pool, key=lambda record: record["source_path"])[0]
+        copies_differ = len(metric_counts) > 1 or len(normalized_config_counts) > 1
+        raw_config_path_only = len(raw_config_counts) > 1 and len(normalized_config_counts) == 1
+
+        for record in sorted(group, key=lambda item: item["source_path"]):
+            same_as_selected = (
+                record["metrics_sha256"] == selected_metric_hash
+                and record["normalized_baseline_config_sha256"] == selected_config_hash
+            )
+            if record is selected:
+                record["analysis_valid"] = True
+                record["status"] = "valid_selected_baseline"
+                if copies_differ:
+                    record["issues"].append("selected_from_baseline_group_with_differences")
+            elif same_as_selected:
+                record["analysis_valid"] = False
+                record["status"] = "duplicate_baseline_exact"
+                record["issues"].append("deduplicated_exact_no_cutout_copy")
             else:
-                row["notes"] = append_note(row.get("notes", ""), "missing matching random baseline")
+                record["analysis_valid"] = False
+                record["status"] = "duplicate_baseline_inconsistent"
+                record["issues"].append("excluded_no_cutout_copy_differs_from_selected")
 
+            duplicate_rows.append(
+                {
+                    "dataset": display_dataset(dataset_id),
+                    "seed": seed,
+                    "source_path": record["source_path"],
+                    "selected_for_analysis": record is selected,
+                    "baseline_group_size": len(group),
+                    "baseline_copies_differ": copies_differ,
+                    "metrics_match_selected": record["metrics_sha256"] == selected_metric_hash,
+                    "normalized_config_matches_selected": record["normalized_baseline_config_sha256"] == selected_config_hash,
+                    "raw_config_path_only_differences_in_group": raw_config_path_only,
+                    "metrics_sha256": record["metrics_sha256"],
+                    "metrics_hash_count": metric_counts[record["metrics_sha256"]],
+                    "normalized_baseline_config_sha256": record["normalized_baseline_config_sha256"],
+                    "normalized_config_hash_count": normalized_config_counts[record["normalized_baseline_config_sha256"]],
+                    "raw_config_sha256": record["config_sha256"],
+                    "raw_config_hash_count": raw_config_counts[record["config_sha256"]],
+                    "status": record["status"],
+                    "issues": ";".join(record["issues"]),
+                }
+            )
 
-def append_note(existing: str, note: str) -> str:
-    if not existing:
-        return note
-    if note in existing.split("; "):
-        return existing
-    return f"{existing}; {note}"
-
-
-def add_check(
-    checks: List[Dict[str, Any]],
-    check_type: str,
-    severity: str,
-    status: str,
-    *,
-    run: Optional[Dict[str, Any]] = None,
-    dataset_folder: str = "",
-    model: str = "",
-    seed: Any = "",
-    run_name: str = "",
-    condition: str = "",
-    expected: Any = "",
-    observed: Any = "",
-    details: str = "",
-    notes: str = "",
-) -> None:
-    if run is not None:
-        config = run["config"]
-        dataset_folder = dataset_folder or run["dataset_folder"]
-        model = model or config.get("model", run["parsed"].get("model", ""))
-        seed = seed if seed != "" else config.get("seed", run["parsed"].get("seed", ""))
-        run_name = run_name or run["run_name"]
-        condition = condition or condition_label(
-            config.get("cutout_mode", run["parsed"].get("cutout_mode", "")),
-            config.get("cutout_m", run["parsed"].get("cutout_m", "")),
-        )
-    checks.append(
-        {
-            "check_type": check_type,
-            "severity": severity,
-            "status": status,
-            "dataset_folder": dataset_folder,
-            "model": model,
-            "seed": seed,
-            "run_name": run_name,
-            "condition": condition,
-            "expected": expected,
-            "observed": observed,
-            "details": details,
-            "notes": notes,
-        }
-    )
-
-
-def numeric_array_equal(df_a: Optional[pd.DataFrame], df_b: Optional[pd.DataFrame]) -> Tuple[bool, str]:
-    if df_a is None or df_b is None:
-        return False, "one or both metrics files could not be loaded"
-    common_cols = [col for col in df_a.columns if col in df_b.columns]
-    numeric_cols = []
-    for col in common_cols:
-        if normalize_name(col) in STRING_METRIC_COLUMNS:
+    for _signature, group in augmented.items():
+        if len(group) == 1:
+            group[0]["analysis_valid"] = True
+            group[0]["status"] = "valid"
             continue
-        a = pd.to_numeric(df_a[col], errors="coerce")
-        b = pd.to_numeric(df_b[col], errors="coerce")
-        if a.notna().any() or b.notna().any():
-            numeric_cols.append(col)
-    if not numeric_cols:
-        return False, "no shared numeric metric columns"
-    a_num = df_a[numeric_cols].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
-    b_num = df_b[numeric_cols].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
-    if a_num.shape != b_num.shape:
-        return False, f"numeric shapes differ: {a_num.shape} vs {b_num.shape}"
-    equal = bool(np.allclose(a_num, b_num, rtol=0.0, atol=0.0, equal_nan=True))
-    return equal, f"columns={','.join(numeric_cols)} shape={a_num.shape}"
+        for record in group:
+            record["analysis_valid"] = False
+            record["status"] = "duplicate_run"
+            record["issues"].append("duplicate_nonbaseline_signature")
 
-
-def run_identity_key(run: Dict[str, Any], include_m_area: bool = False) -> Tuple[Any, ...]:
-    config = run["config"]
-    base = (
-        run["dataset_folder"],
-        config.get("dataset", ""),
-        config.get("model", run["parsed"].get("model", "")),
-        config.get("seed", run["parsed"].get("seed", "")),
-        config.get("grayscale", ""),
-        config.get("include_regex", ""),
+    analysis_runs = [record for record in records if record["analysis_valid"]]
+    duplicate_table = pd.DataFrame(
+        duplicate_rows,
+        columns=[
+            "dataset",
+            "seed",
+            "source_path",
+            "selected_for_analysis",
+            "baseline_group_size",
+            "baseline_copies_differ",
+            "metrics_match_selected",
+            "normalized_config_matches_selected",
+            "raw_config_path_only_differences_in_group",
+            "metrics_sha256",
+            "metrics_hash_count",
+            "normalized_baseline_config_sha256",
+            "normalized_config_hash_count",
+            "raw_config_sha256",
+            "raw_config_hash_count",
+            "status",
+            "issues",
+        ],
     )
-    if include_m_area:
-        return base + (
-            comparable_number(config.get("cutout_m", run["parsed"].get("cutout_m", ""))),
-            comparable_number(config.get("cutout_area", run["parsed"].get("cutout_area", ""))),
+    return analysis_runs, duplicate_table
+
+
+def compute_drawdown_and_collapses(values: np.ndarray) -> tuple[float, int]:
+    running_best = float(values[0])
+    max_drawdown = 0.0
+    collapse_count = 0
+    in_collapse = False
+
+    for value in values[1:]:
+        value = float(value)
+        drop = running_best - value
+        max_drawdown = max(max_drawdown, drop)
+        if drop >= COLLAPSE_THRESHOLD:
+            if not in_collapse:
+                collapse_count += 1
+                in_collapse = True
+        else:
+            in_collapse = False
+        if value > running_best:
+            running_best = value
+            in_collapse = False
+
+    return max_drawdown, collapse_count
+
+
+def trapezoid(values: np.ndarray, x: np.ndarray) -> float:
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(values, x=x))
+    return float(np.trapz(values, x=x))
+
+
+def compute_per_run_metrics(analysis_runs: list[dict[str, Any]], metric_frames: dict[int, pd.DataFrame]) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for record in sorted(
+        analysis_runs,
+        key=lambda item: (
+            str(item["dataset"]),
+            int(item["seed"]),
+            str(item["mode"]),
+            -1 if item["M"] is None else int(item["M"]),
+            -1.0 if item["cutout_area"] is None else float(item["cutout_area"]),
+            item["source_path"],
+        ),
+    ):
+        frame = metric_frames[record["run_id"]]
+        epochs = frame["epoch"].to_numpy(dtype=float)
+        val_acc = frame["eval_acc1"].to_numpy(dtype=float)
+        train_acc = frame["train_acc1"].to_numpy(dtype=float)
+        val_loss = frame["eval_loss"].to_numpy(dtype=float)
+        train_loss = frame["train_loss"].to_numpy(dtype=float)
+
+        best_value = float(val_acc.max())
+        best_index = int(np.flatnonzero(val_acc == best_value)[0])
+        final_value = float(val_acc[-1])
+        final20 = val_acc[-20:]
+        max_drawdown, collapse_count = compute_drawdown_and_collapses(val_acc)
+        m_value = None if record["mode"] == "none" else int(record["M"])
+        cutout_area = None if record["mode"] == "none" else float(record["cutout_area"])
+
+        rows.append(
+            {
+                "dataset": record["dataset"],
+                "architecture": record["architecture"],
+                "seed": int(record["seed"]),
+                "condition": record["condition"],
+                "mode": record["mode"],
+                "M": m_value,
+                "cutout_area": cutout_area,
+                "epochs": EXPECTED_EPOCHS,
+                "source_path": record["source_path"],
+                "best_validation_accuracy": best_value,
+                "best_validation_epoch": int(epochs[best_index]),
+                "final_validation_accuracy": final_value,
+                "best_to_final_degradation": best_value - final_value,
+                "validation_aulc": trapezoid(val_acc, epochs) / float(epochs[-1] - epochs[0]),
+                "training_accuracy_at_best_validation_epoch": float(train_acc[best_index]),
+                "train_validation_gap_at_best_epoch": float(train_acc[best_index] - best_value),
+                "final_train_validation_gap": float(train_acc[-1] - final_value),
+                "final20_validation_accuracy_mean": float(final20.mean()),
+                "final20_validation_accuracy_std": float(final20.std(ddof=1)),
+                "maximum_validation_drawdown": max_drawdown,
+                "collapse_event_count": collapse_count,
+                "validation_loss_at_best_validation_epoch": float(val_loss[best_index]),
+                "final_validation_loss": float(val_loss[-1]),
+                "final_training_loss": float(train_loss[-1]),
+            }
         )
-    return base
+    return pd.DataFrame(rows)
 
 
-def build_integrity_checks(
-    runs: List[Dict[str, Any]],
-    missing_folder_warnings: List[str],
-) -> Tuple[List[Dict[str, Any]], Dict[str, List[str]]]:
-    checks: List[Dict[str, Any]] = []
-    run_notes: Dict[str, List[str]] = defaultdict(list)
-
-    for warning_text in missing_folder_warnings:
-        severity = "warning"
-        notes = ""
-        if "runs/rawmaltf/" in warning_text and (RUNS_ROOT / "drive_zip").exists():
-            notes = "runs/drive_zip/ exists and is treated as RawMal-TF based on project context."
-        add_check(
-            checks,
-            "missing_dataset_folder",
-            severity,
-            "warning",
-            dataset_folder="rawmaltf",
-            expected="folder exists",
-            observed="missing",
-            details=warning_text,
-            notes=notes,
-        )
-
-    for run in runs:
-        config = run["config"]
-        parsed = run["parsed"]
-        run_path = run["run_path"]
-        if not run["config_exists"]:
-            add_check(checks, "missing_config", "critical", "fail", run=run, expected="config.json", observed="missing")
-            run_notes[run_path].append("missing config.json")
-        if run["config_error"]:
-            add_check(
-                checks,
-                "unreadable_config",
-                "critical",
-                "fail",
-                run=run,
-                expected="valid JSON",
-                observed=run["config_error"],
-            )
-            run_notes[run_path].append("unreadable config.json")
-        if not run["metrics_exists"]:
-            add_check(checks, "missing_metrics", "critical", "fail", run=run, expected="metrics.csv", observed="missing")
-            run_notes[run_path].append("missing metrics.csv")
-        if run["metrics_error"]:
-            add_check(
-                checks,
-                "unreadable_metrics",
-                "critical",
-                "fail",
-                run=run,
-                expected="readable CSV",
-                observed=run["metrics_error"],
-            )
-            run_notes[run_path].append("unreadable metrics.csv")
-
-        configured_epochs = safe_float(config.get("epochs", ""))
-        observed_epochs = safe_float(run["observed_metric_epochs"])
-        last_epoch = safe_float(run["last_epoch"])
-        if configured_epochs is not None and run["metrics_exists"]:
-            mismatch = False
-            details = []
-            if observed_epochs is not None and int(observed_epochs) != int(configured_epochs):
-                mismatch = True
-                details.append(f"observed_metric_epochs={run['observed_metric_epochs']}")
-            if last_epoch is not None and int(last_epoch) != int(configured_epochs):
-                mismatch = True
-                details.append(f"last_epoch={run['last_epoch']}")
-            if mismatch:
-                add_check(
-                    checks,
-                    "configured_vs_observed_epoch_mismatch",
-                    "warning",
-                    "fail",
-                    run=run,
-                    expected=configured_epochs,
-                    observed="; ".join(details),
-                    details="Configured epochs do not match observed metrics.",
-                )
-                run_notes[run_path].append("configured epochs mismatch observed metrics")
-
-        if run["dataset_folder"] in {"cifar100"} | RAWMALTF_FOLDERS and run["metrics_exists"]:
-            appears_100 = int(run["observed_metric_epochs"] or 0) == 100 and int(safe_float(run["last_epoch"]) or 0) == 100
-            if not appears_100:
-                add_check(
-                    checks,
-                    "rawmaltf_cifar100_not_100_epochs",
-                    "warning",
-                    "fail",
-                    run=run,
-                    expected="100 epochs",
-                    observed=f"observed_metric_epochs={run['observed_metric_epochs']}, last_epoch={run['last_epoch']}",
-                )
-                run_notes[run_path].append("RawMal-TF/CIFAR100 run does not appear to be 100 epochs")
-
-        if run["dataset_folder"] == "malimg" and run["metrics_exists"]:
-            short_run = int(run["observed_metric_epochs"] or 0) < 100 or int(safe_float(run["last_epoch"]) or 0) < 100
-            if short_run:
-                add_check(
-                    checks,
-                    "malimg_short_run",
-                    "expected_possible",
-                    "warning",
-                    run=run,
-                    expected="possibly shorter MalImg run",
-                    observed=f"observed_metric_epochs={run['observed_metric_epochs']}, last_epoch={run['last_epoch']}",
-                    notes="Marked expected_possible per task instructions.",
-                )
-                run_notes[run_path].append("MalImg short run marked expected_possible")
-
-        df = run["metrics_df"]
-        if df is not None:
-            non_numeric_details = []
-            nan_details = []
-            for col in df.columns:
-                norm_col = normalize_name(col)
-                if norm_col in STRING_METRIC_COLUMNS:
-                    continue
-                converted = pd.to_numeric(df[col], errors="coerce")
-                original_nonempty = df[col].notna() & (df[col].astype(str).str.strip() != "")
-                bad_count = int((original_nonempty & converted.isna()).sum())
-                if bad_count:
-                    non_numeric_details.append(f"{col}:{bad_count}")
-                if norm_col not in STRING_METRIC_COLUMNS and converted.isna().any() and converted.notna().any():
-                    nan_details.append(f"{col}:{int(converted.isna().sum())}")
-            if non_numeric_details or nan_details:
-                add_check(
-                    checks,
-                    "nan_or_non_numeric_metrics",
-                    "warning",
-                    "fail",
-                    run=run,
-                    observed="; ".join(non_numeric_details + nan_details),
-                    details="NaN or non-numeric values detected in metric-like columns.",
-                )
-                run_notes[run_path].append("NaN/non-numeric metric values")
-
-            cols = run["metric_cols"]
-            for label, col in [("train_accuracy", cols["train_acc"]), ("eval_accuracy", cols["eval_acc"])]:
-                if col:
-                    values = pd.to_numeric(df[col], errors="coerce").dropna()
-                    if len(values) > 1 and values.nunique(dropna=True) <= 1:
-                        add_check(
-                            checks,
-                            "suspiciously_constant_accuracy",
-                            "warning",
-                            "fail",
-                            run=run,
-                            observed=f"{label} column {col} has {values.nunique()} unique value",
-                            details=f"value={values.iloc[0] if not values.empty else ''}",
-                        )
-                        run_notes[run_path].append(f"suspiciously constant {label}")
-
-        folder_dataset = run["dataset_folder"]
-        config_dataset = config.get("dataset", "")
-        if config_dataset and folder_dataset != config_dataset:
-            add_check(
-                checks,
-                "folder_config_dataset_mismatch",
-                "warning",
-                "fail",
-                run=run,
-                expected=folder_dataset,
-                observed=config_dataset,
-                details="Dataset folder differs from config dataset.",
-            )
-            run_notes[run_path].append("folder/config dataset mismatch")
-
-        config_model = config.get("model", "")
-        parsed_model = parsed.get("model", "")
-        if config_model and parsed_model and config_model != parsed_model:
-            add_check(
-                checks,
-                "folder_config_model_mismatch",
-                "warning",
-                "fail",
-                run=run,
-                expected=parsed_model,
-                observed=config_model,
-                details="Model inferred from run folder differs from config model.",
-            )
-            run_notes[run_path].append("folder/config model mismatch")
-
-        config_mode = config.get("cutout_mode", "")
-        parsed_mode = parsed.get("cutout_mode", "")
-        if config_mode and parsed_mode and config_mode != parsed_mode:
-            add_check(
-                checks,
-                "folder_config_cutout_mode_mismatch",
-                "warning",
-                "fail",
-                run=run,
-                expected=parsed_mode,
-                observed=config_mode,
-                details="Cutout mode inferred from run folder differs from config.",
-            )
-            run_notes[run_path].append("folder/config cutout mode mismatch")
-
-        if str(config_mode).startswith("cam") and not str(config.get("teacher_checkpoint", "")).strip():
-            add_check(
-                checks,
-                "cam_missing_teacher_checkpoint",
-                "critical",
-                "fail",
-                run=run,
-                expected="teacher_checkpoint populated",
-                observed="missing",
-            )
-            run_notes[run_path].append("CAM run missing teacher checkpoint in config")
-
-    by_metrics_hash: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    by_config_hash: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    for run in runs:
-        if run["metrics_sha256"]:
-            by_metrics_hash[run["metrics_sha256"]].append(run)
-        if run["config_sha256"]:
-            by_config_hash[run["config_sha256"]].append(run)
-
-    duplicate_metric_count = 0
-    for digest, grouped in sorted(by_metrics_hash.items()):
-        if len(grouped) > 1:
-            duplicate_metric_count += 1
-            names = "; ".join(item["run_path"] for item in grouped)
-            add_check(
-                checks,
-                "duplicate_metrics_hash",
-                "warning",
-                "fail",
-                expected="unique metrics.csv hash",
-                observed=digest,
-                details=names,
-            )
-            for item in grouped:
-                run_notes[item["run_path"]].append("metrics.csv hash duplicated with another run")
-    if duplicate_metric_count == 0:
-        add_check(checks, "duplicate_metrics_hash", "info", "pass", details="No duplicate metrics.csv hashes detected.")
-
-    duplicate_config_count = 0
-    for digest, grouped in sorted(by_config_hash.items()):
-        if len(grouped) > 1:
-            duplicate_config_count += 1
-            names = "; ".join(item["run_path"] for item in grouped)
-            add_check(
-                checks,
-                "duplicate_config_hash",
-                "warning",
-                "fail",
-                expected="unique config.json hash",
-                observed=digest,
-                details=names,
-            )
-            for item in grouped:
-                run_notes[item["run_path"]].append("config.json hash duplicated with another run")
-    if duplicate_config_count == 0:
-        add_check(checks, "duplicate_config_hash", "info", "pass", details="No duplicate config.json hashes detected.")
-
-    cam_pairs: Dict[Tuple[Any, ...], Dict[str, Dict[str, Any]]] = defaultdict(dict)
-    for run in runs:
-        mode = run["config"].get("cutout_mode", run["parsed"].get("cutout_mode", ""))
-        if mode in {"cam_low", "cam_high"}:
-            cam_pairs[run_identity_key(run, include_m_area=True)][mode] = run
-
-    pair_checks = 0
-    for key, pair in sorted(cam_pairs.items(), key=lambda item: str(item[0])):
-        if "cam_low" not in pair or "cam_high" not in pair:
-            continue
-        pair_checks += 1
-        low = pair["cam_low"]
-        high = pair["cam_high"]
-        raw_hash_equal = bool(low["metrics_sha256"] and low["metrics_sha256"] == high["metrics_sha256"])
-        numeric_equal, numeric_details = numeric_array_equal(low["metrics_df"], high["metrics_df"])
-        severity = "critical" if raw_hash_equal or numeric_equal else "info"
-        status = "fail" if raw_hash_equal or numeric_equal else "pass"
-        details = (
-            f"low={low['run_path']}; high={high['run_path']}; "
-            f"raw_csv_hash_equal={raw_hash_equal}; numeric_arrays_equal={numeric_equal}; {numeric_details}"
-        )
-        add_check(
-            checks,
-            "identical_cam_low_high_metrics",
-            severity,
-            status,
-            dataset_folder=low["dataset_folder"],
-            model=low["config"].get("model", low["parsed"].get("model", "")),
-            seed=low["config"].get("seed", low["parsed"].get("seed", "")),
-            condition=f"M{comparable_number(low['config'].get('cutout_m', ''))} area={low['config'].get('cutout_area', '')}",
-            expected="cam_low and cam_high differ",
-            observed=f"raw_csv_hash_equal={raw_hash_equal}; numeric_arrays_equal={numeric_equal}",
-            details=details,
-            notes="Publication-critical low/high identity check.",
-        )
-        if raw_hash_equal or numeric_equal:
-            run_notes[low["run_path"]].append("cam_low metrics identical to cam_high counterpart")
-            run_notes[high["run_path"]].append("cam_high metrics identical to cam_low counterpart")
-    if pair_checks == 0:
-        add_check(
-            checks,
-            "identical_cam_low_high_metrics",
-            "warning",
-            "skipped",
-            details="No complete cam_low/cam_high pairs found.",
-        )
-
-    return checks, run_notes
+def t_critical_975(df: int) -> float:
+    table = {
+        1: 12.706204736432095,
+        2: 4.302652729911275,
+        3: 3.182446305284263,
+        4: 2.7764451051977987,
+        5: 2.570581835636305,
+        6: 2.4469118487916806,
+        7: 2.3646242515927844,
+        8: 2.306004135204166,
+        9: 2.2621571627409915,
+        10: 2.2281388519649385,
+    }
+    return table.get(df, 1.959963984540054)
 
 
-def make_comparison_table(summary_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
-    for row in summary_rows:
-        groups[baseline_group_key(row)].append(row)
-
-    rows: List[Dict[str, Any]] = []
-    for key, grouped in sorted(groups.items(), key=lambda item: str(item[0])):
-        first = grouped[0]
-        output: Dict[str, Any] = {
-            "dataset_folder": first["dataset_folder"],
-            "dataset_display": first["dataset_display"],
-            "config_dataset": first["config_dataset"],
-            "config_model": first["config_model"],
-            "seed": first["seed"],
-            "grayscale": first["grayscale"],
-            "include_regex": first["include_regex"],
-            "notes": "",
+def stats_for_values(values: list[Any]) -> dict[str, Any]:
+    clean = [float(value) for value in values if value is not None and not pd.isna(value)]
+    n = len(clean)
+    if n == 0:
+        return {
+            "n": 0,
+            "mean": np.nan,
+            "sample_variance": np.nan,
+            "sample_std": np.nan,
+            "standard_error": np.nan,
+            "ci95_low": np.nan,
+            "ci95_high": np.nan,
+            "min": np.nan,
+            "max": np.nan,
         }
-        by_condition: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-        for row in grouped:
-            by_condition[row["condition_key"]].append(row)
+    mean = float(np.mean(clean))
+    if n == 1:
+        return {
+            "n": 1,
+            "mean": mean,
+            "sample_variance": np.nan,
+            "sample_std": np.nan,
+            "standard_error": np.nan,
+            "ci95_low": np.nan,
+            "ci95_high": np.nan,
+            "min": float(np.min(clean)),
+            "max": float(np.max(clean)),
+        }
+    sample_variance = float(np.var(clean, ddof=1))
+    sample_std = float(np.std(clean, ddof=1))
+    standard_error = sample_std / math.sqrt(n)
+    half_width = t_critical_975(n - 1) * standard_error
+    return {
+        "n": n,
+        "mean": mean,
+        "sample_variance": sample_variance,
+        "sample_std": sample_std,
+        "standard_error": standard_error,
+        "ci95_low": mean - half_width,
+        "ci95_high": mean + half_width,
+        "min": float(np.min(clean)),
+        "max": float(np.max(clean)),
+    }
 
-        baseline_acc = ""
-        none_rows = by_condition.get("none", [])
-        if none_rows:
-            baseline = max(none_rows, key=lambda row: safe_float(row.get("best_eval_accuracy")) or -np.inf)
-            baseline_acc = baseline.get("best_eval_accuracy", "")
 
-        for condition in CONDITION_ORDER:
-            candidates = by_condition.get(condition, [])
-            prefix = condition
-            if candidates:
-                selected = max(candidates, key=lambda row: safe_float(row.get("best_eval_accuracy")) or -np.inf)
-                if len(candidates) > 1:
-                    output["notes"] = append_note(output["notes"], f"multiple {condition} runs; selected best accuracy")
-                output[f"{prefix}_run_name"] = selected["run_name"]
-                output[f"{prefix}_best_accuracy"] = selected["best_eval_accuracy"]
-                output[f"{prefix}_final_accuracy"] = selected["final_eval_accuracy"]
-                output[f"{prefix}_best_epoch"] = selected["best_epoch"]
-                output[f"{prefix}_improvement_over_none"] = difference(selected["best_eval_accuracy"], baseline_acc)
-                output[f"{prefix}_relative_improvement_over_none_pct"] = relative_difference_pct(
-                    selected["best_eval_accuracy"], baseline_acc
-                )
-            else:
-                output[f"{prefix}_run_name"] = ""
-                output[f"{prefix}_best_accuracy"] = ""
-                output[f"{prefix}_final_accuracy"] = ""
-                output[f"{prefix}_best_epoch"] = ""
-                output[f"{prefix}_improvement_over_none"] = ""
-                output[f"{prefix}_relative_improvement_over_none_pct"] = ""
-        rows.append(output)
+def expected_parameter_grid() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for dataset_id in EXPECTED_DATASETS:
+        rows.append(
+            {
+                "dataset": display_dataset(dataset_id),
+                "condition": CONDITION_LABELS["none"],
+                "mode": "none",
+                "M": None,
+                "cutout_area": None,
+            }
+        )
+        for mode in AUGMENTED_CONDITIONS:
+            for m_value in EXPECTED_MS:
+                for area in EXPECTED_AREAS:
+                    rows.append(
+                        {
+                            "dataset": display_dataset(dataset_id),
+                            "condition": CONDITION_LABELS[mode],
+                            "mode": mode,
+                            "M": m_value,
+                            "cutout_area": area,
+                        }
+                    )
     return rows
 
 
-def percent(value: Any, digits: int = 2) -> str:
-    f = safe_float(value)
-    if f is None:
-        return ""
-    return f"{100.0 * f:.{digits}f}%"
+def subset_for(per_run: pd.DataFrame, dataset: str, mode: str, m_value: int | None, area: float | None) -> pd.DataFrame:
+    subset = per_run[(per_run["dataset"] == dataset) & (per_run["mode"] == mode)]
+    if mode == "none":
+        return subset[subset["M"].isna() & subset["cutout_area"].isna()]
+    return subset[(subset["M"] == m_value) & (np.isclose(subset["cutout_area"].astype(float), float(area)))]
 
 
-def signed_percent_point(value: Any, digits: int = 2) -> str:
-    f = safe_float(value)
-    if f is None:
-        return ""
-    return f"{100.0 * f:+.{digits}f} pp"
+def build_aggregate_table(per_run: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for grid_row in expected_parameter_grid():
+        subset = subset_for(
+            per_run,
+            grid_row["dataset"],
+            grid_row["mode"],
+            grid_row["M"],
+            grid_row["cutout_area"],
+        )
+        seeds_present = sorted(int(seed) for seed in subset["seed"].dropna().unique())
+        seeds_missing = [seed for seed in EXPECTED_SEEDS if seed not in seeds_present]
+        row: dict[str, Any] = {
+            "dataset": grid_row["dataset"],
+            "architecture": EXPECTED_ARCHITECTURE,
+            "condition": grid_row["condition"],
+            "mode": grid_row["mode"],
+            "M": grid_row["M"],
+            "cutout_area": grid_row["cutout_area"],
+            "valid_seed_count": len(seeds_present),
+            "seeds_present": ";".join(str(seed) for seed in seeds_present),
+            "seeds_missing": ";".join(str(seed) for seed in seeds_missing),
+        }
+        for metric in PER_RUN_METRICS:
+            values = [float(value) for value in subset.sort_values("seed")[metric].dropna().tolist()]
+            stats_row = stats_for_values(values)
+            for key, value in stats_row.items():
+                suffix = "valid_seed_count" if key == "n" else key
+                row[f"{metric}_{suffix}"] = value
+        rows.append(row)
+
+    table = pd.DataFrame(rows)
+    mode_order = {"none": 0, "random": 1, "cam_low": 2, "cam_high": 3}
+    table["_dataset_order"] = table["dataset"].map({"CIFAR-100": 0, "RawMal-TF": 1})
+    table["_mode_order"] = table["mode"].map(mode_order)
+    table["_m_order"] = table["M"].fillna(-1).astype(float)
+    table["_area_order"] = table["cutout_area"].fillna(-1).astype(float)
+    table = table.sort_values(["_dataset_order", "_mode_order", "_m_order", "_area_order"]).drop(
+        columns=["_dataset_order", "_mode_order", "_m_order", "_area_order"]
+    )
+    return table
 
 
-def plain_number(value: Any, digits: int = 2) -> str:
-    f = safe_float(value)
-    if f is None:
-        return ""
-    return f"{f:.{digits}f}"
+def row_lookup(per_run: pd.DataFrame) -> dict[tuple[str, int, str, int | None, float | None], dict[str, Any]]:
+    lookup: dict[tuple[str, int, str, int | None, float | None], dict[str, Any]] = {}
+    for _, row in per_run.iterrows():
+        m_value = None if pd.isna(row["M"]) else int(row["M"])
+        area = None if pd.isna(row["cutout_area"]) else float(row["cutout_area"])
+        lookup[(str(row["dataset"]), int(row["seed"]), str(row["mode"]), m_value, area)] = row.to_dict()
+    return lookup
 
 
-def df_from_records(records: List[Dict[str, Any]]) -> pd.DataFrame:
-    return pd.DataFrame(clean_records(records))
+def build_seed_level_paired_effects(per_run: pd.DataFrame) -> pd.DataFrame:
+    lookup = row_lookup(per_run)
+    rows: list[dict[str, Any]] = []
+
+    def append_rows(
+        dataset: str,
+        seed: int,
+        comparison_key: str,
+        comparison: str,
+        condition: str,
+        mode: str,
+        area: float | None,
+        m_value: int | None,
+        condition_a: str,
+        condition_b: str,
+        m_a: int | None,
+        m_b: int | None,
+        row_a: dict[str, Any],
+        row_b: dict[str, Any],
+    ) -> None:
+        for metric in PAIRED_EFFECT_METRICS:
+            value_a = float(row_a[metric])
+            value_b = float(row_b[metric])
+            rows.append(
+                {
+                    "dataset": dataset,
+                    "architecture": EXPECTED_ARCHITECTURE,
+                    "seed": seed,
+                    "comparison_key": comparison_key,
+                    "comparison": comparison,
+                    "condition": condition,
+                    "mode": mode,
+                    "M": m_value,
+                    "cutout_area": area,
+                    "condition_a": condition_a,
+                    "condition_b": condition_b,
+                    "M_a": m_a,
+                    "M_b": m_b,
+                    "metric": metric,
+                    "metric_label": metric_label(metric),
+                    "value_a": value_a,
+                    "value_b": value_b,
+                    "difference": value_a - value_b,
+                    "difference_interpretation": f"positive means {condition_a} is higher than {condition_b}",
+                }
+            )
+
+    for dataset_id in EXPECTED_DATASETS:
+        dataset = display_dataset(dataset_id)
+        for seed in EXPECTED_SEEDS:
+            baseline = lookup.get((dataset, seed, "none", None, None))
+            for area in EXPECTED_AREAS:
+                for m_value in EXPECTED_MS:
+                    random_row = lookup.get((dataset, seed, "random", m_value, area))
+                    low_row = lookup.get((dataset, seed, "cam_low", m_value, area))
+                    high_row = lookup.get((dataset, seed, "cam_high", m_value, area))
+                    if low_row is not None and random_row is not None:
+                        append_rows(
+                            dataset,
+                            seed,
+                            "cam_low_minus_random",
+                            "Low-saliency cutout minus random cutout",
+                            CONDITION_LABELS["cam_low"],
+                            "cam_low",
+                            area,
+                            m_value,
+                            f"{CONDITION_LABELS['cam_low']} M{m_value}",
+                            f"{CONDITION_LABELS['random']} M{m_value}",
+                            m_value,
+                            m_value,
+                            low_row,
+                            random_row,
+                        )
+                    if high_row is not None and random_row is not None:
+                        append_rows(
+                            dataset,
+                            seed,
+                            "cam_high_minus_random",
+                            "High-saliency cutout minus random cutout",
+                            CONDITION_LABELS["cam_high"],
+                            "cam_high",
+                            area,
+                            m_value,
+                            f"{CONDITION_LABELS['cam_high']} M{m_value}",
+                            f"{CONDITION_LABELS['random']} M{m_value}",
+                            m_value,
+                            m_value,
+                            high_row,
+                            random_row,
+                        )
+                    if random_row is not None and baseline is not None:
+                        append_rows(
+                            dataset,
+                            seed,
+                            "random_minus_no_cutout",
+                            "Random cutout minus no cutout",
+                            CONDITION_LABELS["random"],
+                            "random",
+                            area,
+                            m_value,
+                            f"{CONDITION_LABELS['random']} M{m_value}",
+                            CONDITION_LABELS["none"],
+                            m_value,
+                            None,
+                            random_row,
+                            baseline,
+                        )
+                for mode in AUGMENTED_CONDITIONS:
+                    m4 = lookup.get((dataset, seed, mode, 4, area))
+                    m8 = lookup.get((dataset, seed, mode, 8, area))
+                    if m8 is not None and m4 is not None:
+                        append_rows(
+                            dataset,
+                            seed,
+                            "m8_minus_m4",
+                            "M8 minus M4",
+                            CONDITION_LABELS[mode],
+                            mode,
+                            area,
+                            None,
+                            f"{CONDITION_LABELS[mode]} M8",
+                            f"{CONDITION_LABELS[mode]} M4",
+                            8,
+                            4,
+                            m8,
+                            m4,
+                        )
+
+    return pd.DataFrame(rows)
 
 
-def save_plot(fig: plt.Figure, path: Path) -> None:
-    global PLOTS_CREATED
+def build_paired_effects_table(seed_effects: pd.DataFrame) -> pd.DataFrame:
+    if seed_effects.empty:
+        return pd.DataFrame()
+    group_cols = [
+        "dataset",
+        "architecture",
+        "comparison_key",
+        "comparison",
+        "condition",
+        "mode",
+        "M",
+        "cutout_area",
+        "condition_a",
+        "condition_b",
+        "M_a",
+        "M_b",
+        "metric",
+        "metric_label",
+        "difference_interpretation",
+    ]
+    rows: list[dict[str, Any]] = []
+    for keys, group in seed_effects.groupby(group_cols, dropna=False, sort=True):
+        row = {column: value for column, value in zip(group_cols, keys)}
+        seed_values = {int(seed): float(value) for seed, value in zip(group["seed"], group["difference"])}
+        stats_row = stats_for_values(list(seed_values.values()))
+        row.update(
+            {
+                "n_paired_seeds": stats_row["n"],
+                "seeds_paired": ";".join(str(seed) for seed in sorted(seed_values)),
+                "seeds_missing": ";".join(str(seed) for seed in EXPECTED_SEEDS if seed not in seed_values),
+                "mean_paired_difference": stats_row["mean"],
+                "sample_variance": stats_row["sample_variance"],
+                "sample_std": stats_row["sample_std"],
+                "standard_error": stats_row["standard_error"],
+                "ci95_low": stats_row["ci95_low"],
+                "ci95_high": stats_row["ci95_high"],
+                "min": stats_row["min"],
+                "max": stats_row["max"],
+                "seed_42_difference": seed_values.get(42, np.nan),
+                "seed_43_difference": seed_values.get(43, np.nan),
+                "seed_44_difference": seed_values.get(44, np.nan),
+                "seed_level_differences": ";".join(f"{seed}:{seed_values[seed]:.10f}" for seed in sorted(seed_values)),
+            }
+        )
+        rows.append(row)
+    table = pd.DataFrame(rows)
+    order = {
+        "cam_low_minus_random": 0,
+        "cam_high_minus_random": 1,
+        "random_minus_no_cutout": 2,
+        "m8_minus_m4": 3,
+    }
+    table["_dataset_order"] = table["dataset"].map({"CIFAR-100": 0, "RawMal-TF": 1})
+    table["_comparison_order"] = table["comparison_key"].map(order)
+    table["_m_order"] = table["M"].fillna(-1).astype(float)
+    table["_area_order"] = table["cutout_area"].fillna(-1).astype(float)
+    table = table.sort_values(
+        ["_dataset_order", "_comparison_order", "mode", "_m_order", "_area_order", "metric"]
+    ).drop(columns=["_dataset_order", "_comparison_order", "_m_order", "_area_order"])
+    return table
+
+
+def build_inventory_table(records: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = [
+        "dataset",
+        "architecture",
+        "seed",
+        "condition",
+        "mode",
+        "M",
+        "cutout_area",
+        "config_epochs",
+        "metrics_epoch_count",
+        "required_columns_ok",
+        "epoch_sequence_ok",
+        "status",
+        "analysis_valid",
+        "issue_count",
+        "issues",
+        "source_path",
+        "config_path",
+        "metrics_path",
+        "config_sha256",
+        "metrics_sha256",
+    ]
+    rows: list[dict[str, Any]] = []
+    status_order = {
+        "valid": 0,
+        "valid_selected_baseline": 1,
+        "duplicate_baseline_exact": 2,
+        "duplicate_baseline_inconsistent": 3,
+        "duplicate_run": 4,
+        "invalid": 5,
+        "ignored_unexpected": 6,
+        "valid_candidate": 7,
+    }
+    for record in records:
+        row = {column: record.get(column, "") for column in columns}
+        row["issue_count"] = len(record.get("issues", []))
+        row["issues"] = ";".join(record.get("issues", []))
+        row["_status_order"] = status_order.get(record["status"], 99)
+        rows.append(row)
+    table = pd.DataFrame(rows)
+    if table.empty:
+        return pd.DataFrame(columns=columns)
+    table["_dataset_order"] = table["dataset"].map({"CIFAR-100": 0, "RawMal-TF": 1}).fillna(99)
+    table["_seed_order"] = pd.to_numeric(table["seed"], errors="coerce").fillna(999)
+    table["_m_order"] = pd.to_numeric(table["M"], errors="coerce").fillna(-1)
+    table["_area_order"] = pd.to_numeric(table["cutout_area"], errors="coerce").fillna(-1)
+    table = table.sort_values(
+        ["_dataset_order", "_seed_order", "_status_order", "mode", "_m_order", "_area_order", "source_path"]
+    )
+    return table[columns]
+
+
+def build_missing_or_invalid_table(records: list[dict[str, Any]], per_run: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    lookup = row_lookup(per_run)
+
+    for dataset_id in EXPECTED_DATASETS:
+        dataset = display_dataset(dataset_id)
+        for seed in EXPECTED_SEEDS:
+            if (dataset, seed, "none", None, None) not in lookup:
+                rows.append(
+                    {
+                        "issue_type": "missing_expected_baseline",
+                        "dataset": dataset,
+                        "architecture": EXPECTED_ARCHITECTURE,
+                        "seed": seed,
+                        "condition": CONDITION_LABELS["none"],
+                        "mode": "none",
+                        "M": None,
+                        "cutout_area": None,
+                        "details": "No selected valid no-cutout baseline for this dataset and seed.",
+                        "source_path": "",
+                    }
+                )
+            for mode in AUGMENTED_CONDITIONS:
+                for m_value in EXPECTED_MS:
+                    for area in EXPECTED_AREAS:
+                        if (dataset, seed, mode, m_value, area) not in lookup:
+                            rows.append(
+                                {
+                                    "issue_type": "missing_expected_run",
+                                    "dataset": dataset,
+                                    "architecture": EXPECTED_ARCHITECTURE,
+                                    "seed": seed,
+                                    "condition": CONDITION_LABELS[mode],
+                                    "mode": mode,
+                                    "M": m_value,
+                                    "cutout_area": area,
+                                    "details": "Expected current-grid run is absent or excluded from analysis.",
+                                    "source_path": "",
+                                }
+                            )
+
+    reported_statuses = {
+        "invalid",
+        "ignored_unexpected",
+        "duplicate_run",
+        "duplicate_baseline_inconsistent",
+    }
+    for record in records:
+        if record["status"] in reported_statuses:
+            rows.append(
+                {
+                    "issue_type": record["status"],
+                    "dataset": record["dataset"],
+                    "architecture": record["architecture"],
+                    "seed": record["seed"],
+                    "condition": record["condition"],
+                    "mode": record["mode"],
+                    "M": record["M"],
+                    "cutout_area": record["cutout_area"],
+                    "details": ";".join(record["issues"]),
+                    "source_path": record["source_path"],
+                }
+            )
+
+    columns = [
+        "issue_type",
+        "dataset",
+        "architecture",
+        "seed",
+        "condition",
+        "mode",
+        "M",
+        "cutout_area",
+        "details",
+        "source_path",
+    ]
+    return pd.DataFrame(rows, columns=columns)
+
+
+def write_csv(frame: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
-    fig.savefig(path, dpi=180, bbox_inches="tight")
+    frame.to_csv(path, index=False, na_rep="")
+
+
+def save_figure(fig: plt.Figure, path_without_extension: Path) -> list[Path]:
+    path_without_extension.parent.mkdir(parents=True, exist_ok=True)
+    output_paths: list[Path] = []
+    for extension in ("png", "pdf"):
+        output_path = path_without_extension.with_suffix(f".{extension}")
+        fig.savefig(output_path, bbox_inches="tight", dpi=300)
+        output_paths.append(output_path)
     plt.close(fig)
-    CREATED_FILES.add(path)
-    PLOTS_CREATED += 1
+    return output_paths
 
 
-def safe_filename(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9]+", "_", text)
-    return text.strip("_") or "plot"
+def pct_formatter(ax: plt.Axes) -> None:
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _pos: f"{y:.0f}"))
 
 
-def ordered_conditions(df: pd.DataFrame) -> List[str]:
-    keys = sorted(df["condition_key"].dropna().unique().tolist(), key=condition_sort_key)
-    return keys
+def pp_formatter(ax: plt.Axes) -> None:
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _pos: f"{y:.1f}"))
 
 
-def create_plots(summary_rows: List[Dict[str, Any]], runs: List[Dict[str, Any]]) -> None:
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
-    summary_df = df_from_records(summary_rows)
-    if summary_df.empty:
-        return
+def set_xticks_with_labels(ax: plt.Axes, ticks: Any, labels: list[str], **kwargs: Any) -> None:
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels, **kwargs)
 
-    colors = {
-        "none": "#333333",
-        "random_M4": "#4C78A8",
-        "random_M8": "#72B7B2",
-        "cam_low_M4": "#54A24B",
-        "cam_high_M4": "#E45756",
-        "cam_low_M8": "#B279A2",
-        "cam_high_M8": "#F58518",
-    }
 
-    curve_records: List[Dict[str, Any]] = []
-    for run in runs:
-        df = run["metrics_df"]
-        if df is None:
-            continue
-        cols = run["metric_cols"]
-        config = run["config"]
-        mode = config.get("cutout_mode", run["parsed"].get("cutout_mode", ""))
-        m_value = config.get("cutout_m", run["parsed"].get("cutout_m", ""))
-        key = condition_key(mode, m_value)
-        label = condition_label(mode, m_value)
-        epoch = numeric_series(df, cols["epoch"])
-        train_acc = numeric_series(df, cols["train_acc"])
-        eval_acc = numeric_series(df, cols["eval_acc"])
-        train_loss = numeric_series(df, cols["train_loss"])
-        eval_loss = numeric_series(df, cols["eval_loss"])
-        for idx in range(len(df)):
-            curve_records.append(
-                {
-                    "dataset_folder": run["dataset_folder"],
-                    "dataset_display": run["dataset_display"],
-                    "config_model": config.get("model", run["parsed"].get("model", "")),
-                    "seed": config.get("seed", run["parsed"].get("seed", "")),
-                    "run_name": run["run_name"],
-                    "condition_key": key,
-                    "condition_label": label,
-                    "epoch": finite_or_blank(epoch.iloc[idx]) if idx < len(epoch) else "",
-                    "train_accuracy": finite_or_blank(train_acc.iloc[idx]) if idx < len(train_acc) else "",
-                    "eval_accuracy": finite_or_blank(eval_acc.iloc[idx]) if idx < len(eval_acc) else "",
-                    "train_loss": finite_or_blank(train_loss.iloc[idx]) if idx < len(train_loss) else "",
-                    "eval_loss": finite_or_blank(eval_loss.iloc[idx]) if idx < len(eval_loss) else "",
-                }
-            )
+def set_yticks_with_labels(ax: plt.Axes, ticks: Any, labels: list[str], **kwargs: Any) -> None:
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labels, **kwargs)
 
-    curve_df = df_from_records(curve_records)
-    if not curve_df.empty:
-        group_cols = ["dataset_folder", "dataset_display", "config_model"]
-        for (dataset_folder, dataset_display, model), group in curve_df.groupby(group_cols, dropna=False):
-            base_name = safe_filename(f"{dataset_folder}_{model}")
-            table_path = PLOTS_DIR / f"{base_name}_accuracy_curves.csv"
-            group.to_csv(table_path, index=False)
-            CREATED_FILES.add(table_path)
 
-            fig, ax = plt.subplots(figsize=(9, 5.2))
-            for condition in ordered_conditions(group):
-                sub = group[group["condition_key"] == condition].sort_values("epoch")
-                ax.plot(
-                    sub["epoch"],
-                    sub["eval_accuracy"].astype(float),
-                    label=CONDITION_LABELS.get(condition, condition),
-                    color=colors.get(condition),
-                    linewidth=1.8,
+def finish_plot(fig: plt.Figure, caption: str, rect_top: float = 0.93) -> None:
+    fig.text(0.5, 0.012, caption, ha="center", va="bottom", fontsize=8, color="#444444")
+    fig.tight_layout(rect=(0, 0.055, 1, rect_top))
+
+
+def plot_metric_by_area(per_run: pd.DataFrame, metric: str, folder: str, suffix: str, y_label: str) -> list[Path]:
+    outputs: list[Path] = []
+    offsets = {"random": -0.006, "cam_low": 0.0, "cam_high": 0.006}
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        for m_value in EXPECTED_MS:
+            fig, ax = plt.subplots(figsize=(7.4, 4.8))
+            for mode in AUGMENTED_CONDITIONS:
+                means: list[float] = []
+                stds: list[float] = []
+                for area in EXPECTED_AREAS:
+                    subset = subset_for(per_run, dataset, mode, m_value, area).sort_values("seed")
+                    values = [float(value) for value in subset[metric].dropna().tolist()]
+                    stats_row = stats_for_values(values)
+                    mean = float(stats_row["mean"]) * 100 if not pd.isna(stats_row["mean"]) else np.nan
+                    std = float(stats_row["sample_std"]) * 100 if not pd.isna(stats_row["sample_std"]) else 0.0
+                    means.append(mean)
+                    stds.append(std)
+                    for _, seed_row in subset.iterrows():
+                        ax.scatter(
+                            area + offsets[mode],
+                            float(seed_row[metric]) * 100,
+                            color=CONDITION_COLORS[mode],
+                            marker=SEED_MARKERS.get(int(seed_row["seed"]), "o"),
+                            s=30,
+                            edgecolor="white",
+                            linewidth=0.5,
+                            alpha=0.85,
+                            zorder=3,
+                        )
+                ax.errorbar(
+                    EXPECTED_AREAS,
+                    means,
+                    yerr=stds,
+                    color=CONDITION_COLORS[mode],
+                    marker="o",
+                    capsize=4,
+                    label=CONDITION_LABELS[mode],
                 )
-            ax.set_title(f"{dataset_display} / {model}: validation accuracy curves")
-            ax.set_xlabel("Epoch")
-            ax.set_ylabel("Accuracy")
-            ax.grid(True, alpha=0.25)
-            ax.legend(loc="best", fontsize=8)
-            save_plot(fig, PLOTS_DIR / f"{base_name}_accuracy_curves.png")
 
-            loss_table_path = PLOTS_DIR / f"{base_name}_loss_curves.csv"
-            group.to_csv(loss_table_path, index=False)
-            CREATED_FILES.add(loss_table_path)
-
-            fig, ax = plt.subplots(figsize=(9, 5.2))
-            for condition in ordered_conditions(group):
-                sub = group[group["condition_key"] == condition].sort_values("epoch")
-                ax.plot(
-                    sub["epoch"],
-                    sub["eval_loss"].astype(float),
-                    label=CONDITION_LABELS.get(condition, condition),
-                    color=colors.get(condition),
-                    linewidth=1.8,
+            baseline = subset_for(per_run, dataset, "none", None, None)
+            if not baseline.empty:
+                base_values = [float(value) for value in baseline[metric].dropna().tolist()]
+                base_stats = stats_for_values(base_values)
+                base_mean = float(base_stats["mean"]) * 100
+                base_std = 0.0 if pd.isna(base_stats["sample_std"]) else float(base_stats["sample_std"]) * 100
+                if base_std > 0:
+                    ax.axhspan(
+                        base_mean - base_std,
+                        base_mean + base_std,
+                        color=CONDITION_COLORS["none"],
+                        alpha=0.10,
+                        label="No cutout +/- SD",
+                    )
+                ax.axhline(
+                    base_mean,
+                    color=CONDITION_COLORS["none"],
+                    linestyle="--",
+                    linewidth=1.5,
+                    label="No cutout mean",
                 )
-            ax.set_title(f"{dataset_display} / {model}: validation loss curves")
-            ax.set_xlabel("Epoch")
-            ax.set_ylabel("Loss")
-            ax.grid(True, alpha=0.25)
-            ax.legend(loc="best", fontsize=8)
-            save_plot(fig, PLOTS_DIR / f"{base_name}_loss_curves.png")
 
-    for (dataset_folder, dataset_display, model), group in summary_df.groupby(
-        ["dataset_folder", "dataset_display", "config_model"], dropna=False
-    ):
-        base_name = safe_filename(f"{dataset_folder}_{model}")
-        group = group.copy()
-        group["_sort"] = group["condition_key"].map(lambda key: condition_sort_key(str(key))[0])
-        group = group.sort_values(["_sort", "condition_key"])
-        bar_table = group[
-            [
-                "dataset_folder",
-                "dataset_display",
-                "config_model",
-                "seed",
-                "condition_key",
-                "condition_label",
-                "run_name",
-                "best_eval_accuracy",
-                "final_eval_accuracy",
-                "best_epoch",
-                "best_acc_improvement_over_none",
-            ]
-        ]
-        table_path = PLOTS_DIR / f"{base_name}_best_accuracy_bars.csv"
-        bar_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
+            ax.set_title(f"{dataset}, M{m_value}: {metric_label(metric)} versus cutout area")
+            ax.set_xlabel("Cutout area")
+            ax.set_ylabel(y_label)
+            set_xticks_with_labels(ax, EXPECTED_AREAS, [area_label(area) for area in EXPECTED_AREAS])
+            pct_formatter(ax)
+            ax.legend(frameon=False, ncol=2)
+            finish_plot(fig, "Mean across seeds; error bars and the baseline band show +/-1 sample SD across seeds.")
+            outputs.extend(save_figure(fig, PLOTS_DIR / folder / f"{slug}_M{m_value}_{suffix}_by_area"))
+    return outputs
 
-        fig, ax = plt.subplots(figsize=(8.5, 4.8))
-        x = np.arange(len(group))
-        y = pd.to_numeric(group["best_eval_accuracy"], errors="coerce").to_numpy(dtype=float)
-        labels = group["condition_label"].tolist()
-        ax.bar(x, y, color=[colors.get(key, "#888888") for key in group["condition_key"]])
-        ax.set_xticks(x)
-        ax.set_xticklabels(labels, rotation=35, ha="right")
-        ax.set_ylim(0, max(1.0, np.nanmax(y) * 1.08 if np.isfinite(y).any() else 1.0))
-        ax.set_ylabel("Best accuracy")
-        ax.set_title(f"{dataset_display} / {model}: best validation accuracy")
-        ax.grid(True, axis="y", alpha=0.25)
-        save_plot(fig, PLOTS_DIR / f"{base_name}_best_accuracy_bars.png")
 
-        improvement_table = bar_table.copy()
-        table_path = PLOTS_DIR / f"{base_name}_improvement_over_none_bars.csv"
-        improvement_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
-
-        fig, ax = plt.subplots(figsize=(8.5, 4.8))
-        y = pd.to_numeric(group["best_acc_improvement_over_none"], errors="coerce").to_numpy(dtype=float)
-        ax.axhline(0, color="#333333", linewidth=0.9)
-        ax.bar(x, y, color=[colors.get(key, "#888888") for key in group["condition_key"]])
-        ax.set_xticks(x)
-        ax.set_xticklabels(labels, rotation=35, ha="right")
-        ax.set_ylabel("Improvement over none")
-        ax.set_title(f"{dataset_display} / {model}: best-accuracy improvement over baseline")
-        ax.grid(True, axis="y", alpha=0.25)
-        save_plot(fig, PLOTS_DIR / f"{base_name}_improvement_over_none_bars.png")
-
-    heatmap = summary_df.pivot_table(
-        index=["dataset_display", "config_model"],
-        columns="condition_key",
-        values="best_eval_accuracy",
-        aggfunc="max",
+def plot_paired_cam_effects(paired: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    metric = "best_validation_accuracy"
+    comparisons = (
+        ("cam_low_minus_random", "Low-saliency - random", "cam_low", -0.006),
+        ("cam_high_minus_random", "High-saliency - random", "cam_high", 0.006),
     )
-    heatmap = heatmap.reindex(columns=[col for col in CONDITION_ORDER if col in heatmap.columns])
-    heatmap_path = PLOTS_DIR / "overall_best_accuracy_heatmap.csv"
-    heatmap.reset_index().to_csv(heatmap_path, index=False)
-    CREATED_FILES.add(heatmap_path)
-
-    if not heatmap.empty:
-        fig, ax = plt.subplots(figsize=(10, max(3.5, 0.65 * len(heatmap))))
-        matrix = heatmap.to_numpy(dtype=float)
-        masked = np.ma.masked_invalid(matrix)
-        im = ax.imshow(masked, aspect="auto", cmap="viridis", vmin=np.nanmin(matrix), vmax=np.nanmax(matrix))
-        ax.set_xticks(np.arange(len(heatmap.columns)))
-        ax.set_xticklabels([CONDITION_LABELS.get(col, col) for col in heatmap.columns], rotation=35, ha="right")
-        ax.set_yticks(np.arange(len(heatmap.index)))
-        ax.set_yticklabels([f"{idx[0]} / {idx[1]}" for idx in heatmap.index])
-        for i in range(matrix.shape[0]):
-            for j in range(matrix.shape[1]):
-                if np.isfinite(matrix[i, j]):
-                    ax.text(j, i, f"{100 * matrix[i, j]:.1f}%", ha="center", va="center", color="white", fontsize=8)
-        ax.set_title("Overall best validation accuracy")
-        fig.colorbar(im, ax=ax, label="Accuracy")
-        save_plot(fig, PLOTS_DIR / "overall_best_accuracy_heatmap.png")
-
-    final_vs_best = summary_df[
-        [
-            "dataset_folder",
-            "dataset_display",
-            "config_model",
-            "seed",
-            "condition_key",
-            "condition_label",
-            "run_name",
-            "final_eval_accuracy",
-            "best_eval_accuracy",
-        ]
-    ].copy()
-    table_path = PLOTS_DIR / "final_vs_best_accuracy.csv"
-    final_vs_best.to_csv(table_path, index=False)
-    CREATED_FILES.add(table_path)
-
-    fig, ax = plt.subplots(figsize=(7, 6))
-    for condition in ordered_conditions(summary_df):
-        sub = summary_df[summary_df["condition_key"] == condition]
-        ax.scatter(
-            pd.to_numeric(sub["final_eval_accuracy"], errors="coerce"),
-            pd.to_numeric(sub["best_eval_accuracy"], errors="coerce"),
-            label=CONDITION_LABELS.get(condition, condition),
-            color=colors.get(condition),
-            s=52,
-            alpha=0.9,
-        )
-    all_vals = pd.to_numeric(summary_df[["final_eval_accuracy", "best_eval_accuracy"]].stack(), errors="coerce").dropna()
-    if not all_vals.empty:
-        lo = max(0.0, float(all_vals.min()) - 0.02)
-        hi = min(1.0, float(all_vals.max()) + 0.02)
-        ax.plot([lo, hi], [lo, hi], color="#333333", linewidth=0.8, linestyle="--")
-        ax.set_xlim(lo, hi)
-        ax.set_ylim(lo, hi)
-    ax.set_xlabel("Final accuracy")
-    ax.set_ylabel("Best accuracy")
-    ax.set_title("Final vs best validation accuracy")
-    ax.grid(True, alpha=0.25)
-    ax.legend(loc="best", fontsize=8)
-    save_plot(fig, PLOTS_DIR / "final_vs_best_accuracy.png")
-
-    best_epoch_table = summary_df[
-        [
-            "dataset_folder",
-            "dataset_display",
-            "config_model",
-            "seed",
-            "condition_key",
-            "condition_label",
-            "run_name",
-            "best_epoch",
-            "best_eval_accuracy",
-        ]
-    ].copy()
-    table_path = PLOTS_DIR / "best_epoch_by_run.csv"
-    best_epoch_table.to_csv(table_path, index=False)
-    CREATED_FILES.add(table_path)
-
-    best_epoch_plot = best_epoch_table.copy()
-    best_epoch_plot["label"] = (
-        best_epoch_plot["dataset_display"].astype(str)
-        + " / "
-        + best_epoch_plot["condition_label"].astype(str)
-    )
-    best_epoch_plot = best_epoch_plot.sort_values(["dataset_display", "condition_key"], key=lambda col: col.astype(str))
-    fig, ax = plt.subplots(figsize=(9, max(5, 0.28 * len(best_epoch_plot))))
-    y_pos = np.arange(len(best_epoch_plot))
-    ax.barh(y_pos, pd.to_numeric(best_epoch_plot["best_epoch"], errors="coerce"), color="#4C78A8")
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(best_epoch_plot["label"], fontsize=8)
-    ax.invert_yaxis()
-    ax.set_xlabel("Best epoch")
-    ax.set_title("Best validation epoch by run")
-    ax.grid(True, axis="x", alpha=0.25)
-    save_plot(fig, PLOTS_DIR / "best_epoch_by_run.png")
-
-    raw_df = summary_df[summary_df["dataset_folder"].isin(RAWMALTF_FOLDERS)].copy()
-    if not raw_df.empty:
-        raw_df["_sort"] = raw_df["condition_key"].map(lambda key: condition_sort_key(str(key))[0])
-        raw_df = raw_df.sort_values(["config_model", "_sort", "condition_key"])
-        raw_table = raw_df[
-            [
-                "dataset_folder",
-                "dataset_display",
-                "config_model",
-                "seed",
-                "condition_key",
-                "condition_label",
-                "run_name",
-                "best_eval_accuracy",
-                "final_eval_accuracy",
-                "best_epoch",
-                "best_acc_improvement_over_none",
-                "best_acc_improvement_over_random",
-            ]
-        ]
-        table_path = PLOTS_DIR / "rawmaltf_condition_comparison.csv"
-        raw_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
-
-        fig, ax = plt.subplots(figsize=(8.5, 4.8))
-        x = np.arange(len(raw_df))
-        ax.bar(
-            x,
-            pd.to_numeric(raw_df["best_eval_accuracy"], errors="coerce"),
-            color=[colors.get(key, "#888888") for key in raw_df["condition_key"]],
-        )
-        ax.set_xticks(x)
-        ax.set_xticklabels(raw_df["condition_label"], rotation=35, ha="right")
-        ax.set_ylabel("Best accuracy")
-        ax.set_title("RawMal-TF: condition comparison")
-        ax.grid(True, axis="y", alpha=0.25)
-        save_plot(fig, PLOTS_DIR / "rawmaltf_condition_comparison.png")
-
-        mode_table_records = []
-        for row in raw_df.to_dict("records"):
-            mode = row.get("cutout_mode", "")
-            family = "CAM" if str(mode).startswith("cam") else str(mode)
-            mode_table_records.append(
-                {
-                    "family": family,
-                    "condition_key": row.get("condition_key", ""),
-                    "condition_label": row.get("condition_label", ""),
-                    "best_eval_accuracy": row.get("best_eval_accuracy", ""),
-                    "improvement_over_none": row.get("best_acc_improvement_over_none", ""),
-                }
-            )
-        mode_table = df_from_records(mode_table_records)
-        table_path = PLOTS_DIR / "rawmaltf_random_vs_cam.csv"
-        mode_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
-
-        family_summary = mode_table.groupby("family", dropna=False)["best_eval_accuracy"].max().reset_index()
-        fig, ax = plt.subplots(figsize=(6.5, 4.4))
-        ax.bar(family_summary["family"], pd.to_numeric(family_summary["best_eval_accuracy"], errors="coerce"), color="#4C78A8")
-        ax.set_ylim(0, 1.0)
-        ax.set_ylabel("Best accuracy")
-        ax.set_title("RawMal-TF: random vs CAM best accuracy")
-        ax.grid(True, axis="y", alpha=0.25)
-        save_plot(fig, PLOTS_DIR / "rawmaltf_random_vs_cam.png")
-
-        m_table = raw_df[raw_df["cutout_mode"] != "none"][
-            ["cutout_mode", "cutout_m", "condition_key", "condition_label", "best_eval_accuracy", "best_acc_improvement_over_none"]
-        ].copy()
-        table_path = PLOTS_DIR / "rawmaltf_m4_vs_m8.csv"
-        m_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
-        if not m_table.empty:
-            grouped_m = m_table.groupby("cutout_m", dropna=False)["best_eval_accuracy"].max().reset_index()
-            fig, ax = plt.subplots(figsize=(6.5, 4.4))
-            ax.bar(grouped_m["cutout_m"].astype(str), pd.to_numeric(grouped_m["best_eval_accuracy"], errors="coerce"), color="#72B7B2")
-            ax.set_ylim(0, 1.0)
-            ax.set_xlabel("M")
-            ax.set_ylabel("Best accuracy")
-            ax.set_title("RawMal-TF: M4 vs M8 best accuracy")
-            ax.grid(True, axis="y", alpha=0.25)
-            save_plot(fig, PLOTS_DIR / "rawmaltf_m4_vs_m8.png")
-
-        low_high_records = []
-        for m_value, group in raw_df[raw_df["cutout_mode"].isin(["cam_low", "cam_high"])].groupby("cutout_m", dropna=False):
-            low = group[group["cutout_mode"] == "cam_low"]
-            high = group[group["cutout_mode"] == "cam_high"]
-            if low.empty or high.empty:
-                continue
-            low_best = pd.to_numeric(low["best_eval_accuracy"], errors="coerce").max()
-            high_best = pd.to_numeric(high["best_eval_accuracy"], errors="coerce").max()
-            low_high_records.append(
-                {
-                    "cutout_m": m_value,
-                    "cam_low_best_accuracy": low_best,
-                    "cam_high_best_accuracy": high_best,
-                    "cam_high_minus_low": high_best - low_best,
-                }
-            )
-        low_high_table = df_from_records(low_high_records)
-        table_path = PLOTS_DIR / "rawmaltf_cam_low_vs_high.csv"
-        low_high_table.to_csv(table_path, index=False)
-        CREATED_FILES.add(table_path)
-        if not low_high_table.empty:
-            fig, ax = plt.subplots(figsize=(7, 4.5))
-            x = np.arange(len(low_high_table))
-            width = 0.36
-            ax.bar(x - width / 2, low_high_table["cam_low_best_accuracy"], width, label="cam_low", color=colors["cam_low_M4"])
-            ax.bar(x + width / 2, low_high_table["cam_high_best_accuracy"], width, label="cam_high", color=colors["cam_high_M4"])
-            ax.set_xticks(x)
-            ax.set_xticklabels([f"M{comparable_number(v)}" for v in low_high_table["cutout_m"]])
-            ax.set_ylim(0, 1.0)
-            ax.set_ylabel("Best accuracy")
-            ax.set_title("RawMal-TF: cam_low vs cam_high")
-            ax.grid(True, axis="y", alpha=0.25)
-            ax.legend()
-            save_plot(fig, PLOTS_DIR / "rawmaltf_cam_low_vs_high.png")
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        for m_value in EXPECTED_MS:
+            fig, ax = plt.subplots(figsize=(7.4, 4.8))
+            for comparison_key, label, mode, offset in comparisons:
+                means: list[float] = []
+                stds: list[float] = []
+                for area in EXPECTED_AREAS:
+                    row = paired[
+                        (paired["dataset"] == dataset)
+                        & (paired["comparison_key"] == comparison_key)
+                        & (paired["M"] == m_value)
+                        & (np.isclose(paired["cutout_area"].astype(float), area))
+                        & (paired["metric"] == metric)
+                    ]
+                    if row.empty:
+                        means.append(np.nan)
+                        stds.append(0.0)
+                        continue
+                    effect = row.iloc[0]
+                    means.append(float(effect["mean_paired_difference"]) * 100)
+                    stds.append(0.0 if pd.isna(effect["sample_std"]) else float(effect["sample_std"]) * 100)
+                    for seed in EXPECTED_SEEDS:
+                        value = effect.get(f"seed_{seed}_difference", np.nan)
+                        if not pd.isna(value):
+                            ax.scatter(
+                                area + offset,
+                                float(value) * 100,
+                                color=CONDITION_COLORS[mode],
+                                marker=SEED_MARKERS.get(seed, "o"),
+                                s=30,
+                                edgecolor="white",
+                                linewidth=0.5,
+                                alpha=0.85,
+                                zorder=3,
+                            )
+                ax.errorbar(
+                    EXPECTED_AREAS,
+                    means,
+                    yerr=stds,
+                    color=CONDITION_COLORS[mode],
+                    marker="o",
+                    capsize=4,
+                    label=label,
+                )
+            ax.axhline(0, color="#333333", linestyle="--", linewidth=1.0)
+            ax.set_title(f"{dataset}, M{m_value}: paired CAM effect versus random cutout")
+            ax.set_xlabel("Cutout area")
+            ax.set_ylabel("Paired best validation accuracy difference (percentage points)")
+            set_xticks_with_labels(ax, EXPECTED_AREAS, [area_label(area) for area in EXPECTED_AREAS])
+            pp_formatter(ax)
+            ax.legend(frameon=False)
+            finish_plot(fig, "Differences are computed within seed first; error bars show sample SD across paired seeds.")
+            outputs.extend(save_figure(fig, PLOTS_DIR / "paired_cam_effects" / f"{slug}_M{m_value}_paired_cam_effect_vs_random"))
+    return outputs
 
 
-def top_rows(summary_rows: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
-    rows = [row for row in summary_rows if safe_float(row.get("best_eval_accuracy")) is not None]
-    return sorted(rows, key=lambda row: safe_float(row.get("best_eval_accuracy")) or -np.inf, reverse=True)[:n]
-
-
-def best_by_dataset(summary_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    for row in summary_rows:
-        groups[row["dataset_folder"]].append(row)
-    best_rows = []
-    for dataset, rows in sorted(groups.items()):
-        candidates = [row for row in rows if safe_float(row.get("best_eval_accuracy")) is not None]
-        if not candidates:
-            continue
-        best = max(candidates, key=lambda row: safe_float(row.get("best_eval_accuracy")) or -np.inf)
-        best_rows.append(best)
-    return best_rows
-
-
-def make_summary_stats(
-    summary_rows: List[Dict[str, Any]],
-    inventory_rows: List[Dict[str, Any]],
-    checks: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    summary_df = df_from_records(summary_rows)
-    inventory_df = df_from_records(inventory_rows)
-
-    status_counts = inventory_df["status"].value_counts().to_dict() if not inventory_df.empty else {}
-    major_checks = [
-        check
-        for check in checks
-        if check["status"] in {"fail", "warning"} and check["severity"] in {"critical", "warning", "expected_possible"}
-    ]
-    major_warnings = []
-    for check in major_checks:
-        text = f"{check['check_type']}: {check.get('run_name') or check.get('dataset_folder')}: {check.get('observed') or check.get('details')}"
-        if text not in major_warnings:
-            major_warnings.append(text)
-
-    per_dataset: Dict[str, Any] = {}
-    if not summary_df.empty:
-        for dataset, group in summary_df.groupby("dataset_folder", dropna=False):
-            best = group.loc[pd.to_numeric(group["best_eval_accuracy"], errors="coerce").idxmax()]
-            per_dataset[str(dataset)] = {
-                "runs": int(len(group)),
-                "dataset_display": best.get("dataset_display", ""),
-                "models": sorted(str(v) for v in group["config_model"].dropna().unique().tolist()),
-                "conditions": sorted(
-                    (str(v) for v in group["condition_key"].dropna().unique().tolist()),
-                    key=condition_sort_key,
-                ),
-                "best_run": best.get("run_name", ""),
-                "best_condition": best.get("condition_label", ""),
-                "best_accuracy": safe_float(best.get("best_eval_accuracy")),
-                "best_epoch": safe_float(best.get("best_epoch")),
-            }
-
-    per_model: Dict[str, Any] = {}
-    if not summary_df.empty:
-        for model, group in summary_df.groupby("config_model", dropna=False):
-            best = group.loc[pd.to_numeric(group["best_eval_accuracy"], errors="coerce").idxmax()]
-            per_model[str(model)] = {
-                "runs": int(len(group)),
-                "datasets": sorted(str(v) for v in group["dataset_folder"].dropna().unique().tolist()),
-                "best_run": best.get("run_name", ""),
-                "best_dataset": best.get("dataset_display", ""),
-                "best_condition": best.get("condition_label", ""),
-                "best_accuracy": safe_float(best.get("best_eval_accuracy")),
-            }
-
-    raw_rows = [row for row in summary_rows if row.get("dataset_folder") in RAWMALTF_FOLDERS]
-    best_raw = top_rows(raw_rows, n=1)
-
-    improvement_values = [row.get("best_acc_improvement_over_none") for row in summary_rows if row.get("cutout_mode") != "none"]
-    cam_vs_random_values = [
-        row.get("best_acc_improvement_over_random")
-        for row in summary_rows
-        if str(row.get("cutout_mode", "")).startswith("cam")
-    ]
-
-    low_high_diffs: List[float] = []
-    pair_groups: Dict[Tuple[Any, ...], Dict[str, Dict[str, Any]]] = defaultdict(dict)
-    for row in summary_rows:
-        if row.get("cutout_mode") in {"cam_low", "cam_high"}:
-            key = baseline_group_key(row) + (
-                comparable_number(row.get("cutout_m", "")),
-                comparable_number(row.get("cutout_area", "")),
-            )
-            pair_groups[key][row["cutout_mode"]] = row
-    identical_accuracy_pairs = 0
-    for pair in pair_groups.values():
-        if "cam_low" in pair and "cam_high" in pair:
-            low_acc = safe_float(pair["cam_low"].get("best_eval_accuracy"))
-            high_acc = safe_float(pair["cam_high"].get("best_eval_accuracy"))
-            if low_acc is not None and high_acc is not None:
-                diff = high_acc - low_acc
-                low_high_diffs.append(diff)
-                if abs(diff) < 1e-15:
-                    identical_accuracy_pairs += 1
-
-    identical_metric_checks = [
-        check
-        for check in checks
-        if check["check_type"] == "identical_cam_low_high_metrics" and check["status"] == "fail"
-    ]
-
-    return {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "total_runs": len(summary_rows),
-        "status_counts": status_counts,
-        "successful_count": int(status_counts.get("ok", 0)),
-        "suspicious_count": int(status_counts.get("suspicious", 0)),
-        "incomplete_count": int(status_counts.get("incomplete", 0)),
-        "per_dataset": per_dataset,
-        "per_model": per_model,
-        "best_runs": [
-            {
-                "dataset": row.get("dataset_display", ""),
-                "model": row.get("config_model", ""),
-                "seed": row.get("seed", ""),
-                "condition": row.get("condition_label", ""),
-                "run_name": row.get("run_name", ""),
-                "best_accuracy": safe_float(row.get("best_eval_accuracy")),
-                "best_epoch": safe_float(row.get("best_epoch")),
-            }
-            for row in top_rows(summary_rows, n=10)
-        ],
-        "best_rawmaltf_run": (
-            {
-                "dataset": best_raw[0].get("dataset_display", ""),
-                "model": best_raw[0].get("config_model", ""),
-                "seed": best_raw[0].get("seed", ""),
-                "condition": best_raw[0].get("condition_label", ""),
-                "run_name": best_raw[0].get("run_name", ""),
-                "best_accuracy": safe_float(best_raw[0].get("best_eval_accuracy")),
-                "best_epoch": safe_float(best_raw[0].get("best_epoch")),
-            }
-            if best_raw
-            else {}
-        ),
-        "improvement_statistics_over_no_cutout": summary_stats_for_values(improvement_values),
-        "random_vs_cam_statistics": summary_stats_for_values(cam_vs_random_values),
-        "cam_low_vs_cam_high_statistics": {
-            "cam_high_minus_cam_low_best_accuracy": summary_stats_for_values(low_high_diffs),
-            "pairs_compared": len(low_high_diffs),
-            "identical_best_accuracy_pairs": identical_accuracy_pairs,
-            "identical_metric_pairs": len(identical_metric_checks),
-        },
-        "major_warnings": major_warnings,
-    }
-
-
-def markdown_table(rows: List[Dict[str, Any]], columns: List[Tuple[str, str]], max_rows: int = 20) -> str:
-    if not rows:
-        return "_No rows available._"
-    selected = rows[:max_rows]
-    header = "| " + " | ".join(title for title, _ in columns) + " |"
-    separator = "| " + " | ".join("---" for _ in columns) + " |"
-    body = []
-    for row in selected:
-        cells = []
-        for _, key in columns:
-            value = row.get(key, "")
-            cells.append(str(value).replace("|", "/"))
-        body.append("| " + " | ".join(cells) + " |")
-    return "\n".join([header, separator] + body)
-
-
-def make_paper_summary(
-    summary_rows: List[Dict[str, Any]],
-    comparison_rows: List[Dict[str, Any]],
-    checks: List[Dict[str, Any]],
-    stats: Dict[str, Any],
-) -> str:
-    datasets = sorted({row["dataset_display"] for row in summary_rows})
-    models = sorted({str(row["config_model"]) for row in summary_rows})
-    conditions = sorted({row["condition_key"] for row in summary_rows}, key=condition_sort_key)
-
-    best_dataset_rows = []
-    for row in best_by_dataset(summary_rows):
-        best_dataset_rows.append(
-            {
-                "Dataset": row["dataset_display"],
-                "Model": row["config_model"],
-                "Seed": row["seed"],
-                "Condition": row["condition_label"],
-                "Best acc": percent(row["best_eval_accuracy"]),
-                "Final acc": percent(row["final_eval_accuracy"]),
-                "Best epoch": plain_number(row["best_epoch"], 0),
-                "vs none": signed_percent_point(row["best_acc_improvement_over_none"]),
-            }
-        )
-
-    raw_rows = [row for row in summary_rows if row["dataset_folder"] in RAWMALTF_FOLDERS]
-    raw_rows = sorted(raw_rows, key=lambda row: condition_sort_key(row["condition_key"]))
-    raw_table_rows = [
-        {
-            "Condition": row["condition_label"],
-            "Best acc": percent(row["best_eval_accuracy"]),
-            "Final acc": percent(row["final_eval_accuracy"]),
-            "Best epoch": plain_number(row["best_epoch"], 0),
-            "vs none": signed_percent_point(row["best_acc_improvement_over_none"]),
-            "vs random": signed_percent_point(row["best_acc_improvement_over_random"]),
-        }
-        for row in raw_rows
-    ]
-
-    sanity_rows = []
-    for row in summary_rows:
-        if row["dataset_folder"] in {"cifar100", "malimg"}:
-            sanity_rows.append(
-                {
-                    "Dataset": row["dataset_display"],
-                    "Condition": row["condition_label"],
-                    "Best acc": percent(row["best_eval_accuracy"]),
-                    "Final acc": percent(row["final_eval_accuracy"]),
-                    "Best epoch": plain_number(row["best_epoch"], 0),
-                    "vs none": signed_percent_point(row["best_acc_improvement_over_none"]),
-                }
-            )
-    sanity_rows = sorted(sanity_rows, key=lambda row: (row["Dataset"], condition_sort_key(row["Condition"].replace(" ", "_"))))
-
-    identical_failures = [
-        check for check in checks if check["check_type"] == "identical_cam_low_high_metrics" and check["status"] == "fail"
-    ]
-    warning_checks = [
-        check
-        for check in checks
-        if check["status"] in {"fail", "warning"}
-        and check["severity"] in {"critical", "warning", "expected_possible"}
-    ]
-
-    best_raw = stats.get("best_rawmaltf_run", {})
-    random_vs_cam = stats.get("random_vs_cam_statistics", {})
-    over_none = stats.get("improvement_statistics_over_no_cutout", {})
-    low_high = stats.get("cam_low_vs_cam_high_statistics", {})
-
-    interpretation_lines = []
-    if best_raw:
-        interpretation_lines.append(
-            f"- RawMal-TF best run in the available artifacts is `{best_raw.get('run_name')}` "
-            f"({best_raw.get('condition')}) with best accuracy {percent(best_raw.get('best_accuracy'))} "
-            f"at epoch {plain_number(best_raw.get('best_epoch'), 0)}."
-        )
-    if random_vs_cam.get("count", 0):
-        mean_delta = random_vs_cam.get("mean")
-        pos = random_vs_cam.get("positive_count", 0)
-        count = random_vs_cam.get("count", 0)
-        interpretation_lines.append(
-            f"- Across CAM runs with matched random baselines, the mean CAM-minus-random best-accuracy delta is "
-            f"{signed_percent_point(mean_delta)} ({pos}/{count} positive)."
-        )
-    if over_none.get("count", 0):
-        interpretation_lines.append(
-            f"- Across non-baseline runs with matched no-cutout baselines, the mean best-accuracy delta is "
-            f"{signed_percent_point(over_none.get('mean'))}."
-        )
-    if low_high.get("pairs_compared", 0):
-        lh_stats = low_high.get("cam_high_minus_cam_low_best_accuracy", {})
-        interpretation_lines.append(
-            f"- For matched cam_high minus cam_low best accuracy, the mean delta is "
-            f"{signed_percent_point(lh_stats.get('mean'))} across {low_high.get('pairs_compared')} pairs."
-        )
-    if not interpretation_lines:
-        interpretation_lines.append("- Not enough matched runs were available for comparative interpretation.")
-
-    low_high_warning = ""
-    if identical_failures:
-        low_high_warning = (
-            "\n**Publication-critical warning:** At least one cam_low/cam_high pair has identical raw CSV hashes "
-            "or identical loaded numeric metric arrays. Do not claim low/high saliency behavior differs for those pairs.\n"
-        )
+def curves_for(
+    per_run: pd.DataFrame,
+    metric_frames: dict[int, pd.DataFrame],
+    run_records_by_source: dict[str, dict[str, Any]],
+    dataset: str,
+    mode: str,
+    m_value: int,
+    area: float,
+    metric_column: str,
+) -> np.ndarray:
+    if mode == "none":
+        subset = subset_for(per_run, dataset, "none", None, None)
     else:
-        low_high_warning = (
-            "\nNo cam_low/cam_high pair had identical raw CSV hashes or identical loaded numeric arrays in this artifact set.\n"
-        )
+        subset = subset_for(per_run, dataset, mode, m_value, area)
+    curves: list[np.ndarray] = []
+    for _, row in subset.sort_values("seed").iterrows():
+        source_path = str(row["source_path"])
+        record = run_records_by_source[source_path]
+        curves.append(metric_frames[int(record["run_id"])][metric_column].to_numpy(dtype=float))
+    if not curves:
+        return np.empty((0, EXPECTED_EPOCHS))
+    return np.vstack(curves)
 
-    warning_rows = [
-        {
-            "Severity": check["severity"],
-            "Check": check["check_type"],
-            "Run/Dataset": check.get("run_name") or check.get("dataset_folder", ""),
-            "Observed": check.get("observed") or check.get("details", ""),
-        }
-        for check in warning_checks[:30]
+
+def plot_learning_curves(
+    per_run: pd.DataFrame,
+    metric_frames: dict[int, pd.DataFrame],
+    analysis_runs: list[dict[str, Any]],
+) -> list[Path]:
+    outputs: list[Path] = []
+    run_records_by_source = {record["source_path"]: record for record in analysis_runs}
+    specs = (
+        ("eval_acc1", "Validation accuracy (%)", "validation_accuracy", True),
+        ("eval_loss", "Validation loss", "validation_loss", False),
+    )
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        for m_value in EXPECTED_MS:
+            for area in EXPECTED_AREAS:
+                for column, y_label, suffix, as_percent in specs:
+                    fig, ax = plt.subplots(figsize=(7.6, 4.8))
+                    for mode in CONDITIONS:
+                        curves = curves_for(per_run, metric_frames, run_records_by_source, dataset, mode, m_value, area, column)
+                        if curves.size == 0:
+                            continue
+                        mean = curves.mean(axis=0)
+                        std = curves.std(axis=0, ddof=1) if curves.shape[0] > 1 else np.zeros(curves.shape[1])
+                        if as_percent:
+                            mean = mean * 100
+                            std = std * 100
+                        epochs = np.arange(1, curves.shape[1] + 1)
+                        ax.plot(epochs, mean, color=CONDITION_COLORS[mode], label=CONDITION_LABELS[mode])
+                        ax.fill_between(epochs, mean - std, mean + std, color=CONDITION_COLORS[mode], alpha=0.14, linewidth=0)
+                    metric_name = "validation accuracy" if as_percent else "validation loss"
+                    ax.set_title(f"{dataset}, M{m_value}, area {area_label(area)}: mean {metric_name} curve")
+                    ax.set_xlabel("Epoch")
+                    ax.set_ylabel(y_label)
+                    ax.set_xlim(1, EXPECTED_EPOCHS)
+                    if as_percent:
+                        pct_formatter(ax)
+                    ax.legend(frameon=False, ncol=2)
+                    finish_plot(fig, "Lines are epoch-wise means across seeds; shaded bands show +/-1 sample SD; no smoothing.")
+                    outputs.extend(
+                        save_figure(
+                            fig,
+                            PLOTS_DIR / "learning_curves" / f"{slug}_M{m_value}_{area_slug(area)}_{suffix}_curve",
+                        )
+                    )
+    return outputs
+
+
+def plot_stability(per_run: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    specs = (
+        ("best_to_final_degradation", "Best-to-final degradation (percentage points)", True),
+        ("maximum_validation_drawdown", "Maximum drawdown (percentage points)", True),
+        ("collapse_event_count", "Collapse-event count", False),
+        ("final20_validation_accuracy_std", "Final-20 validation accuracy SD (percentage points)", True),
+    )
+    offsets = {"random": -0.006, "cam_low": 0.0, "cam_high": 0.006}
+    for metric, y_label, as_percent in specs:
+        for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+            slug = dataset_slug_from_label(dataset)
+            for m_value in EXPECTED_MS:
+                fig, ax = plt.subplots(figsize=(7.4, 4.8))
+                for mode in AUGMENTED_CONDITIONS:
+                    means: list[float] = []
+                    stds: list[float] = []
+                    for area in EXPECTED_AREAS:
+                        subset = subset_for(per_run, dataset, mode, m_value, area).sort_values("seed")
+                        values = [float(value) for value in subset[metric].dropna().tolist()]
+                        stats_row = stats_for_values(values)
+                        scale = 100 if as_percent else 1
+                        means.append(float(stats_row["mean"]) * scale if not pd.isna(stats_row["mean"]) else np.nan)
+                        stds.append(float(stats_row["sample_std"]) * scale if not pd.isna(stats_row["sample_std"]) else 0.0)
+                        for _, seed_row in subset.iterrows():
+                            ax.scatter(
+                                area + offsets[mode],
+                                float(seed_row[metric]) * scale,
+                                color=CONDITION_COLORS[mode],
+                                marker=SEED_MARKERS.get(int(seed_row["seed"]), "o"),
+                                s=28,
+                                edgecolor="white",
+                                linewidth=0.5,
+                                alpha=0.85,
+                                zorder=3,
+                            )
+                    ax.errorbar(
+                        EXPECTED_AREAS,
+                        means,
+                        yerr=stds,
+                        color=CONDITION_COLORS[mode],
+                        marker="o",
+                        capsize=4,
+                        label=CONDITION_LABELS[mode],
+                    )
+                baseline = subset_for(per_run, dataset, "none", None, None)
+                if not baseline.empty:
+                    base_values = [float(value) for value in baseline[metric].dropna().tolist()]
+                    base_stats = stats_for_values(base_values)
+                    scale = 100 if as_percent else 1
+                    base_mean = float(base_stats["mean"]) * scale
+                    base_std = 0.0 if pd.isna(base_stats["sample_std"]) else float(base_stats["sample_std"]) * scale
+                    if base_std > 0:
+                        ax.axhspan(
+                            base_mean - base_std,
+                            base_mean + base_std,
+                            color=CONDITION_COLORS["none"],
+                            alpha=0.10,
+                            label="No cutout +/- SD",
+                        )
+                    ax.axhline(
+                        base_mean,
+                        color=CONDITION_COLORS["none"],
+                        linestyle="--",
+                        linewidth=1.4,
+                        label="No cutout mean",
+                    )
+                ax.set_title(f"{dataset}, M{m_value}: {metric_label(metric)}")
+                ax.set_xlabel("Cutout area")
+                ax.set_ylabel(y_label)
+                set_xticks_with_labels(ax, EXPECTED_AREAS, [area_label(area) for area in EXPECTED_AREAS])
+                if as_percent:
+                    pp_formatter(ax)
+                ax.legend(frameon=False, ncol=2)
+                finish_plot(fig, "Mean across seeds; error bars and the baseline band show +/-1 sample SD across seeds.")
+                outputs.extend(save_figure(fig, PLOTS_DIR / "stability" / f"{slug}_M{m_value}_{metric}_by_area"))
+    return outputs
+
+
+def plot_m8_minus_m4(paired: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    metric = "best_validation_accuracy"
+    offsets = {"random": -0.006, "cam_low": 0.0, "cam_high": 0.006}
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        fig, ax = plt.subplots(figsize=(7.4, 4.8))
+        for mode in AUGMENTED_CONDITIONS:
+            means: list[float] = []
+            stds: list[float] = []
+            for area in EXPECTED_AREAS:
+                row = paired[
+                    (paired["dataset"] == dataset)
+                    & (paired["comparison_key"] == "m8_minus_m4")
+                    & (paired["mode"] == mode)
+                    & (np.isclose(paired["cutout_area"].astype(float), area))
+                    & (paired["metric"] == metric)
+                ]
+                if row.empty:
+                    means.append(np.nan)
+                    stds.append(0.0)
+                    continue
+                effect = row.iloc[0]
+                means.append(float(effect["mean_paired_difference"]) * 100)
+                stds.append(0.0 if pd.isna(effect["sample_std"]) else float(effect["sample_std"]) * 100)
+                for seed in EXPECTED_SEEDS:
+                    value = effect.get(f"seed_{seed}_difference", np.nan)
+                    if not pd.isna(value):
+                        ax.scatter(
+                            area + offsets[mode],
+                            float(value) * 100,
+                            color=CONDITION_COLORS[mode],
+                            marker=SEED_MARKERS.get(seed, "o"),
+                            s=30,
+                            edgecolor="white",
+                            linewidth=0.5,
+                            alpha=0.85,
+                            zorder=3,
+                        )
+            ax.errorbar(
+                EXPECTED_AREAS,
+                means,
+                yerr=stds,
+                color=CONDITION_COLORS[mode],
+                marker="o",
+                capsize=4,
+                label=CONDITION_LABELS[mode],
+            )
+        ax.axhline(0, color="#333333", linestyle="--", linewidth=1.0)
+        ax.set_title(f"{dataset}: paired M8-minus-M4 effect")
+        ax.set_xlabel("Cutout area")
+        ax.set_ylabel("Best validation accuracy difference (percentage points)")
+        set_xticks_with_labels(ax, EXPECTED_AREAS, [area_label(area) for area in EXPECTED_AREAS])
+        pp_formatter(ax)
+        ax.legend(frameon=False)
+        finish_plot(
+            fig,
+            "Differences are computed within seed; error bars show sample SD. Descriptive because M changes augmented samples and optimizer updates.",
+        )
+        outputs.extend(save_figure(fig, PLOTS_DIR / "m8_minus_m4" / f"{slug}_paired_m8_minus_m4_best_validation_accuracy"))
+    return outputs
+
+
+def aggregate_cell(aggregate: pd.DataFrame, dataset: str, mode: str, m_value: int | None, area: float | None) -> pd.Series | None:
+    subset = aggregate[(aggregate["dataset"] == dataset) & (aggregate["mode"] == mode)]
+    if mode == "none":
+        subset = subset[subset["M"].isna() & subset["cutout_area"].isna()]
+    else:
+        subset = subset[(subset["M"] == m_value) & (np.isclose(subset["cutout_area"].astype(float), float(area)))]
+    if subset.empty:
+        return None
+    return subset.iloc[0]
+
+
+def plot_heatmaps(aggregate: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    row_specs = [(mode, m_value) for mode in AUGMENTED_CONDITIONS for m_value in EXPECTED_MS]
+    row_labels = [f"{CONDITION_SHORT_LABELS[mode]} M{m_value}" for mode, m_value in row_specs]
+    all_means = aggregate[aggregate["mode"] != "none"]["best_validation_accuracy_mean"].dropna().to_numpy(dtype=float) * 100
+    all_stds = aggregate[aggregate["mode"] != "none"]["best_validation_accuracy_sample_std"].dropna().to_numpy(dtype=float) * 100
+    mean_vmin, mean_vmax = float(np.nanmin(all_means)), float(np.nanmax(all_means))
+    std_vmin, std_vmax = 0.0, float(np.nanmax(all_stds))
+
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        baseline = aggregate_cell(aggregate, dataset, "none", None, None)
+        baseline_text = "No cutout baseline unavailable"
+        if baseline is not None and not pd.isna(baseline["best_validation_accuracy_mean"]):
+            baseline_text = (
+                f"No cutout mean: {float(baseline['best_validation_accuracy_mean']) * 100:.2f}%; "
+                f"SD: {float(baseline['best_validation_accuracy_sample_std']) * 100:.2f} pp"
+            )
+        for metric_column, title_metric, folder, suffix, vmin, vmax, colorbar_label in (
+            (
+                "best_validation_accuracy_mean",
+                "Mean best validation accuracy",
+                "mean_heatmaps",
+                "mean_best_validation_accuracy_heatmap",
+                mean_vmin,
+                mean_vmax,
+                "Mean best validation accuracy (%)",
+            ),
+            (
+                "best_validation_accuracy_sample_std",
+                "Best-validation accuracy sample SD",
+                "variability_heatmaps",
+                "std_best_validation_accuracy_heatmap",
+                std_vmin,
+                std_vmax,
+                "Sample SD across seeds (percentage points)",
+            ),
+        ):
+            matrix = np.full((len(row_specs), len(EXPECTED_AREAS)), np.nan)
+            for row_index, (mode, m_value) in enumerate(row_specs):
+                for col_index, area in enumerate(EXPECTED_AREAS):
+                    cell = aggregate_cell(aggregate, dataset, mode, m_value, area)
+                    if cell is not None and not pd.isna(cell[metric_column]):
+                        matrix[row_index, col_index] = float(cell[metric_column]) * 100
+            fig, ax = plt.subplots(figsize=(7.6, 4.9))
+            image = ax.imshow(matrix, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax)
+            set_xticks_with_labels(ax, np.arange(len(EXPECTED_AREAS)), [area_label(area) for area in EXPECTED_AREAS])
+            set_yticks_with_labels(ax, np.arange(len(row_specs)), row_labels)
+            ax.set_xlabel("Cutout area")
+            ax.set_title(f"{dataset}: {title_metric}\n{baseline_text}")
+            midpoint = (vmin + vmax) / 2.0
+            for row_index in range(matrix.shape[0]):
+                for col_index in range(matrix.shape[1]):
+                    value = matrix[row_index, col_index]
+                    text = "NA" if np.isnan(value) else f"{value:.2f}"
+                    color = "white" if not np.isnan(value) and value < midpoint else "black"
+                    ax.text(col_index, row_index, text, ha="center", va="center", color=color, fontsize=8.5)
+            colorbar = fig.colorbar(image, ax=ax)
+            colorbar.set_label(colorbar_label)
+            finish_plot(fig, "Cells are across-seed summaries; the no-cutout baseline is shown separately.", rect_top=0.90)
+            outputs.extend(save_figure(fig, PLOTS_DIR / folder / f"{slug}_{suffix}"))
+    return outputs
+
+
+def plot_mean_vs_variability(aggregate: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        subset = aggregate[aggregate["dataset"] == dataset].copy()
+        fig, ax = plt.subplots(figsize=(7.2, 4.8))
+        for mode in CONDITIONS:
+            mode_subset = subset[subset["mode"] == mode]
+            if mode == "none":
+                label = CONDITION_LABELS[mode]
+                marker = M_MARKERS[None]
+                color = CONDITION_COLORS[mode]
+                for _, row in mode_subset.iterrows():
+                    ax.scatter(
+                        float(row["best_validation_accuracy_mean"]) * 100,
+                        float(row["best_validation_accuracy_sample_std"]) * 100,
+                        color=color,
+                        marker=marker,
+                        s=70,
+                        edgecolor="white",
+                        linewidth=0.6,
+                        label=label,
+                    )
+            else:
+                for m_value in EXPECTED_MS:
+                    m_subset = mode_subset[mode_subset["M"] == m_value]
+                    ax.scatter(
+                        m_subset["best_validation_accuracy_mean"].astype(float) * 100,
+                        m_subset["best_validation_accuracy_sample_std"].astype(float) * 100,
+                        color=CONDITION_COLORS[mode],
+                        marker=M_MARKERS[m_value],
+                        s=54,
+                        edgecolor="white",
+                        linewidth=0.5,
+                        alpha=0.9,
+                        label=f"{CONDITION_LABELS[mode]} M{m_value}",
+                    )
+        ax.set_title(f"{dataset}: mean performance versus across-seed variability")
+        ax.set_xlabel("Mean best validation accuracy (%)")
+        ax.set_ylabel("Sample SD across seeds (percentage points)")
+        pct_formatter(ax)
+        ax.legend(frameon=False, ncol=2, fontsize=8)
+        finish_plot(fig, "Each point is one condition/M/area combination; no cutout appears once.")
+        outputs.extend(save_figure(fig, PLOTS_DIR / "mean_vs_variability" / f"{slug}_mean_vs_variability_best_validation_accuracy"))
+    return outputs
+
+
+def plot_condition_comparisons(per_run: pd.DataFrame) -> list[Path]:
+    outputs: list[Path] = []
+    bar_specs = [("none", None), ("random", 4), ("random", 8), ("cam_low", 4), ("cam_low", 8), ("cam_high", 4), ("cam_high", 8)]
+    labels = [
+        "No cutout",
+        "Random M4",
+        "Random M8",
+        "Low-saliency M4",
+        "Low-saliency M8",
+        "High-saliency M4",
+        "High-saliency M8",
     ]
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        slug = dataset_slug_from_label(dataset)
+        for area in EXPECTED_AREAS:
+            means: list[float] = []
+            stds: list[float] = []
+            colors: list[str] = []
+            seed_points: list[tuple[int, int, float, str]] = []
+            for index, (mode, m_value) in enumerate(bar_specs):
+                subset = subset_for(per_run, dataset, mode, m_value, None if mode == "none" else area).sort_values("seed")
+                values = [float(value) for value in subset["best_validation_accuracy"].dropna().tolist()]
+                stats_row = stats_for_values(values)
+                means.append(float(stats_row["mean"]) * 100 if not pd.isna(stats_row["mean"]) else np.nan)
+                stds.append(float(stats_row["sample_std"]) * 100 if not pd.isna(stats_row["sample_std"]) else 0.0)
+                colors.append(CONDITION_COLORS[mode])
+                for _, row in subset.iterrows():
+                    seed_points.append((index, int(row["seed"]), float(row["best_validation_accuracy"]) * 100, mode))
+            fig, ax = plt.subplots(figsize=(9.2, 4.9))
+            x = np.arange(len(bar_specs))
+            ax.bar(x, means, yerr=stds, color=colors, alpha=0.75, capsize=4, edgecolor="#333333", linewidth=0.4)
+            for index, seed, value, mode in seed_points:
+                jitter = {42: -0.08, 43: 0.0, 44: 0.08}.get(seed, 0.0)
+                ax.scatter(
+                    index + jitter,
+                    value,
+                    color=CONDITION_COLORS[mode],
+                    marker=SEED_MARKERS.get(seed, "o"),
+                    s=31,
+                    edgecolor="white",
+                    linewidth=0.5,
+                    alpha=0.9,
+                    zorder=3,
+                )
+            ax.set_title(f"{dataset}, area {area_label(area)}: condition comparison")
+            ax.set_ylabel("Mean best validation accuracy (%)")
+            set_xticks_with_labels(ax, x, labels, rotation=30, ha="right")
+            pct_formatter(ax)
+            legend_handles = [Patch(facecolor=CONDITION_COLORS[mode], label=CONDITION_LABELS[mode]) for mode in CONDITIONS]
+            ax.legend(handles=legend_handles, frameon=False, ncol=4, fontsize=8)
+            finish_plot(fig, "Bars are means across seeds; error bars show sample SD; points show individual seeds.")
+            outputs.extend(save_figure(fig, PLOTS_DIR / "condition_comparisons" / f"{slug}_{area_slug(area)}_condition_comparison"))
+    return outputs
 
-    comparison_preview = []
-    for row in comparison_rows:
-        comparison_preview.append(
-            {
-                "Dataset": row.get("dataset_display", ""),
-                "Model": row.get("config_model", ""),
-                "Seed": row.get("seed", ""),
-                "none": percent(row.get("none_best_accuracy")),
-                "random M4": percent(row.get("random_M4_best_accuracy")),
-                "random M8": percent(row.get("random_M8_best_accuracy")),
-                "cam_low M4": percent(row.get("cam_low_M4_best_accuracy")),
-                "cam_high M4": percent(row.get("cam_high_M4_best_accuracy")),
-                "cam_low M8": percent(row.get("cam_low_M8_best_accuracy")),
-                "cam_high M8": percent(row.get("cam_high_M8_best_accuracy")),
-            }
+
+def create_all_plots(
+    per_run: pd.DataFrame,
+    aggregate: pd.DataFrame,
+    paired: pd.DataFrame,
+    metric_frames: dict[int, pd.DataFrame],
+    analysis_runs: list[dict[str, Any]],
+) -> list[Path]:
+    outputs: list[Path] = []
+    outputs.extend(
+        plot_metric_by_area(
+            per_run,
+            "best_validation_accuracy",
+            "best_accuracy_by_area",
+            "mean_best_validation_accuracy",
+            "Mean best validation accuracy (%)",
         )
-
-    md = f"""# CAM-Guided Cutout Summary
-
-Generated from existing artifacts under `runs/cifar100/`, `runs/malimg/`, and the available RawMal-TF folder `runs/drive_zip/`. No model retraining or run-artifact edits were performed.
-
-## Research Context
-
-This package summarizes CAM-guided cutout augmentation for image-based malware classification. The intended comparison is no cutout (`none`), standard random cutout (`random`), low-saliency CAM-guided cutout (`cam_low`), and high-saliency CAM-guided cutout (`cam_high`). RawMal-TF / `drive_zip`, especially grayscale-only runs, is treated as the main publication dataset; CIFAR100 is a sanity check; MalImg is secondary malware evidence.
-
-## Artifact Coverage
-
-- Runs processed: {len(summary_rows)}
-- Datasets found: {", ".join(datasets)}
-- Models found: {", ".join(models)}
-- Conditions found: {", ".join(CONDITION_LABELS.get(condition, condition) for condition in conditions)}
-- Inventory/status counts: {json.dumps(stats.get("status_counts", {}), sort_keys=True)}
-
-{low_high_warning}
-
-## Best Result by Dataset
-
-{markdown_table(best_dataset_rows, [("Dataset", "Dataset"), ("Model", "Model"), ("Seed", "Seed"), ("Condition", "Condition"), ("Best acc", "Best acc"), ("Final acc", "Final acc"), ("Best epoch", "Best epoch"), ("vs none", "vs none")])}
-
-## Paper-Friendly Comparison Preview
-
-{markdown_table(comparison_preview, [("Dataset", "Dataset"), ("Model", "Model"), ("Seed", "Seed"), ("none", "none"), ("random M4", "random M4"), ("random M8", "random M8"), ("cam_low M4", "cam_low M4"), ("cam_high M4", "cam_high M4"), ("cam_low M8", "cam_low M8"), ("cam_high M8", "cam_high M8")])}
-
-## RawMal-TF Focused Results
-
-{markdown_table(raw_table_rows, [("Condition", "Condition"), ("Best acc", "Best acc"), ("Final acc", "Final acc"), ("Best epoch", "Best epoch"), ("vs none", "vs none"), ("vs random", "vs random")])}
-
-## MalImg and CIFAR100 Summaries
-
-{markdown_table(sanity_rows, [("Dataset", "Dataset"), ("Condition", "Condition"), ("Best acc", "Best acc"), ("Final acc", "Final acc"), ("Best epoch", "Best epoch"), ("vs none", "vs none")])}
-
-## Interpretation
-
-{chr(10).join(interpretation_lines)}
-
-These statements are computed only from existing run artifacts. A positive CAM-minus-random statistic is evidence only for the matched runs present here; it should not be generalized beyond the current seed/model/dataset coverage.
-
-## Warnings
-
-{markdown_table(warning_rows, [("Severity", "Severity"), ("Check", "Check"), ("Run/Dataset", "Run/Dataset"), ("Observed", "Observed")])}
-
-## Next-Step Recommendations
-
-- Use `comparison_table.csv` and the RawMal-TF plots as the primary publication tables/figures.
-- Treat single-seed comparisons as preliminary unless additional seeds are added later.
-- Report missing literal `runs/rawmaltf/` path as a naming issue if the paper refers to RawMal-TF while artifacts use `drive_zip`.
-- Before making saliency-specific claims, check `integrity_checks.csv` for cam_low/cam_high identity failures.
-- Do not claim CAM is better than random unless the matched improvement columns and plots support that claim for the target dataset/model/seed.
-"""
-    return md
+    )
+    outputs.extend(
+        plot_metric_by_area(
+            per_run,
+            "final_validation_accuracy",
+            "final_accuracy_by_area",
+            "mean_final_validation_accuracy",
+            "Mean final validation accuracy (%)",
+        )
+    )
+    outputs.extend(plot_paired_cam_effects(paired))
+    outputs.extend(
+        plot_metric_by_area(
+            per_run,
+            "validation_aulc",
+            "aulc_by_area",
+            "mean_validation_aulc",
+            "Mean normalized validation AULC (%)",
+        )
+    )
+    outputs.extend(plot_learning_curves(per_run, metric_frames, analysis_runs))
+    outputs.extend(plot_stability(per_run))
+    outputs.extend(plot_m8_minus_m4(paired))
+    outputs.extend(plot_heatmaps(aggregate))
+    outputs.extend(plot_mean_vs_variability(aggregate))
+    outputs.extend(plot_condition_comparisons(per_run))
+    return outputs
 
 
-def make_readme() -> str:
-    return """# Summary Package
+def fmt_fraction_as_pct(value: Any, digits: int = 2) -> str:
+    if value is None or pd.isna(value):
+        return "NA"
+    return f"{float(value) * 100:.{digits}f}%"
 
-This folder contains publication-oriented summaries generated from existing run artifacts only.
 
-## Generated Files
+def fmt_difference_pp(value: Any, digits: int = 2) -> str:
+    if value is None or pd.isna(value):
+        return "NA"
+    return f"{float(value) * 100:+.{digits}f} pp"
 
-- `run_inventory.csv`: one row per run with configuration fields, artifact flags, epoch coverage, hashes, status, and notes.
-- `run_summary.csv`: final and best train/evaluation metrics, best epoch, generalization gaps, and matched improvements over no-cutout and random baselines.
-- `comparison_table.csv`: wide paper-friendly comparison by dataset/model/seed for none, random M4/M8, cam_low M4/M8, and cam_high M4/M8.
-- `integrity_checks.csv`: missing artifacts, epoch mismatches, metric issues, duplicate hashes, folder/config mismatches, CAM teacher checkpoint checks, and cam_low/cam_high identity checks.
-- `summary_stats.json`: aggregate counts, best runs, improvement statistics, CAM-vs-random statistics, cam_low-vs-cam_high statistics, and major warnings.
-- `paper_summary.md`: human-readable report for publication planning.
-- `plots/`: PNG figures and the CSV tables used to create each plot.
 
-## Rerun
+def fmt_unsigned_pp(value: Any, digits: int = 2) -> str:
+    if value is None or pd.isna(value):
+        return "NA"
+    return f"{float(value) * 100:.{digits}f} pp"
 
-From the repository root:
 
-```bash
-python runs/summary/generate_summary.py
-```
+def aggregate_best_rows(aggregate: pd.DataFrame) -> pd.DataFrame:
+    return aggregate[
+        [
+            "dataset",
+            "condition",
+            "mode",
+            "M",
+            "cutout_area",
+            "valid_seed_count",
+            "best_validation_accuracy_mean",
+            "best_validation_accuracy_sample_variance",
+            "best_validation_accuracy_sample_std",
+        ]
+    ].copy()
 
-The script reads `runs/cifar100/`, `runs/malimg/`, `runs/rawmaltf/` when present, and `runs/drive_zip/` as the available RawMal-TF artifact folder. It writes outputs only under `runs/summary/`.
-"""
+
+def describe_top_performance(aggregate: pd.DataFrame) -> str:
+    rows: list[str] = []
+    best = aggregate_best_rows(aggregate)
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        subset = best[(best["dataset"] == dataset) & best["best_validation_accuracy_mean"].notna()]
+        if subset.empty:
+            rows.append(f"- {dataset}: no aggregate rows were available.")
+            continue
+        subset = subset.sort_values("best_validation_accuracy_mean", ascending=False).head(3)
+        pieces = []
+        for _, row in subset.iterrows():
+            m_text = "" if pd.isna(row["M"]) else f", M{int(row['M'])}"
+            area_text = "" if pd.isna(row["cutout_area"]) else f", area {area_label(row['cutout_area'])}"
+            pieces.append(f"{row['condition']}{m_text}{area_text}: {fmt_fraction_as_pct(row['best_validation_accuracy_mean'])}")
+        rows.append(f"- {dataset}: " + "; ".join(pieces) + ".")
+    return "\n".join(rows)
+
+
+def describe_lowest_variance(aggregate: pd.DataFrame) -> str:
+    rows: list[str] = []
+    best = aggregate_best_rows(aggregate)
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        subset = best[(best["dataset"] == dataset) & best["best_validation_accuracy_sample_variance"].notna()]
+        if subset.empty:
+            rows.append(f"- {dataset}: no sample variances were available.")
+            continue
+        subset = subset.sort_values(["best_validation_accuracy_sample_variance", "best_validation_accuracy_mean"], ascending=[True, False]).head(3)
+        pieces = []
+        for _, row in subset.iterrows():
+            m_text = "" if pd.isna(row["M"]) else f", M{int(row['M'])}"
+            area_text = "" if pd.isna(row["cutout_area"]) else f", area {area_label(row['cutout_area'])}"
+            pieces.append(
+                f"{row['condition']}{m_text}{area_text}: variance {float(row['best_validation_accuracy_sample_variance']):.8f}, "
+                f"SD {fmt_unsigned_pp(row['best_validation_accuracy_sample_std'])}"
+            )
+        rows.append(f"- {dataset}: " + "; ".join(pieces) + ".")
+    return "\n".join(rows)
+
+
+def describe_cam_consistency(paired: pd.DataFrame) -> str:
+    rows: list[str] = []
+    subset = paired[
+        (paired["metric"] == "best_validation_accuracy")
+        & (paired["comparison_key"].isin(["cam_low_minus_random", "cam_high_minus_random"]))
+    ]
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        dataset_subset = subset[subset["dataset"] == dataset]
+        for key, label in (
+            ("cam_low_minus_random", "Low-saliency cutout"),
+            ("cam_high_minus_random", "High-saliency cutout"),
+        ):
+            key_subset = dataset_subset[dataset_subset["comparison_key"] == key]
+            if key_subset.empty:
+                rows.append(f"- {dataset}: {label} has no paired comparisons against random cutout.")
+                continue
+            complete_positive = 0
+            complete_negative = 0
+            mixed = 0
+            for _, row in key_subset.iterrows():
+                diffs = [row[f"seed_{seed}_difference"] for seed in EXPECTED_SEEDS if not pd.isna(row[f"seed_{seed}_difference"])]
+                if diffs and all(float(value) > 0 for value in diffs):
+                    complete_positive += 1
+                elif diffs and all(float(value) < 0 for value in diffs):
+                    complete_negative += 1
+                else:
+                    mixed += 1
+            cell_means = key_subset["mean_paired_difference"].dropna().astype(float)
+            range_text = "NA"
+            if not cell_means.empty:
+                range_text = f"{fmt_difference_pp(cell_means.min())} to {fmt_difference_pp(cell_means.max())}"
+            rows.append(
+                f"- {dataset}: {label} versus random has {complete_positive} area/M cells positive for all available seeds, "
+                f"{complete_negative} negative for all available seeds, and {mixed} mixed. Cell mean paired effects range from {range_text}."
+            )
+    return "\n".join(rows)
+
+
+def describe_area_m_effects(paired: pd.DataFrame) -> str:
+    subset = paired[
+        (paired["metric"] == "best_validation_accuracy")
+        & (paired["comparison_key"].isin(["cam_low_minus_random", "cam_high_minus_random"]))
+    ].copy()
+    if subset.empty:
+        return "No CAM-versus-random paired effects were available."
+    rows: list[str] = []
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        dataset_subset = subset[subset["dataset"] == dataset]
+        if dataset_subset.empty:
+            continue
+        top = dataset_subset.sort_values("mean_paired_difference", ascending=False).iloc[0]
+        bottom = dataset_subset.sort_values("mean_paired_difference", ascending=True).iloc[0]
+        rows.append(
+            f"- {dataset}: largest mean CAM advantage is {top['comparison']} at M{int(top['M'])}, area {area_label(top['cutout_area'])} "
+            f"({fmt_difference_pp(top['mean_paired_difference'])}); largest mean CAM deficit is {bottom['comparison']} at M{int(bottom['M'])}, "
+            f"area {area_label(bottom['cutout_area'])} ({fmt_difference_pp(bottom['mean_paired_difference'])})."
+        )
+    return "\n".join(rows)
+
+
+def describe_dataset_differences(aggregate: pd.DataFrame, paired: pd.DataFrame) -> str:
+    lines: list[str] = []
+    best = aggregate_best_rows(aggregate)
+    for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+        subset = best[(best["dataset"] == dataset) & best["best_validation_accuracy_mean"].notna()]
+        if subset.empty:
+            continue
+        top = subset.sort_values("best_validation_accuracy_mean", ascending=False).iloc[0]
+        baseline = subset[subset["mode"] == "none"].iloc[0]
+        lines.append(
+            f"- {dataset}: the highest aggregate mean best validation accuracy is {fmt_fraction_as_pct(top['best_validation_accuracy_mean'])}; "
+            f"the no-cutout mean is {fmt_fraction_as_pct(baseline['best_validation_accuracy_mean'])}."
+        )
+    cam = paired[(paired["metric"] == "best_validation_accuracy") & (paired["comparison_key"].isin(["cam_low_minus_random", "cam_high_minus_random"]))]
+    if not cam.empty:
+        for key, label in (
+            ("cam_low_minus_random", "low-saliency minus random"),
+            ("cam_high_minus_random", "high-saliency minus random"),
+        ):
+            ranges = {}
+            for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
+                values = (
+                    cam[(cam["dataset"] == dataset) & (cam["comparison_key"] == key)]["mean_paired_difference"]
+                    .dropna()
+                    .astype(float)
+                )
+                if not values.empty:
+                    ranges[dataset] = (float(values.min()), float(values.max()))
+            if len(ranges) == 2:
+                lines.append(
+                    f"- For {label}, CIFAR-100 cell mean paired effects range from {fmt_difference_pp(ranges['CIFAR-100'][0])} "
+                    f"to {fmt_difference_pp(ranges['CIFAR-100'][1])}; RawMal-TF ranges from {fmt_difference_pp(ranges['RawMal-TF'][0])} "
+                    f"to {fmt_difference_pp(ranges['RawMal-TF'][1])}."
+                )
+    return "\n".join(lines)
+
+
+def report_valid_inventory(records: list[dict[str, Any]], per_run: pd.DataFrame, missing_invalid: pd.DataFrame) -> str:
+    status_counts = Counter(record["status"] for record in records)
+    missing_count = (
+        int(missing_invalid["issue_type"].astype(str).str.startswith("missing_expected").sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    invalid_count = (
+        int((~missing_invalid["issue_type"].astype(str).str.startswith("missing_expected")).sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    return (
+        f"Discovered {len(records)} run folders with configs and metrics. After deduplicating no-cutout baselines, "
+        f"{len(per_run)} runs are analysis-valid: {status_counts.get('valid', 0)} augmented runs and "
+        f"{status_counts.get('valid_selected_baseline', 0)} selected no-cutout baselines. "
+        f"The missing-or-invalid table contains {missing_count} missing expected combinations and {invalid_count} invalid or excluded run records."
+    )
+
+
+def write_summary_report(
+    records: list[dict[str, Any]],
+    per_run: pd.DataFrame,
+    aggregate: pd.DataFrame,
+    paired: pd.DataFrame,
+    duplicate_baselines: pd.DataFrame,
+    missing_invalid: pd.DataFrame,
+    plot_outputs: list[Path],
+) -> None:
+    status_counts = Counter(record["status"] for record in records)
+    exact_duplicates = status_counts.get("duplicate_baseline_exact", 0)
+    inconsistent_duplicates = status_counts.get("duplicate_baseline_inconsistent", 0)
+    baseline_groups = duplicate_baselines.groupby(["dataset", "seed"]).ngroups if not duplicate_baselines.empty else 0
+    inconsistent_groups = 0
+    if not duplicate_baselines.empty:
+        inconsistent_groups = int(
+            duplicate_baselines.groupby(["dataset", "seed"])["baseline_copies_differ"]
+            .first()
+            .astype(bool)
+            .sum()
+        )
+    exact_word = "copy" if exact_duplicates == 1 else "copies"
+    inconsistent_word = "copy" if inconsistent_duplicates == 1 else "copies"
+    group_word = "group" if inconsistent_groups == 1 else "groups"
+    combination_count = int(len(aggregate))
+
+    lines = [
+        "# CAM Cutout Validation Summary",
+        "",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "",
+        "## Research Question",
+        "",
+        "This project asks whether saliency-guided cutout improves validation performance or stability relative to standard random cutout. The four conditions are no cutout, random cutout, low-saliency cutout, and high-saliency cutout. The primary estimates are means across seeds 42, 43, and 44 for each matched dataset, M, cutout-area, and condition combination.",
+        "",
+        "The CSV `eval_*` metrics are validation metrics, not held-out test results.",
+        "",
+        "## Valid Run Inventory",
+        "",
+        report_valid_inventory(records, per_run, missing_invalid),
+        "",
+        f"The aggregate table has {combination_count} dataset/condition/M/area rows: one no-cutout row per dataset plus separate rows for every M and area for random, low-saliency, and high-saliency cutout. No aggregate row averages across different areas, M values, or conditions.",
+        "",
+        "## No-Cutout Duplicate Handling",
+        "",
+        "No-cutout runs appear under multiple area directories even though area does not apply. The generator compares metric hashes and normalized config hashes, then selects exactly one no-cutout observation per dataset and seed. Repeated baseline copies are excluded from seed counts and paired comparisons.",
+        "",
+        f"Baseline duplicate findings: {baseline_groups} dataset/seed baseline groups, {exact_duplicates} exact duplicate {exact_word} excluded, {inconsistent_duplicates} differing {inconsistent_word} excluded, and {inconsistent_groups} {group_word} with any differing baseline content. Details are in `tables/duplicate_baselines.csv`.",
+        "",
+        "## Highest Mean Performance",
+        "",
+        describe_top_performance(aggregate),
+        "",
+        "## Lowest Across-Seed Variance",
+        "",
+        describe_lowest_variance(aggregate),
+        "",
+        "## CAM Versus Random Cutout",
+        "",
+        describe_cam_consistency(paired),
+        "",
+        "## Effects by Area and M",
+        "",
+        describe_area_m_effects(paired),
+        "",
+        "## CIFAR-100 Versus RawMal-TF",
+        "",
+        describe_dataset_differences(aggregate, paired),
+        "",
+        "## Seed Consistency",
+        "",
+        "The paired-effect table computes each comparison within seed before aggregating. Apparent improvements are strongest when all three seed-level differences in the matched area/M cell have the same sign; mixed-sign cells should be read as seed-sensitive rather than reliable treatment wins.",
+        "",
+        "## M8 Minus M4",
+        "",
+        "The M8-minus-M4 paired effects are descriptive because M changes the number of augmented samples and optimizer updates. The generator computes M8 minus M4 within the same dataset, seed, area, and cutout condition before reporting means and variability.",
+        "",
+        "## Plot Notes",
+        "",
+        f"The plot directory contains {len(plot_outputs) // 2} figures, each saved as high-resolution PNG and PDF. Plotted accuracies are percentages, plotted differences are percentage points, and every error bar or shaded band represents sample standard deviation across seeds.",
+        "",
+        "## Limitations",
+        "",
+        "Only three seeds are available, so variance and t-based 95% confidence intervals are exploratory. The files support validation accuracy, validation loss, and stability summaries, but they do not support:",
+        "",
+        "- held-out test accuracy;",
+        "- macro-F1;",
+        "- per-family metrics;",
+        "- confusion matrices;",
+        "- calibration;",
+        "- sample-level predictions;",
+        "- saliency-faithfulness measurements;",
+        "- zero-padding overlap;",
+        "- wall-clock or GPU-efficiency analysis.",
+        "",
+        "No unavailable result is fabricated here.",
+    ]
+    (SUMMARY_DIR / "summary_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_integrity_report(
+    records: list[dict[str, Any]],
+    per_run: pd.DataFrame,
+    aggregate: pd.DataFrame,
+    paired: pd.DataFrame,
+    duplicate_baselines: pd.DataFrame,
+    missing_invalid: pd.DataFrame,
+    plot_outputs: list[Path],
+) -> None:
+    status_counts = Counter(record["status"] for record in records)
+    missing_count = (
+        int(missing_invalid["issue_type"].astype(str).str.startswith("missing_expected").sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    invalid_count = (
+        int((~missing_invalid["issue_type"].astype(str).str.startswith("missing_expected")).sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    duplicate_groups: list[dict[str, Any]] = []
+    if not duplicate_baselines.empty:
+        for (dataset, seed), group in duplicate_baselines.groupby(["dataset", "seed"], sort=True):
+            selected = group[group["selected_for_analysis"] == True]
+            duplicate_groups.append(
+                {
+                    "dataset": dataset,
+                    "seed": int(seed),
+                    "group_size": int(len(group)),
+                    "selected_source_path": "" if selected.empty else str(selected.iloc[0]["source_path"]),
+                    "baseline_copies_differ": bool(group["baseline_copies_differ"].iloc[0]),
+                    "metrics_all_match_selected": bool(group["metrics_match_selected"].all()),
+                    "normalized_configs_all_match_selected": bool(group["normalized_config_matches_selected"].all()),
+                    "excluded_sources": group[group["selected_for_analysis"] == False]["source_path"].astype(str).tolist(),
+                }
+            )
+
+    report = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "scope": {
+            "datasets": ["CIFAR-100", "RawMal-TF"],
+            "architecture": EXPECTED_ARCHITECTURE,
+            "seeds": list(EXPECTED_SEEDS),
+            "epochs": EXPECTED_EPOCHS,
+            "cutout_areas": list(EXPECTED_AREAS),
+            "M_values": list(EXPECTED_MS),
+            "conditions": [CONDITION_LABELS[condition] for condition in CONDITIONS],
+            "metric_source": "CSV eval columns are validation metrics, not held-out test metrics.",
+        },
+        "counts": {
+            "discovered_run_count": int(len(records)),
+            "valid_run_count": int(len(per_run)),
+            "invalid_or_missing_run_count": int(missing_count + invalid_count),
+            "missing_expected_combination_count": int(missing_count),
+            "invalid_or_excluded_run_count": int(invalid_count),
+            "unique_across_seed_parameter_combinations": int(len(aggregate)),
+            "aggregate_rows": int(len(aggregate)),
+            "paired_effect_rows": int(len(paired)),
+            "plot_files": int(len(plot_outputs)),
+            "figure_count": int(len(plot_outputs) // 2),
+            "status_counts": dict(sorted(status_counts.items())),
+        },
+        "calculations": {
+            "primary_values": "Aggregate tables and plots use means across seeds.",
+            "variance_and_standard_deviation": "Sample calculations use ddof=1.",
+            "standard_error": "sample_std / sqrt(valid seed count).",
+            "confidence_interval": "Exploratory two-sided 95% t-based interval.",
+            "paired_effects": "Differences are computed within seed before aggregation.",
+            "maximum_drawdown": "Largest drop from the previous running-best validation accuracy.",
+            "collapse_event": "A drop of at least 0.05 from the previous running-best validation accuracy; consecutive below-threshold epochs count as one event until recovery.",
+            "plot_error_bars": "Sample standard deviation across seeds.",
+        },
+        "duplicate_baselines": duplicate_groups,
+        "generated_files": [relative_path(path) for path in sorted(SUMMARY_DIR.rglob("*")) if path.is_file()],
+        "missing_or_invalid_rows": (
+            missing_invalid.where(pd.notna(missing_invalid), None).to_dict(orient="records")
+            if not missing_invalid.empty
+            else []
+        ),
+        "unsupported_outputs": [
+            "held-out test accuracy",
+            "macro-F1",
+            "per-family metrics",
+            "confusion matrices",
+            "calibration",
+            "sample-level predictions",
+            "saliency-faithfulness measurements",
+            "zero-padding overlap",
+            "wall-clock or GPU-efficiency analysis",
+        ],
+    }
+    (SUMMARY_DIR / "integrity_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def verify_outputs(plot_outputs: list[Path]) -> None:
+    required_files = [
+        SUMMARY_DIR / "generate_summary.py",
+        SUMMARY_DIR / "summary_report.md",
+        SUMMARY_DIR / "integrity_report.json",
+        TABLES_DIR / "run_inventory.csv",
+        TABLES_DIR / "per_run_validation_metrics.csv",
+        TABLES_DIR / "aggregate_validation_metrics.csv",
+        TABLES_DIR / "paired_effects_across_seeds.csv",
+        TABLES_DIR / "missing_or_invalid_runs.csv",
+        TABLES_DIR / "duplicate_baselines.csv",
+    ]
+    missing = [relative_path(path) for path in required_files if not path.exists()]
+    for dirname in PLOT_DIRS:
+        directory = PLOTS_DIR / dirname
+        if not directory.exists() or not any(directory.glob("*.png")) or not any(directory.glob("*.pdf")):
+            missing.append(relative_path(directory))
+    if missing:
+        raise RuntimeError("Missing expected outputs: " + ", ".join(missing))
+
+    png_count = len(list(PLOTS_DIR.rglob("*.png")))
+    pdf_count = len(list(PLOTS_DIR.rglob("*.pdf")))
+    if png_count != pdf_count:
+        raise RuntimeError(f"PNG/PDF plot count mismatch: {png_count} PNG and {pdf_count} PDF")
+
+    forbidden_in_filenames = ("drive_zip", "malimg", "densenet", "densenet121")
+    filenames = "\n".join(path.name.lower() for path in SUMMARY_DIR.rglob("*") if path.is_file())
+    hits = [term for term in forbidden_in_filenames if term in filenames]
+    if hits:
+        raise RuntimeError("Forbidden term found in generated filenames: " + ", ".join(hits))
+
+    report_text = (SUMMARY_DIR / "summary_report.md").read_text(encoding="utf-8").lower()
+    forbidden_report_terms = ("drive_zip", "malimg", "densenet", "densenet121")
+    hits = [term for term in forbidden_report_terms if term in report_text]
+    if hits:
+        raise RuntimeError("Forbidden term found in summary_report.md: " + ", ".join(hits))
+
+
+def print_completion(
+    records: list[dict[str, Any]],
+    per_run: pd.DataFrame,
+    aggregate: pd.DataFrame,
+    duplicate_baselines: pd.DataFrame,
+    missing_invalid: pd.DataFrame,
+    plot_outputs: list[Path],
+) -> None:
+    status_counts = Counter(record["status"] for record in records)
+    missing_count = (
+        int(missing_invalid["issue_type"].astype(str).str.startswith("missing_expected").sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    invalid_count = (
+        int((~missing_invalid["issue_type"].astype(str).str.startswith("missing_expected")).sum())
+        if not missing_invalid.empty
+        else 0
+    )
+    exact_duplicates = status_counts.get("duplicate_baseline_exact", 0)
+    inconsistent_duplicates = status_counts.get("duplicate_baseline_inconsistent", 0)
+    baseline_findings = (
+        f"{exact_duplicates} exact duplicate no-cutout copies excluded; "
+        f"{inconsistent_duplicates} differing no-cutout copies excluded."
+    )
+    generated_files = [relative_path(path) for path in sorted(SUMMARY_DIR.rglob("*")) if path.is_file()]
+
+    print(f"valid_run_count: {len(per_run)}")
+    print(f"invalid_or_missing_run_count: {missing_count + invalid_count}")
+    print(f"unique_across_seed_parameter_combinations: {len(aggregate)}")
+    print(f"baseline_duplicate_findings: {baseline_findings}")
+    print("generated_file_list:")
+    for path in generated_files:
+        print(f"- {path}")
+    print("outside_runs_summary_changed: false")
+    print(f"plot_files: {len(plot_outputs)}")
 
 
 def main() -> None:
-    SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    configure_matplotlib()
+    clean_summary_dir()
+    records, metric_frames = discover_runs()
+    analysis_runs, duplicate_baselines = select_analysis_runs(records)
+    per_run = compute_per_run_metrics(analysis_runs, metric_frames)
+    aggregate = build_aggregate_table(per_run)
+    seed_effects = build_seed_level_paired_effects(per_run)
+    paired = build_paired_effects_table(seed_effects)
+    missing_invalid = build_missing_or_invalid_table(records, per_run)
 
-    run_dirs, missing_folder_warnings = find_run_dirs()
-    runs = [load_run(path) for path in run_dirs]
+    write_csv(build_inventory_table(records), TABLES_DIR / "run_inventory.csv")
+    write_csv(per_run, TABLES_DIR / "per_run_validation_metrics.csv")
+    write_csv(aggregate, TABLES_DIR / "aggregate_validation_metrics.csv")
+    write_csv(paired, TABLES_DIR / "paired_effects_across_seeds.csv")
+    write_csv(missing_invalid, TABLES_DIR / "missing_or_invalid_runs.csv")
+    write_csv(duplicate_baselines, TABLES_DIR / "duplicate_baselines.csv")
 
-    checks, run_notes = build_integrity_checks(runs, missing_folder_warnings)
-    inventory_rows = make_inventory(runs, run_notes)
-    summary_rows = [summarize_run(run) for run in runs]
-    attach_improvements(summary_rows)
-    comparison_rows = make_comparison_table(summary_rows)
-    stats = make_summary_stats(summary_rows, inventory_rows, checks)
-
-    write_csv(SUMMARY_DIR / "run_inventory.csv", inventory_rows)
-    write_csv(SUMMARY_DIR / "run_summary.csv", summary_rows)
-    write_csv(SUMMARY_DIR / "comparison_table.csv", comparison_rows)
-    write_csv(SUMMARY_DIR / "integrity_checks.csv", checks)
-    write_json(SUMMARY_DIR / "summary_stats.json", stats)
-    write_text(SUMMARY_DIR / "paper_summary.md", make_paper_summary(summary_rows, comparison_rows, checks, stats))
-    write_text(SUMMARY_DIR / "README.md", make_readme())
-
-    create_plots(summary_rows, runs)
-
-    major_warnings = stats.get("major_warnings", [])
-    print(f"number of runs processed: {len(runs)}")
-    print(f"number of files created: {len(CREATED_FILES)}")
-    print(f"number of plots created: {PLOTS_CREATED}")
-    print("major warnings:")
-    if major_warnings:
-        for warning in major_warnings[:20]:
-            print(f"- {warning}")
-        if len(major_warnings) > 20:
-            print(f"- ... {len(major_warnings) - 20} more warnings in runs/summary/integrity_checks.csv")
-    else:
-        print("- none")
-    print("path to README.md: runs/summary/README.md")
+    plot_outputs = create_all_plots(per_run, aggregate, paired, metric_frames, analysis_runs)
+    write_summary_report(records, per_run, aggregate, paired, duplicate_baselines, missing_invalid, plot_outputs)
+    write_integrity_report(records, per_run, aggregate, paired, duplicate_baselines, missing_invalid, plot_outputs)
+    verify_outputs(plot_outputs)
+    print_completion(records, per_run, aggregate, duplicate_baselines, missing_invalid, plot_outputs)
 
 
 if __name__ == "__main__":

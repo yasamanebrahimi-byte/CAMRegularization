@@ -1,7 +1,0 @@
-cutout_mode,cutout_m,condition_key,condition_label,best_eval_accuracy,best_acc_improvement_over_none
-random,4,random_M4,random M4,0.702989,-0.023397
-random,8,random_M8,random M8,0.705044,-0.021341999999999972
-cam_low,4,cam_low_M4,cam_low M4,0.700934,-0.02545200000000003
-cam_high,4,cam_high_M4,cam_high M4,0.696606,-0.02978000000000003
-cam_low,8,cam_low_M8,cam_low M8,0.702744,-0.02364199999999994
-cam_high,8,cam_high_M8,cam_high M8,0.694618,-0.03176800000000002
