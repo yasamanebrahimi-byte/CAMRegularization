@@ -8,6 +8,7 @@ modify source experiment artifacts.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import math
@@ -1526,14 +1527,37 @@ def aggregate_cell(aggregate: pd.DataFrame, dataset: str, mode: str, m_value: in
     return subset.iloc[0]
 
 
-def plot_heatmaps(aggregate: pd.DataFrame) -> list[Path]:
+def finite_color_limits(values: np.ndarray, fallback: tuple[float, float] = (0.0, 1.0)) -> tuple[float, float]:
+    finite_values = values[np.isfinite(values)]
+    if finite_values.size == 0:
+        return fallback
+    vmin = float(np.min(finite_values))
+    vmax = float(np.max(finite_values))
+    if math.isclose(vmin, vmax):
+        padding = max(abs(vmin) * 0.01, 1.0)
+        return vmin - padding, vmax + padding
+    return vmin, vmax
+
+
+def heatmap_matrix(aggregate: pd.DataFrame, dataset: str, metric_column: str) -> np.ndarray:
+    row_specs = [(mode, m_value) for mode in AUGMENTED_CONDITIONS for m_value in EXPECTED_MS]
+    matrix = np.full((len(row_specs), len(EXPECTED_AREAS)), np.nan)
+    for row_index, (mode, m_value) in enumerate(row_specs):
+        for col_index, area in enumerate(EXPECTED_AREAS):
+            cell = aggregate_cell(aggregate, dataset, mode, m_value, area)
+            if cell is not None and not pd.isna(cell[metric_column]):
+                matrix[row_index, col_index] = float(cell[metric_column]) * 100
+    return matrix
+
+
+def plot_heatmaps(aggregate: pd.DataFrame, selected_folders: set[str] | None = None) -> list[Path]:
     outputs: list[Path] = []
     row_specs = [(mode, m_value) for mode in AUGMENTED_CONDITIONS for m_value in EXPECTED_MS]
     row_labels = [f"{CONDITION_SHORT_LABELS[mode]} M{m_value}" for mode, m_value in row_specs]
-    all_means = aggregate[aggregate["mode"] != "none"]["best_validation_accuracy_mean"].dropna().to_numpy(dtype=float) * 100
-    all_stds = aggregate[aggregate["mode"] != "none"]["best_validation_accuracy_sample_std"].dropna().to_numpy(dtype=float) * 100
-    mean_vmin, mean_vmax = float(np.nanmin(all_means)), float(np.nanmax(all_means))
-    std_vmin, std_vmax = 0.0, float(np.nanmax(all_stds))
+    if selected_folders is not None:
+        selected_folders = set(selected_folders)
+    std_values = aggregate[aggregate["mode"] != "none"]["best_validation_accuracy_sample_std"].dropna().to_numpy(dtype=float) * 100
+    std_vmin, std_vmax = 0.0, finite_color_limits(std_values, fallback=(0.0, 1.0))[1]
 
     for dataset in (display_dataset(dataset_id) for dataset_id in EXPECTED_DATASETS):
         slug = dataset_slug_from_label(dataset)
@@ -1544,14 +1568,12 @@ def plot_heatmaps(aggregate: pd.DataFrame) -> list[Path]:
                 f"No cutout mean: {float(baseline['best_validation_accuracy_mean']) * 100:.2f}%; "
                 f"SD: {float(baseline['best_validation_accuracy_sample_std']) * 100:.2f} pp"
             )
-        for metric_column, title_metric, folder, suffix, vmin, vmax, colorbar_label in (
+        for metric_column, title_metric, folder, suffix, colorbar_label in (
             (
                 "best_validation_accuracy_mean",
                 "Mean best validation accuracy",
                 "mean_heatmaps",
                 "mean_best_validation_accuracy_heatmap",
-                mean_vmin,
-                mean_vmax,
                 "Mean best validation accuracy (%)",
             ),
             (
@@ -1559,17 +1581,16 @@ def plot_heatmaps(aggregate: pd.DataFrame) -> list[Path]:
                 "Best-validation accuracy sample SD",
                 "variability_heatmaps",
                 "std_best_validation_accuracy_heatmap",
-                std_vmin,
-                std_vmax,
                 "Sample SD across seeds (percentage points)",
             ),
         ):
-            matrix = np.full((len(row_specs), len(EXPECTED_AREAS)), np.nan)
-            for row_index, (mode, m_value) in enumerate(row_specs):
-                for col_index, area in enumerate(EXPECTED_AREAS):
-                    cell = aggregate_cell(aggregate, dataset, mode, m_value, area)
-                    if cell is not None and not pd.isna(cell[metric_column]):
-                        matrix[row_index, col_index] = float(cell[metric_column]) * 100
+            if selected_folders is not None and folder not in selected_folders:
+                continue
+            matrix = heatmap_matrix(aggregate, dataset, metric_column)
+            if folder == "mean_heatmaps":
+                vmin, vmax = finite_color_limits(matrix)
+            else:
+                vmin, vmax = std_vmin, std_vmax
             fig, ax = plt.subplots(figsize=(7.6, 4.9))
             image = ax.imshow(matrix, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax)
             set_xticks_with_labels(ax, np.arange(len(EXPECTED_AREAS)), [area_label(area) for area in EXPECTED_AREAS])
@@ -2197,7 +2218,38 @@ def print_completion(
     print(f"plot_files: {len(plot_outputs)}")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate summary artifacts for CAM cutout experiments.")
+    parser.add_argument(
+        "--only-plot-folder",
+        choices=("mean_heatmaps",),
+        help="Regenerate only one plot folder without cleaning or rewriting the rest of runs/summary.",
+    )
+    return parser.parse_args()
+
+
+def regenerate_mean_heatmaps_only() -> None:
+    configure_matplotlib()
+    records, metric_frames = discover_runs()
+    analysis_runs, _duplicate_baselines = select_analysis_runs(records)
+    per_run = compute_per_run_metrics(analysis_runs, metric_frames)
+    aggregate = build_aggregate_table(per_run)
+    plot_outputs = plot_heatmaps(aggregate, selected_folders={"mean_heatmaps"})
+    missing = [relative_path(path) for path in plot_outputs if not path.exists()]
+    if missing:
+        raise RuntimeError("Missing expected mean heatmap outputs: " + ", ".join(missing))
+    print("regenerated_plot_folder: mean_heatmaps")
+    print(f"plot_files: {len(plot_outputs)}")
+    for path in plot_outputs:
+        print(f"- {relative_path(path)}")
+
+
 def main() -> None:
+    args = parse_args()
+    if args.only_plot_folder == "mean_heatmaps":
+        regenerate_mean_heatmaps_only()
+        return
+
     configure_matplotlib()
     clean_summary_dir()
     records, metric_frames = discover_runs()
