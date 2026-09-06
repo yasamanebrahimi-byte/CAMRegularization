@@ -16,11 +16,11 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from typing import Callable, Dict, Any, Tuple, Optional, List
 from torchvision.datasets.utils import download_and_extract_archive
 from logger import get_logger
+from dat_preprocessing import get_dat_dataloaders
 
 DatasetLoaderFunc = Callable[..., Tuple[DataLoader, Optional[DataLoader], DataLoader]]
 
 logger = get_logger(__name__)
-KAGGLE_API_TOKEN = "KGAT_5944f37e07ad4aef74d5a89f1a0bce45"
 
 
 class _ImagePathDataset(Dataset):
@@ -311,15 +311,13 @@ def _load_microsoft_malware_mirror_samples(csv_root: Path) -> List[Tuple[List[fl
     return samples
 
 
-def _build_kaggle_auth_env(token: str) -> Dict[str, str]:
-    token = token.strip()
-    if not token:
-        raise ValueError("KAGGLE_API_TOKEN is empty.")
-    if not token.startswith("KGAT_"):
-        raise ValueError("KAGGLE_API_TOKEN must start with 'KGAT_'.")
-
+def _build_kaggle_auth_env(token: Optional[str] = None) -> Dict[str, str]:
     env = os.environ.copy()
-    env["KAGGLE_API_TOKEN"] = token
+    token = str(token or os.environ.get("KAGGLE_API_TOKEN", "")).strip()
+    if token:
+        if not token.startswith("KGAT_"):
+            raise ValueError("KAGGLE_API_TOKEN must start with 'KGAT_'.")
+        env["KAGGLE_API_TOKEN"] = token
     return env
 
 
@@ -329,7 +327,7 @@ def _ensure_kaggle_dataset_available(
     kaggle_dataset: str,
     local_dir_candidates: List[str],
     archive_filename: str,
-    kaggle_api_token: str,
+    kaggle_api_token: Optional[str] = None,
 ) -> str:
     existing = _resolve_existing_path(*local_dir_candidates)
     if existing is not None:
@@ -1120,7 +1118,7 @@ def _malimg_loader(
             str(root / "malimg_dataset"),
         ],
         archive_filename="malimg_kaggle.zip",
-        kaggle_api_token=KAGGLE_API_TOKEN,
+        kaggle_api_token=os.environ.get("KAGGLE_API_TOKEN", ""),
     )
 
     data_root_path = Path(data_dir)
@@ -1221,7 +1219,7 @@ def _malware_classification_loader(
                 str(root / "Dataset" / "Dataset"),
             ],
             archive_filename="malwaremicrosoftbig.zip",
-            kaggle_api_token=KAGGLE_API_TOKEN,
+            kaggle_api_token=os.environ.get("KAGGLE_API_TOKEN", ""),
         )
         mirror_root = _find_microsoft_malware_mirror_root(Path(mirror_download_root))
         if mirror_root is None:
@@ -1531,6 +1529,33 @@ def _drive_zip_loader(
     test_ds = Subset(full_eval_ds, test_idx)
     return _build_dataloaders(train_ds, val_ds, test_ds, batch_size, num_workers)
 
+
+def _dat_parkinsons_loader(
+    data_dir: str,
+    batch_size: int,
+    num_workers: int,
+    val_split: float = 0.1,
+    seed: int = 42,
+    **kwargs,
+) -> Tuple[DataLoader, Optional[DataLoader], DataLoader]:
+    """Research-facing registry adapter for the dedicated NIfTI pipeline."""
+    return get_dat_dataloaders(
+        data_dir=data_dir,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        val_split=val_split,
+        seed=seed,
+        target_spacing=kwargs.get("target_spacing"),
+        target_shape=kwargs.get("target_shape", (64, 96, 96)),
+        intensity_lower_percentile=kwargs.get("intensity_lower_percentile", 1.0),
+        intensity_upper_percentile=kwargs.get("intensity_upper_percentile", 99.0),
+        foreground_threshold=kwargs.get("foreground_threshold", 0.0),
+        crop_margin_mm=kwargs.get("crop_margin_mm", 8.0),
+        cache_dir=kwargs.get("cache_dir"),
+        augment=not bool(kwargs.get("deterministic_train_transforms", False)),
+        _train_only=bool(kwargs.get("_train_only", False)),
+    )
+
 DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     "cifar100": {
         "loader": _cifar100_loader,
@@ -1594,6 +1619,16 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
         "default_input_size": 224,
         "mean": (0.485, 0.456, 0.406),
         "std": (0.229, 0.224, 0.225),
+    },
+    "dat_parkinsons": {
+        "loader": _dat_parkinsons_loader,
+        "num_classes": 2,
+        "default_input_size": 96,
+        "default_input_shape": (64, 96, 96),
+        "spatial_dims": 3,
+        "input_channels": 1,
+        "mean": (0.0,),
+        "std": (1.0,),
     },
 }
 
@@ -1696,6 +1731,12 @@ def get_normalization_params(dataset_name: str) -> Tuple[Tuple[float, ...], Tupl
     std = info.get("std", (0.229, 0.224, 0.225))
     return mean, std
 
+
+def get_dataset_metadata(dataset_name: str) -> Dict[str, Any]:
+    """Return a copy of dimension and label metadata for a registered dataset."""
+    info = _get_dataset_info(dataset_name)
+    return {key: value for key, value in info.items() if key != "loader"}
+
 def get_available_datasets() -> list:
     return list(DATASET_REGISTRY.keys())
 
@@ -1703,7 +1744,9 @@ def register_dataset(
     name: str,
     loader: DatasetLoaderFunc,
     num_classes: int,
-    default_input_size: int = 224
+    default_input_size: int = 224,
+    spatial_dims: int = 2,
+    input_channels: int = 3,
 ) -> None:
     if name in DATASET_REGISTRY:
         raise ValueError(f"Dataset '{name}' is already registered")
@@ -1712,4 +1755,6 @@ def register_dataset(
         "loader": loader,
         "num_classes": num_classes,
         "default_input_size": default_input_size,
+        "spatial_dims": spatial_dims,
+        "input_channels": input_channels,
     }

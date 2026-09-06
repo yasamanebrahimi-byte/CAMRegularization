@@ -152,6 +152,23 @@ def add_cutout_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--include_regex", type=str, default="")
     return parser
 
+
+def add_dat_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Optional DaT settings; defaults keep the established 2D CLI unchanged."""
+    parser.add_argument("--cv_folds", type=int, default=5)
+    parser.add_argument("--fold", type=int, default=-1, help="Optional DaT fold index.")
+    parser.add_argument("--target_spacing", nargs=3, type=float, default=None, metavar=("D", "H", "W"))
+    parser.add_argument("--target_shape", nargs=3, type=int, default=None, metavar=("D", "H", "W"))
+    parser.add_argument("--intensity_lower_percentile", type=float, default=1.0)
+    parser.add_argument("--intensity_upper_percentile", type=float, default=99.0)
+    parser.add_argument("--foreground_threshold", type=float, default=0.0)
+    parser.add_argument("--min_foreground_fraction", type=float, default=0.75)
+    parser.add_argument("--crop_margin_mm", type=float, default=8.0)
+    parser.add_argument("--calibration", choices=["raw", "temperature"], default="raw")
+    parser.add_argument("--spatial_dims", type=int, default=2)
+    parser.add_argument("--dat_cache_dir", type=str, default="")
+    return parser
+
 def build_parser():
     p = argparse.ArgumentParser("PyTorch Model Training")
     # Dataset and model selection
@@ -160,6 +177,7 @@ def build_parser():
     p.add_argument("--out_dir", type=str, default="./runs")
     add_training_hparam_args(p)
     add_cutout_args(p)
+    add_dat_args(p)
     return p
 
 def make_run_dir(out_dir, run_name):

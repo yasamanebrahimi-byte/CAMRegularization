@@ -18,6 +18,8 @@ from torchvision.models import (
 )
 from typing import Callable, Dict, Any
 
+from dat_model import build_resnet18_3d
+
 # Type for model builder functions: takes (num_classes, **kwargs) and returns nn.Module
 ModelBuilder = Callable[..., nn.Module]
 
@@ -92,6 +94,25 @@ def _swin_t_builder(num_classes: int, **kwargs) -> nn.Module:
     return model
 
 
+def _resnet18_3d_builder(
+    num_classes: int,
+    input_size=None,
+    n_input_channels: int = 1,
+    dropout: float = 0.0,
+    base_channels: int = 32,
+    **kwargs,
+) -> nn.Module:
+    """Build the dimension-aware DaT model without changing torchvision ResNet18."""
+    del input_size
+    return build_resnet18_3d(
+        num_classes=num_classes,
+        n_input_channels=n_input_channels,
+        dropout=dropout,
+        base_channels=base_channels,
+        **kwargs,
+    )
+
+
 # Registry of available models
 # Key: model name, Value: {"builder": builder_fn, "default_input_size": expected_size}
 MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -138,6 +159,13 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
     "swin_t": {
         "builder": _swin_t_builder,
         "default_input_size": 224,
+    },
+    "resnet18_3d": {
+        "builder": _resnet18_3d_builder,
+        "default_input_size": 96,
+        "spatial_dims": 3,
+        "input_channels": 1,
+        "num_classes": 2,
     },
 }
 

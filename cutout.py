@@ -17,8 +17,8 @@ from logger import get_logger
 
 
 module_logger = get_logger(__name__)
-_CAM_CACHE_VERSION = 1
-_CAM_WINDOW_CACHE_VERSION = 1
+_CAM_CACHE_VERSION = 2
+_CAM_WINDOW_CACHE_VERSION = 2
 _CAM_WORKER_CACHE_MISS_HINT = (
     "CAM cache miss during worker training. Run the same command once with "
     "--cam_precompute_only --num_workers 0 --deterministic_train_transforms, "
@@ -128,6 +128,17 @@ def _resolve_dataset_identity(dataset: Dataset, index: int) -> Dict[str, Any]:
             )
             return identity
 
+    records = getattr(current, "records", None)
+    if records is not None:
+        try:
+            record = records[resolved_index]
+            uid = getattr(record, "uid", None)
+            if uid is not None:
+                identity.update({"identity_kind": "record", "sample_key": str(uid)})
+                return identity
+        except Exception:
+            pass
+
     for attr_name in ("root", "base_folder", "split", "train"):
         if hasattr(current, attr_name):
             value = getattr(current, attr_name)
@@ -198,15 +209,18 @@ def _validate_saliency_tensor(saliency: torch.Tensor, cache_path: Optional[Path]
         location = f" at '{cache_path}'" if cache_path is not None else ""
         raise RuntimeError(f"CAM cache entry{location} is not a torch.Tensor.")
     saliency = saliency.detach().cpu()
-    if saliency.ndim != 2:
+    if saliency.ndim not in (2, 3):
         location = f" at '{cache_path}'" if cache_path is not None else ""
-        raise RuntimeError(f"CAM saliency{location} must have shape [H, W], got {tuple(saliency.shape)}.")
+        raise RuntimeError(f"CAM saliency{location} must have shape [H,W] or [D,H,W], got {tuple(saliency.shape)}.")
     if saliency.numel() == 0:
         location = f" at '{cache_path}'" if cache_path is not None else ""
         raise RuntimeError(f"CAM saliency{location} is empty.")
     if not torch.isfinite(saliency).all():
         location = f" at '{cache_path}'" if cache_path is not None else ""
         raise RuntimeError(f"CAM saliency{location} contains NaN or Inf values.")
+    if float(saliency.max() - saliency.min()) <= 1e-12:
+        location = f" at '{cache_path}'" if cache_path is not None else ""
+        raise RuntimeError(f"CAM saliency{location} has no dynamic range.")
     return saliency
 
 
@@ -259,6 +273,7 @@ class CamSaliencyCache:
         image: torch.Tensor,
         *,
         force_tensor_fingerprint: bool,
+        cache_version: int = _CAM_CACHE_VERSION,
     ) -> Path:
         sample_payload = _cache_sample_payload(
             base_dataset,
@@ -268,7 +283,7 @@ class CamSaliencyCache:
             force_tensor_fingerprint=force_tensor_fingerprint,
         )
         payload = {
-            "version": _CAM_CACHE_VERSION,
+            "version": int(cache_version),
             "settings": self.settings,
             "sample": sample_payload["sample"],
             "image": sample_payload["image"],
@@ -291,6 +306,7 @@ class CamSaliencyCache:
             base_index,
             image,
             force_tensor_fingerprint=True,
+            cache_version=1,
         )
 
     def load_if_exists(self, cache_path: Path) -> Optional[torch.Tensor]:
@@ -326,13 +342,7 @@ class CamSaliencyCache:
 
 
 class CamWindowCache:
-    """Cache final CAM cutout coordinates, not the CAM heatmap itself.
-
-    Saliency cache entries store per-image CAM maps. Window cache entries store
-    the final top/left/size chosen from those maps, which avoids repeating
-    avg-pooling, flattening, and top-k selection across epochs on large 224px
-    malware image datasets.
-    """
+    """Cache final 2D (top,left,size) or 3D (z,top,left,size) CAM windows."""
 
     def __init__(
         self,
@@ -364,6 +374,8 @@ class CamWindowCache:
         cutout_area: Optional[float],
         saliency_candidate_percent: float,
         seed: int,
+        min_foreground_fraction: float = 0.0,
+        spatial_dims: int = 2,
     ) -> Path:
         dataset_index = int(base_index) * (int(cutout_m) + 1) + int(aug_index)
         sample_payload = _cache_sample_payload(base_dataset, base_index, image, self.settings)
@@ -384,6 +396,8 @@ class CamWindowCache:
                 "seed": int(seed),
                 "dataset_index": dataset_index,
                 "rng_seed": int(seed) + dataset_index,
+                "min_foreground_fraction": float(min_foreground_fraction),
+                "spatial_dims": int(spatial_dims),
             },
         }
         digest = _json_hash(payload)
@@ -399,11 +413,9 @@ class CamWindowCache:
         with open(cache_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
         try:
-            window = {
-                "top": int(payload["top"]),
-                "left": int(payload["left"]),
-                "size": int(payload["size"]),
-            }
+            window = {"top": int(payload["top"]), "left": int(payload["left"]), "size": int(payload["size"])}
+            if "z" in payload:
+                window["z"] = int(payload["z"])
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"Invalid CAM window cache entry at '{cache_path}'.") from exc
 
@@ -412,7 +424,7 @@ class CamWindowCache:
             self._hit_logs += 1
         return window
 
-    def save(self, cache_path: Path, *, top: int, left: int, size: int) -> None:
+    def save(self, cache_path: Path, *, top: int, left: int, size: int, z: Optional[int] = None) -> None:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = cache_path.with_name(f"{cache_path.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
         payload = {
@@ -420,6 +432,8 @@ class CamWindowCache:
             "left": int(left),
             "size": int(size),
         }
+        if z is not None:
+            payload["z"] = int(z)
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, sort_keys=True)
@@ -465,6 +479,23 @@ def _resolve_cutout_size(height: int, width: int, cutout_size: Optional[int], cu
     return max(1, min(size, height, width))
 
 
+def _resolve_cutout_cube_size(
+    depth: int,
+    height: int,
+    width: int,
+    cutout_size: Optional[int],
+    cutout_area: Optional[float],
+) -> int:
+    if cutout_size is not None and int(cutout_size) > 0:
+        size = int(cutout_size)
+    elif cutout_area is not None and float(cutout_area) > 0:
+        volume = float(cutout_area) * float(depth * height * width)
+        size = int(round(max(volume, 1.0) ** (1.0 / 3.0)))
+    else:
+        size = min(depth, height, width)
+    return max(1, min(size, depth, height, width))
+
+
 def _sample_random_window(height: int, width: int, size: int, rng: random.Random) -> Tuple[int, int]:
     if height <= size:
         top = 0
@@ -477,17 +508,55 @@ def _sample_random_window(height: int, width: int, size: int, rng: random.Random
     return top, left
 
 
+def _sample_random_cube(depth: int, height: int, width: int, size: int, rng: random.Random) -> Tuple[int, int, int]:
+    z = rng.randint(0, max(0, depth - size))
+    top = rng.randint(0, max(0, height - size))
+    left = rng.randint(0, max(0, width - size))
+    return z, top, left
+
+
+def _valid_window_coordinates(
+    foreground_mask: Optional[torch.Tensor],
+    size: int,
+    spatial_shape: Tuple[int, ...],
+    min_foreground_fraction: float,
+) -> Optional[torch.Tensor]:
+    """Return flattened valid-window indices using avg_pool2d or avg_pool3d."""
+    if foreground_mask is None:
+        return None
+    if not torch.is_tensor(foreground_mask):
+        raise RuntimeError("foreground_mask must be a torch.Tensor.")
+    if tuple(foreground_mask.shape) != tuple(spatial_shape):
+        raise RuntimeError(
+            f"foreground_mask shape {tuple(foreground_mask.shape)} does not match image spatial shape {tuple(spatial_shape)}."
+        )
+    if len(spatial_shape) not in (2, 3):
+        raise RuntimeError("foreground_mask must be 2D or 3D.")
+    fraction = float(min_foreground_fraction)
+    if not 0.0 <= fraction <= 1.0:
+        raise RuntimeError("min_foreground_fraction must be in [0,1].")
+    mask = foreground_mask.detach().to(dtype=torch.float32, device="cpu")
+    if len(spatial_shape) == 2:
+        pooled = F.avg_pool2d(mask[None, None], kernel_size=size, stride=1)
+    else:
+        pooled = F.avg_pool3d(mask[None, None], kernel_size=size, stride=1)
+    valid = pooled[0, 0].reshape(-1) >= fraction - 1e-7
+    return torch.nonzero(valid, as_tuple=True)[0]
+
+
 def _select_cam_window(
     saliency: torch.Tensor,
     size: int,
     mode: str,
     candidate_percent: float,
     rng: random.Random,
-) -> Tuple[int, int]:
+    foreground_mask: Optional[torch.Tensor] = None,
+    min_foreground_fraction: float = 0.0,
+) -> Tuple[int, ...]:
     if not torch.is_tensor(saliency):
         raise RuntimeError("CAM saliency must be a torch.Tensor.")
-    if saliency.ndim != 2:
-        raise RuntimeError(f"CAM saliency must have shape [H, W], got {tuple(saliency.shape)}.")
+    if saliency.ndim not in (2, 3):
+        raise RuntimeError(f"CAM saliency must have shape [H,W] or [D,H,W], got {tuple(saliency.shape)}.")
     if saliency.numel() == 0:
         raise RuntimeError("CAM saliency map is empty.")
     if not torch.isfinite(saliency).all():
@@ -495,14 +564,23 @@ def _select_cam_window(
     if mode not in {"cam_low", "cam_high"}:
         raise RuntimeError(f"Unsupported CAM cutout mode '{mode}'.")
 
+    spatial_shape = tuple(int(v) for v in saliency.shape)
     height, width = int(saliency.shape[-2]), int(saliency.shape[-1])
     if size <= 0:
         raise RuntimeError(f"Cutout size must be positive, got {size}.")
-    if height < size or width < size:
-        return 0, 0
+    if any(axis < size for axis in spatial_shape):
+        return (0, 0) if saliency.ndim == 2 else (0, 0, 0)
 
-    scores = F.avg_pool2d(saliency.unsqueeze(0).unsqueeze(0), kernel_size=size, stride=1)
-    scores = scores.flatten()
+    if saliency.ndim == 2:
+        scores_map = F.avg_pool2d(saliency[None, None], kernel_size=size, stride=1)[0, 0]
+    else:
+        scores_map = F.avg_pool3d(saliency[None, None], kernel_size=size, stride=1)[0, 0]
+    scores = scores_map.flatten()
+    valid_indices = _valid_window_coordinates(foreground_mask, size, spatial_shape, min_foreground_fraction)
+    if valid_indices is not None:
+        if valid_indices.numel() == 0:
+            raise RuntimeError("No cutout candidates meet min_foreground_fraction.")
+        scores = scores[valid_indices]
     total = scores.numel()
     if total == 0:
         raise RuntimeError("CAM cutout produced no candidate windows.")
@@ -516,10 +594,35 @@ def _select_cam_window(
         topk = torch.topk(scores, k, largest=True).indices
 
     choice = int(topk[rng.randrange(k)].item())
+    if valid_indices is not None:
+        choice = int(valid_indices[choice].item())
+    if saliency.ndim == 2:
+        out_w = width - size + 1
+        row = choice // out_w
+        col = choice % out_w
+        return int(row), int(col)
+    out_h = height - size + 1
     out_w = width - size + 1
-    row = choice // out_w
-    col = choice % out_w
-    return int(row), int(col)
+    z = choice // (out_h * out_w)
+    rem = choice % (out_h * out_w)
+    row = rem // out_w
+    col = rem % out_w
+    return int(z), int(row), int(col)
+
+
+def _resolve_dataset_foreground_mask(dataset: Dataset, index: int) -> Optional[torch.Tensor]:
+    current = dataset
+    resolved = int(index)
+    while isinstance(current, Subset):
+        resolved = _coerce_index(current.indices[resolved])
+        current = current.dataset
+    getter = getattr(current, "get_foreground_mask", None)
+    if callable(getter):
+        return getter(resolved)
+    masks = getattr(current, "foreground_masks", None)
+    if masks is not None:
+        return masks[resolved]
+    return None
 
 
 class CutoutAugmentedDataset(Dataset):
@@ -539,6 +642,8 @@ class CutoutAugmentedDataset(Dataset):
         cam_cache_dir: Optional[str] = None,
         cam_cache_settings: Optional[Dict[str, Any]] = None,
         cam_window_cache_dir: Optional[str] = None,
+        foreground_mask_getter=None,
+        min_foreground_fraction: float = 0.0,
         debug_cam_timing: bool = False,
         debug_log_limit: int = 5,
         logger=None,
@@ -554,6 +659,10 @@ class CutoutAugmentedDataset(Dataset):
         self.saliency_candidate_percent = float(saliency_candidate_percent)
         self.teacher_model = teacher_model
         self.cam_layer = cam_layer
+        self.foreground_mask_getter = foreground_mask_getter
+        self.min_foreground_fraction = float(min_foreground_fraction)
+        if not 0.0 <= self.min_foreground_fraction <= 1.0:
+            raise ValueError("min_foreground_fraction must be in [0,1].")
         self.logger = logger or module_logger
         self.debug_cam_timing = bool(debug_cam_timing)
         self._cam_window_log_limit = max(0, int(debug_log_limit))
@@ -586,27 +695,36 @@ class CutoutAugmentedDataset(Dataset):
         self._enabled = self.cutout_m > 0 and self.cutout_mode in {"random", "cam_low", "cam_high"}
         self._base_len = len(self.base_dataset)
 
+    def set_epoch(self, epoch: int) -> None:
+        """Propagate epoch changes so wrapped spatial augmentation stays deterministic."""
+        if hasattr(self.base_dataset, "set_epoch"):
+            self.base_dataset.set_epoch(int(epoch))
+
     def __len__(self) -> int:
         if not self._enabled:
             return self._base_len
         return self._base_len * (self.cutout_m + 1)
+
+    def _foreground_mask_for_sample(self, base_index: int, image: torch.Tensor) -> Optional[torch.Tensor]:
+        if self.foreground_mask_getter is not None:
+            try:
+                mask = self.foreground_mask_getter(base_index, image)
+            except TypeError:
+                mask = self.foreground_mask_getter(base_index)
+        else:
+            mask = _resolve_dataset_foreground_mask(self.base_dataset, base_index)
+        if mask is None:
+            return None
+        if not torch.is_tensor(mask):
+            mask = torch.as_tensor(mask)
+        return mask.detach().cpu().bool()
 
     def _log_cam_window(self, base_index: int, aug_index: int, top: int, left: int, size: int) -> None:
         if self.cutout_mode not in {"cam_low", "cam_high"}:
             return
         if self._cam_window_logs_emitted >= self._cam_window_log_limit:
             return
-        _log_info(
-            self.logger,
-            "CAM cutout window: index=%s copy=%s cutout_mode=%s top=%s left=%s height=%s width=%s",
-            base_index,
-            aug_index,
-            self.cutout_mode,
-            top,
-            left,
-            size,
-            size,
-        )
+        _log_info(self.logger, "CAM cutout window selected (mode=%s, size=%s).", self.cutout_mode, size)
         self._cam_window_logs_emitted += 1
 
     def _log_cam_timing(self, base_index: int, aug_index: int, timings: Optional[Dict[str, float]]) -> None:
@@ -615,14 +733,7 @@ class CutoutAugmentedDataset(Dataset):
         if self._cam_timing_logs_emitted >= self._cam_window_log_limit:
             return
         timing_text = " ".join(f"{key}={value:.2f}ms" for key, value in sorted(timings.items()))
-        _log_info(
-            self.logger,
-            "CAM timing: index=%s copy=%s cutout_mode=%s %s",
-            base_index,
-            aug_index,
-            self.cutout_mode,
-            timing_text,
-        )
+        _log_info(self.logger, "CAM timing (mode=%s): %s", self.cutout_mode, timing_text)
         self._cam_timing_logs_emitted += 1
 
     def _dataset_index_for_aug(self, base_index: int, aug_index: int) -> int:
@@ -654,6 +765,8 @@ class CutoutAugmentedDataset(Dataset):
             cutout_area=self.cutout_area,
             saliency_candidate_percent=self.saliency_candidate_percent,
             seed=self.seed,
+            min_foreground_fraction=self.min_foreground_fraction,
+            spatial_dims=image.ndim - 1,
         )
         _accumulate_timing(timings, "cache_key_path", started_at)
         return cache_path
@@ -662,8 +775,9 @@ class CutoutAugmentedDataset(Dataset):
         self,
         cache_path: Optional[Path],
         size: int,
+        spatial_dims: int = 2,
         timings: Optional[Dict[str, float]] = None,
-    ) -> Optional[Tuple[int, int]]:
+    ) -> Optional[Tuple[int, ...]]:
         if self.cam_window_cache is None or cache_path is None:
             return None
         started_at = time.perf_counter() if timings is not None else None
@@ -676,12 +790,16 @@ class CutoutAugmentedDataset(Dataset):
                 f"CAM window cache size mismatch at '{cache_path}': "
                 f"expected {size}, got {cached['size']}."
             )
+        if int(spatial_dims) == 3:
+            if "z" not in cached:
+                raise RuntimeError(f"3D CAM window cache entry at '{cache_path}' is missing z.")
+            return int(cached["z"]), int(cached["top"]), int(cached["left"])
         return int(cached["top"]), int(cached["left"])
 
-    def _save_cam_window(self, cache_path: Optional[Path], top: int, left: int, size: int) -> None:
+    def _save_cam_window(self, cache_path: Optional[Path], top: int, left: int, size: int, z: Optional[int] = None) -> None:
         if self.cam_window_cache is None or cache_path is None:
             return
-        self.cam_window_cache.save(cache_path, top=top, left=left, size=size)
+        self.cam_window_cache.save(cache_path, top=top, left=left, size=size, z=z)
 
     def _get_cam_saliency(
         self,
@@ -746,28 +864,37 @@ class CutoutAugmentedDataset(Dataset):
         rng: random.Random,
         timings: Optional[Dict[str, float]] = None,
         saliency: Optional[torch.Tensor] = None,
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, ...]:
         # Saliency maps are the expensive teacher CAM tensors. Window entries
         # are the final mask coordinates derived from those maps; caching them
         # removes repeated CPU pooling/top-k work during later epochs.
         cache_path = self._cam_window_cache_path(base_index, aug_index, image, size, timings)
-        cached = self._load_cached_cam_window(cache_path, size, timings)
+        spatial_dims = image.ndim - 1
+        foreground_mask = self._foreground_mask_for_sample(base_index, image)
+        cached = self._load_cached_cam_window(cache_path, size, spatial_dims=spatial_dims, timings=timings)
         if cached is not None:
             return cached
 
         if saliency is None:
             saliency = self._get_cam_saliency(base_index, image, timings=timings)
         started_at = time.perf_counter() if timings is not None else None
-        top, left = _select_cam_window(
+        window = _select_cam_window(
             saliency,
             size,
             self.cutout_mode,
             self.saliency_candidate_percent,
             rng,
+            foreground_mask=foreground_mask,
+            min_foreground_fraction=self.min_foreground_fraction,
         )
         _accumulate_timing(timings, "window_selection", started_at)
-        self._save_cam_window(cache_path, top, left, size)
-        return top, left
+        if spatial_dims == 3:
+            z, top, left = window
+            self._save_cam_window(cache_path, top, left, size, z=z)
+        else:
+            top, left = window
+            self._save_cam_window(cache_path, top, left, size)
+        return window
 
     def precompute_cam_windows_for_sample(
         self,
@@ -782,15 +909,22 @@ class CutoutAugmentedDataset(Dataset):
         if not torch.is_tensor(image):
             raise ValueError("CAM window precompute expects the training dataset to return tensors.")
 
-        height, width = int(image.shape[-2]), int(image.shape[-1])
-        size = _resolve_cutout_size(height, width, self.cutout_size, self.cutout_area)
+        if image.ndim not in (3, 4):
+            raise ValueError(f"CAM window precompute expects [C,H,W] or [C,D,H,W], got {tuple(image.shape)}.")
+        spatial_dims = image.ndim - 1
+        spatial_shape = tuple(int(v) for v in image.shape[1:])
+        if spatial_dims == 3:
+            size = _resolve_cutout_cube_size(*spatial_shape, self.cutout_size, self.cutout_area)
+        else:
+            size = _resolve_cutout_size(*spatial_shape, self.cutout_size, self.cutout_area)
+        foreground_mask = self._foreground_mask_for_sample(base_index, image)
         created = 0
         cached_count = 0
         missing = []
 
         for aug_index in range(1, self.cutout_m + 1):
             cache_path = self._cam_window_cache_path(base_index, aug_index, image, size)
-            cached = self._load_cached_cam_window(cache_path, size)
+            cached = self._load_cached_cam_window(cache_path, size, spatial_dims=spatial_dims)
             if cached is not None:
                 cached_count += 1
                 continue
@@ -803,14 +937,21 @@ class CutoutAugmentedDataset(Dataset):
             saliency = self._get_cam_saliency(base_index, image)
         for aug_index, cache_path in missing:
             rng = self._rng_for_aug(base_index, aug_index)
-            top, left = _select_cam_window(
+            window = _select_cam_window(
                 saliency,
                 size,
                 self.cutout_mode,
                 self.saliency_candidate_percent,
                 rng,
+                foreground_mask=foreground_mask,
+                min_foreground_fraction=self.min_foreground_fraction,
             )
-            self._save_cam_window(cache_path, top, left, size)
+            if spatial_dims == 3:
+                z, top, left = window
+                self._save_cam_window(cache_path, top, left, size, z=z)
+            else:
+                top, left = window
+                self._save_cam_window(cache_path, top, left, size)
             created += 1
 
         return created, cached_count
@@ -829,29 +970,65 @@ class CutoutAugmentedDataset(Dataset):
         if not torch.is_tensor(image):
             raise ValueError("CutoutAugmentedDataset expects base_dataset to return tensors.")
 
-        height, width = int(image.shape[-2]), int(image.shape[-1])
-        size = _resolve_cutout_size(height, width, self.cutout_size, self.cutout_area)
+        if image.ndim not in (3, 4):
+            raise ValueError(f"CutoutAugmentedDataset expects [C,H,W] or [C,D,H,W], got {tuple(image.shape)}.")
+        spatial_dims = image.ndim - 1
+        spatial_shape = tuple(int(v) for v in image.shape[1:])
+        if spatial_dims == 3:
+            size = _resolve_cutout_cube_size(*spatial_shape, self.cutout_size, self.cutout_area)
+        else:
+            size = _resolve_cutout_size(*spatial_shape, self.cutout_size, self.cutout_area)
         rng = self._rng_for_aug(base_index, aug_index)
         timings = {} if self.debug_cam_timing and self.cutout_mode in {"cam_low", "cam_high"} else None
+        foreground_mask = self._foreground_mask_for_sample(base_index, image)
 
         if self.cutout_mode == "random":
-            top, left = _sample_random_window(height, width, size, rng)
+            valid_indices = _valid_window_coordinates(
+                foreground_mask,
+                size,
+                spatial_shape,
+                self.min_foreground_fraction,
+            )
+            if valid_indices is None:
+                if spatial_dims == 3:
+                    window = _sample_random_cube(*spatial_shape, size, rng)
+                else:
+                    window = _sample_random_window(*spatial_shape, size, rng)
+            else:
+                if valid_indices.numel() == 0:
+                    raise RuntimeError("No random cutout candidates meet min_foreground_fraction.")
+                choice = int(valid_indices[rng.randrange(valid_indices.numel())].item())
+                if spatial_dims == 3:
+                    height, width = spatial_shape[-2], spatial_shape[-1]
+                    out_h = height - size + 1
+                    out_w = width - size + 1
+                    z = choice // (out_h * out_w)
+                    rem = choice % (out_h * out_w)
+                    window = (z, rem // out_w, rem % out_w)
+                else:
+                    height, width = spatial_shape
+                    out_w = width - size + 1
+                    window = (choice // out_w, choice % out_w)
         elif self.cutout_mode in {"cam_low", "cam_high"}:
             try:
-                top, left = self._get_or_create_cam_window(base_index, aug_index, image, size, rng, timings=timings)
+                window = self._get_or_create_cam_window(base_index, aug_index, image, size, rng, timings=timings)
             except Exception as exc:
                 raise RuntimeError(
                     f"CAM cutout failed for dataset index {base_index}, "
                     f"cutout_mode={self.cutout_mode}: {exc}"
                 ) from exc
-            self._log_cam_window(base_index, aug_index, top, left, size)
         else:
             raise RuntimeError(f"Unsupported cutout_mode '{self.cutout_mode}'.")
 
         started_at = time.perf_counter() if timings is not None else None
         image = image.clone()
         black = _black_value(self.mean, self.std, int(image.shape[0]), image.device, image.dtype)
-        image[:, top:top + size, left:left + size] = black[:, None, None]
+        if spatial_dims == 3:
+            z, top, left = window
+            image[:, z:z + size, top:top + size, left:left + size] = black[:, None, None, None]
+        else:
+            top, left = window
+            image[:, top:top + size, left:left + size] = black[:, None, None]
         _accumulate_timing(timings, "masking", started_at)
         self._log_cam_timing(base_index, aug_index, timings)
         return image, target

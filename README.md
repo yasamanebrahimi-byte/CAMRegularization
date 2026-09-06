@@ -115,6 +115,50 @@ Quick local CAM validation without dataset downloads:
 python validate_cam_cutout.py
 ```
 
+## DaT Parkinson's Challenge (3D addition)
+
+The repository also contains a separate research workflow for the DrivenData [DaT Parkinson's Challenge](https://www.drivendata.org/competitions/311/dat-parkinsons-challenge/). It does not include competition data. Each labeled examination is a compressed three-dimensional NIfTI scan (`<uid>.nii.gz`) and `train_labels.csv` contains `uid,is_pathologic`, with 0.0 for normal and 1.0 for abnormal.
+
+`dat_preprocessing.py` discovers an extracted dataset or an outer `.zip`/`.tar.gz`, converts scans to a canonical orientation, resamples using spacing estimated from labeled training scans only, performs a foreground-aware crop and fixed crop/pad, then applies per-scan positive-voxel percentile scaling. The model input is always `[1,D,H,W]`. The registered identifiers are `dat_parkinsons` and `resnet18_3d`; the existing 2D identifiers and completed run outputs are unchanged.
+
+Stage 1 (`dat_tune.py`) uses no cutout. It builds fixed stratified folds before any augmentation, searches a small configurable set of training parameters, selects by cross-validated validation/OOF log loss, saves `best_config.json`, OOF logits, `cv_trials.csv`, and fits raw/temperature calibration from labeled OOF predictions only. `dat_calibrate.py` can repeat the calibration step from an OOF `.npz` file. For a robustness diagnostic, `--fold_scheme protocol_group` uses rounded original scan shape/spacing signatures; these groups are not hospital-center labels.
+
+Stage 2 (`dat_masking_experiments.py`) reads the frozen Stage 1 configuration and varies only `none`, `random`, `cam_low`, or `cam_high`, M4/M8, and fractions 0.05/0.10/0.20/0.30. 3D fractions describe a cube whose volume is approximately the requested fraction. Random, low-saliency, and high-saliency use the same foreground-valid candidate cubes; CAM teachers are trained separately within each fold using only that fold's training partition. Validation scans are never masked. 3D HiResCAM and CPU saliency/window caches are implemented in the existing dimension-aware `cam_masking.py` and `cutout.py` modules.
+
+Research outputs and competition assets are separate:
+
+- Lightweight Stage 2 run metrics/configurations may live under `runs/dat_parkinsons/`; `runs/dat_parkinsons/summary/generate_summary.py` is independent from the existing CIFAR-100/RawMal-TF summary generator.
+- Checkpoints, fold assignments containing UIDs, OOF predictions, preprocessed volumes, CAM caches, and local competition data belong under ignored `artifacts/`, `cache/`, or another local-only directory. Never commit them.
+- `dat_final_model.py` trains the selected model using labeled training data only. `build_dat_submission.py` creates a ZIP with `main.py` at its root, fixed preprocessing, model weights, and fixed calibration. The packaged `main.py` reads `/code_execution/data/submission_format.csv` and `/code_execution/data/niftis/<uid>.nii.gz`, processes cases independently, and writes exactly `submission.csv` with `uid,is_pathologic` probabilities in the input row order. It does not train or fit anything at inference time.
+
+Typical local commands are:
+
+```bash
+# Check local labels, NIfTI discovery, spacing, and fixed output tensors.
+python dat_check_dataset.py --data_dir /path/to/dat_training
+
+# Stage 1; use --target_shape and --trials overrides for a short smoke run.
+python dat_tune.py --data_dir /path/to/dat_training --output_dir artifacts/dat_parkinsons/optimization --cv_folds 5 --trials 4 --epochs 100
+
+# Optional standalone calibration from the Stage 1 OOF logits.
+python dat_calibrate.py --oof_predictions artifacts/dat_parkinsons/optimization/oof_predictions.npz --method temperature --output artifacts/dat_parkinsons/optimization/calibration.json
+
+# Stage 2 frozen masking grid.
+python dat_masking_experiments.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json
+
+# DaT-specific summary and cross-validated candidate selection.
+python runs/dat_parkinsons/summary/generate_summary.py --best_config artifacts/dat_parkinsons/optimization/best_config.json
+python dat_select_model.py
+
+# Train final model assets and package the submission ZIP.
+python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json
+# Or train the selected Stage 2 candidate identified by dat_select_model.py.
+python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json --selected_model artifacts/dat_parkinsons/selected_model.json
+python build_dat_submission.py --model_dir artifacts/dat_parkinsons/final_model --output submission/submission.zip
+```
+
+For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission`. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission.
+
 ## Current Cutout Flags
 
 - `--cutout_mode {none,random,cam_low,cam_high}`: choose the training augmentation mode.
@@ -190,6 +234,7 @@ Registered datasets from `dataset_registry.py`:
 - `imagenette` (10 classes, default size 224)
 - `cifar100_c` (100 classes, default size 32; clean CIFAR-100 train, corrupted test)
 - `drive_zip` (generic image dataset loaded from a ZIP file, default size 224)
+- `dat_parkinsons` (labeled three-dimensional NIfTI scans, two classes, target shape configured in `dat_preprocessing.py`)
 
 Dataset notes:
 
@@ -216,6 +261,7 @@ Registered models from `model_registry.py`:
 - `vit_b_16`
 - `convnext_tiny`
 - `swin_t`
+- `resnet18_3d` (one-channel, two-logit 3D ResNet18-style model for DaT)
 
 ## Current Experiment Starters
 

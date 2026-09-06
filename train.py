@@ -146,18 +146,37 @@ def _build_cam_cache_settings(args, checkpoint_info, input_size: int) -> dict:
         "teacher_checkpoint": checkpoint_info,
         "cam_layer": str(getattr(args, "cam_layer", "auto") or "auto"),
         "input_size": int(input_size),
+        "spatial_dims": int(getattr(args, "spatial_dims", 2)),
+        "target_spacing": getattr(args, "target_spacing", None),
+        "target_shape": getattr(args, "target_shape", None),
+        "min_foreground_fraction": float(getattr(args, "min_foreground_fraction", 0.0)),
         "deterministic_train_transforms": bool(getattr(args, "deterministic_train_transforms", False)),
     }
 
 
 def _dataset_kwargs_from_args(args) -> dict:
-    return {
+    kwargs = {
         "val_split": args.val_split,
         "seed": args.seed,
         "grayscale": getattr(args, "grayscale", False),
         "include_regex": getattr(args, "include_regex", ""),
         "deterministic_train_transforms": getattr(args, "deterministic_train_transforms", False),
     }
+    for name in (
+        "target_spacing",
+        "target_shape",
+        "intensity_lower_percentile",
+        "intensity_upper_percentile",
+        "foreground_threshold",
+        "crop_margin_mm",
+        "dat_cache_dir",
+    ):
+        value = getattr(args, name, None)
+        if name == "dat_cache_dir":
+            value = value or None
+        if value is not None:
+            kwargs["cache_dir" if name == "dat_cache_dir" else name] = value
+    return kwargs
 
 
 def _validate_cam_precompute_args(args) -> None:
@@ -289,6 +308,7 @@ def _maybe_wrap_cutout_loader(train_dl, args, teacher_model, mean, std, logger, 
         cam_cache_dir=cam_cache_dir,
         cam_cache_settings=cam_cache_settings,
         debug_cam_timing=bool(getattr(args, "debug_cam_timing", False)),
+        min_foreground_fraction=float(getattr(args, "min_foreground_fraction", 0.0)) if getattr(args, "dataset", "") == "dat_parkinsons" else 0.0,
         logger=logger,
     )
 
@@ -394,6 +414,7 @@ def precompute_cam_cache_with_config(args, run_dir=None, logger=None):
         cam_cache_dir=cam_cache_dir,
         cam_cache_settings=cam_cache_settings,
         debug_cam_timing=bool(getattr(effective_args, "debug_cam_timing", False)),
+        min_foreground_fraction=float(getattr(effective_args, "min_foreground_fraction", 0.0)) if getattr(effective_args, "dataset", "") == "dat_parkinsons" else 0.0,
         logger=logger,
     )
 

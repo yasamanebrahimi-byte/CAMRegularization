@@ -1,5 +1,23 @@
+# Competition/training artifacts and data must stay local.
 data/
+artifacts/
+cache/
 cam_cache/
 **/cam_cache/
-**pycache**/
+submission/
+*.nii
+*.nii.gz
+*.pt
+*.pth
+__pycache__/
+.pytest_cache/
+.pytest_tmp/
 *.log
+
+# Keep lightweight DaT run summaries/metrics trackable, but never checkpoints.
+runs/dat_parkinsons/**/best_model.pt
+runs/dat_parkinsons/**/teachers/
+runs/dat_parkinsons/**/cache/
+runs/dat_parkinsons/**/fold_assignments.json
+runs/dat_parkinsons/**/oof*.npz
+runs/dat_parkinsons/**/trials/
