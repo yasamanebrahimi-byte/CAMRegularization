@@ -51,6 +51,7 @@ def run(args: argparse.Namespace) -> dict:
         "stage2_research_output": str(args.output_dir), "summary_dir": str(args.summary_dir),
         "selection": str(args.selected_model), "selected_condition": selected["condition"],
         "selected_M": selected["M"], "selected_fraction": selected["fraction"],
+        "final_stage2_training_epochs": selected["final_stage2_training_epochs"],
         "final_model_dir": str(args.final_model_dir), "submission_zip": str(archive),
         "best_overall": selection["best_overall"], "best_masked": selection["best_masked"],
     }

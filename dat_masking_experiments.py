@@ -16,7 +16,15 @@ import torch
 from cutout import CutoutAugmentedDataset
 from dat_cv import load_fold_assignments, make_stratified_folds, save_fold_assignments
 from dat_preprocessing import DatDataset, load_dat_records
-from dat_provenance import REPO_ROOT, current_git_commit, fingerprint, portable_path, research_valid, sha256_file
+from dat_provenance import (
+    REPO_ROOT,
+    current_git_commit,
+    fingerprint,
+    median_round_half_up,
+    portable_path,
+    research_valid,
+    sha256_file,
+)
 from dat_training import build_dat_model, fit_dat_model, fit_dat_model_fixed_epochs
 
 
@@ -88,6 +96,23 @@ def _portable_or_key(path: str | Path) -> str:
         return f"external/{Path(path).name}"
 
 
+def _effective_num_workers(condition: str, args) -> int:
+    """Resolve Stage 2 workers without allowing CAM saliency in workers.
+
+    CAM saliency/window creation is deliberately kept in the main process. A
+    precomputed cache can be added later, but the default research path must
+    not depend on forked workers running teacher operations.
+    """
+    requested = max(0, int(getattr(args, "num_workers", 0) or 0))
+    if str(condition).startswith("cam_") and requested > 0:
+        print(
+            "[Stage 2] CAM cutout training uses num_workers=0 because saliency "
+            "and window caches are not proven complete."
+        )
+        return 0
+    return requested
+
+
 def _run_is_valid(run_root: str | Path, expected: dict[str, Any] | None = None) -> tuple[bool, list[str]]:
     """Validate completion evidence instead of treating directory existence as success."""
     root = Path(run_root)
@@ -146,37 +171,67 @@ def _run_is_valid(run_root: str | Path, expected: dict[str, Any] | None = None) 
     return not problems, problems
 
 
-def _train_teacher(records, train_indices, preprocessing, config, fold, args):
+def _train_teacher(records, train_indices, preprocessing, config, fold, args, fold_hash=None):
     teacher_root = Path(args.cam_cache_dir).parent / "teachers" / f"fold_{fold}"
     teacher_root.mkdir(parents=True, exist_ok=True)
+    selected_stage1_fingerprint = config.get("config_fingerprint", fingerprint(config))
+    preprocessing_fingerprint = config.get("preprocessing_fingerprint", fingerprint(preprocessing))
+    fold_assignment_fingerprint = fold_hash or config.get("fold_assignment_fingerprint")
+    if not fold_assignment_fingerprint:
+        fold_assignment_fingerprint = fingerprint({"fold": int(fold)})
     teacher_config = deepcopy(config)
     epoch_budget = int(config.get("final_training_epochs", config.get("epochs", 100)))
     teacher_config.update({
         "cutout_mode": "none", "cutout_m": 0, "stage": "stage2_teacher", "fold": int(fold),
         "epochs": epoch_budget, "final_training_epochs": epoch_budget,
+        "stage1_final_training_epochs": epoch_budget,
+        "selected_stage1_config_fingerprint": selected_stage1_fingerprint,
+        "preprocessing_fingerprint": preprocessing_fingerprint,
+        "fold_assignment_fingerprint": fold_assignment_fingerprint,
+        "teacher_recipe_provenance": "stage1_selected_unmasked_recipe_fixed_epoch_teacher",
+        "teacher_lineage": "selected_stage1_config",
         "num_workers": args.num_workers, "max_train_batches": int(args.max_train_batches or 0),
         "max_val_batches": 0, "debug": bool(getattr(args, "debug", False) or args.max_train_batches or args.max_val_batches),
         "research_valid": research_valid(max_train_batches=args.max_train_batches or 0,
                                           max_val_batches=0, debug=getattr(args, "debug", False)),
+        "completed": False,
+        "checkpoint_selection": "final_scheduled_epoch",
     })
     checkpoint = teacher_root / "final_model.pt"
     existing_config_path = teacher_root / "config.json"
     if checkpoint.is_file() and existing_config_path.is_file():
         try:
             existing = json.loads(existing_config_path.read_text(encoding="utf-8"))
-            matches = all(existing.get(key) == value for key, value in {
+            expected = {
                 "stage": "stage2_teacher", "fold": int(fold), "epochs": epoch_budget,
                 "final_training_epochs": epoch_budget,
-                "selected_stage1_config_fingerprint": config.get("config_fingerprint", fingerprint(config)),
+                "stage1_final_training_epochs": epoch_budget,
+                "selected_stage1_config_fingerprint": selected_stage1_fingerprint,
+                "preprocessing_fingerprint": preprocessing_fingerprint,
+                "fold_assignment_fingerprint": fold_assignment_fingerprint,
                 "research_valid": teacher_config["research_valid"],
-            }.items())
-            if matches and existing.get("completed") is True:
+                "checkpoint_selection": "final_scheduled_epoch",
+                "teacher_recipe_provenance": "stage1_selected_unmasked_recipe_fixed_epoch_teacher",
+                "num_workers": int(args.num_workers or 0),
+                "max_train_batches": int(args.max_train_batches or 0),
+                "max_val_batches": 0,
+                "debug": bool(getattr(args, "debug", False) or args.max_train_batches or args.max_val_batches),
+            }
+            matches = all(existing.get(key) == value for key, value in expected.items())
+            matches = matches and existing.get("completed") is True
+            if matches:
+                teacher_hash = _checkpoint_hash(checkpoint)
+                matches = existing.get("teacher_checkpoint_sha256") == teacher_hash
+            if matches:
                 teacher = build_dat_model(config)
                 payload = torch.load(checkpoint, map_location="cpu")
                 state = payload.get("model_state_dict", payload) if isinstance(payload, dict) else payload
                 teacher.load_state_dict({str(k).removeprefix("module."): v for k, v in state.items()}, strict=True)
+                active_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                teacher.to(active_device)
                 teacher.eval()
-                teacher_hash = _checkpoint_hash(checkpoint)
+                for parameter in teacher.parameters():
+                    parameter.requires_grad_(False)
                 print(f"[Stage 2] resume: reusing valid fold {fold} CAM teacher ({teacher_hash[:12]})")
                 return teacher, checkpoint, teacher_hash
         except Exception:
@@ -199,13 +254,29 @@ def _train_teacher(records, train_indices, preprocessing, config, fold, args):
     persisted.update({
         "teacher_checkpoint_sha256": teacher_hash, "outer_train_record_count": len(train_indices),
         "outer_validation_used_for_teacher": False, "teacher_checkpoint_selection": "frozen_stage1_epoch_budget",
+        "selected_stage1_config_fingerprint": selected_stage1_fingerprint,
+        "preprocessing_fingerprint": preprocessing_fingerprint,
+        "fold_assignment_fingerprint": fold_assignment_fingerprint,
+        "fold": int(fold), "final_training_epochs": epoch_budget,
+        "stage1_final_training_epochs": epoch_budget,
+        "teacher_recipe_provenance": "stage1_selected_unmasked_recipe_fixed_epoch_teacher",
+        "research_valid": teacher_config["research_valid"], "completed": True,
+        "checkpoint_selection": "final_scheduled_epoch",
     })
     (teacher_root / "config.json").write_text(json.dumps(persisted, indent=2, sort_keys=True), encoding="utf-8")
-    return result["model"], checkpoint, teacher_hash
+    teacher = result["model"]
+    active_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    teacher.to(active_device)
+    teacher.eval()
+    for parameter in teacher.parameters():
+        parameter.requires_grad_(False)
+    return teacher, checkpoint, teacher_hash
 
 
 def _student_expected_config(config, fold, condition, m_value, fraction, args, teacher_hash, fold_hash):
-    epoch_budget = int(config.get("final_training_epochs", config.get("epochs", 100)))
+    student_epoch_budget = int(config.get("epochs", 100))
+    stage1_final_epoch_budget = int(config.get("final_training_epochs", student_epoch_budget))
+    effective_workers = _effective_num_workers(condition, args)
     return {
         "stage": 2, "fold": int(fold), "condition": condition,
         "cutout_mode": condition, "cutout_m": int(m_value) if condition != "none" else 0,
@@ -215,8 +286,15 @@ def _student_expected_config(config, fold, condition, m_value, fraction, args, t
         "fold_assignment_fingerprint": fold_hash, "cam_layer": args.cam_layer,
         "saliency_candidate_percent": float(args.saliency_candidate_percent),
         "min_foreground_fraction": float(args.min_foreground_fraction),
-        "epochs": epoch_budget, "final_training_epochs": epoch_budget,
-        "seed": int(args.seed + fold), "max_train_batches": int(args.max_train_batches or 0),
+        "epochs": student_epoch_budget, "student_max_cv_epochs": student_epoch_budget,
+        "stage1_final_training_epochs": stage1_final_epoch_budget,
+        "final_training_epochs": stage1_final_epoch_budget,
+        "early_stopping_patience": int(config.get("patience", 15)),
+        "student_seed_policy": "base_seed_plus_fold",
+        "student_model": str(config.get("model", "resnet18_3d")),
+        "seed": int(args.seed + fold), "num_workers": effective_workers,
+        "requested_num_workers": int(getattr(args, "num_workers", 0) or 0),
+        "max_train_batches": int(args.max_train_batches or 0),
         "max_val_batches": int(args.max_val_batches or 0), "debug": bool(getattr(args, "debug", False)),
         "research_valid": research_valid(max_train_batches=args.max_train_batches or 0,
                                           max_val_batches=args.max_val_batches or 0, debug=getattr(args, "debug", False)),
@@ -282,6 +360,11 @@ def _run_student(records, train_indices, validation_indices, preprocessing, conf
         "oof_artifact": _portable_or_key(oof_path), "completed": True,
         "epochs_completed": int(result["epochs_completed"]), "best_epoch": int(result["best_epoch"]),
         "checkpoint_selection": "minimum_validation_log_loss",
+        "minimum_validation_log_loss": float(result["best_metrics"]["log_loss"]),
+        "accuracy_at_minimum_validation_log_loss": float(result["best_metrics"]["accuracy"]),
+        "auroc_at_minimum_validation_log_loss": float(result["best_metrics"]["auroc"]),
+        "brier_at_minimum_validation_log_loss": float(result["best_metrics"]["brier_score"]),
+        "ece_at_minimum_validation_log_loss": float(result["best_metrics"]["ece"]),
     })
     (run_root / "config.json").write_text(json.dumps(persisted, indent=2, sort_keys=True), encoding="utf-8")
     return {"run_dir": run_root, "skipped": False, "result": result}
@@ -309,7 +392,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         teacher = None
         teacher_hash = None
         if any(condition.startswith("cam_") for condition in args.conditions):
-            teacher, _teacher_checkpoint, teacher_hash = _train_teacher(records, train_indices, preprocessing, best_config, fold, args)
+            teacher, _teacher_checkpoint, teacher_hash = _train_teacher(
+                records, train_indices, preprocessing, best_config, fold, args, fold_hash=fold_hash
+            )
         if "none" in args.conditions:
             # Fraction is not a no-cutout hyperparameter.  One baseline is
             # reused logically in summaries for each masked fraction.

@@ -49,9 +49,12 @@ def _load_stage1_teacher(stage1_model_dir: str | Path, config: dict[str, Any]):
     if not isinstance(payload, dict):
         raise ValueError("Stage 1 checkpoint does not contain a model state dictionary.")
     model.load_state_dict({str(k).removeprefix("module."): v for k, v in payload.items()}, strict=True)
-    model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return model.to(device), checkpoint, sha256_file(checkpoint)
+    model = model.to(device)
+    model.eval()
+    for parameter in model.parameters():
+        parameter.requires_grad_(False)
+    return model, checkpoint, sha256_file(checkpoint)
 
 
 def train_final_dat_model(
@@ -71,17 +74,44 @@ def train_final_dat_model(
     best_config = json.loads(Path(best_config_path).read_text(encoding="utf-8"))
     records = load_dat_records(data_dir)
     preprocessing = best_config["preprocessing"]
+    selected_provided = selected is not None
     selected = dict(selected or {})
-    condition = str(selected.get("condition", selected.get("cutout_mode", "none")))
-    m_value = int(selected.get("M", selected.get("cutout_m", 0)) or 0)
-    fraction = float(selected.get("fraction", selected.get("cutout_fraction", 0.0)) or 0.0)
+    if selected_provided and "condition" not in selected:
+        raise ValueError("A Stage 2 selected candidate must explicitly contain condition.")
+    condition = str(selected.get("condition", "none"))
+    if selected_provided and condition == "none":
+        raise ValueError("Submission #2 must use a masked Stage 2 candidate, not condition='none'.")
+    m_value = int(selected["M"] if selected_provided else selected.get("M", 0))
+    fraction = float(selected["fraction"] if selected_provided else selected.get("fraction", 0.0))
     if condition not in {"none", "random", "cam_low", "cam_high"}:
         raise ValueError(f"Unsupported final DaT condition: {condition}")
     if condition != "none" and (m_value <= 0 or fraction <= 0):
         raise ValueError("Masked final models require positive M and fraction.")
-    epoch_budget = int(best_config.get("final_training_epochs", best_config.get("epochs", 100)))
+    stage1_final_epoch_budget = int(best_config.get("final_training_epochs", best_config.get("epochs", 100)))
+    if calibration_payload is None and selected_provided:
+        calibration_payload = selected.get("calibration")
+    if selected_provided and calibration_payload is None:
+        raise ValueError("Selected Stage 2 candidate must provide its candidate-specific calibration payload.")
+    if selected_provided:
+        required_recipe = (
+            "cam_layer", "saliency_candidate_percent", "min_foreground_fraction",
+            "final_stage2_training_epochs", "selected_candidate_fold_best_epochs",
+            "calibration_provenance",
+        )
+        missing = [field for field in required_recipe if field not in selected]
+        if missing:
+            raise ValueError("Selected Stage 2 candidate is missing required recipe fields: " + ", ".join(missing))
+        epoch_budget = int(selected["final_stage2_training_epochs"])
+        cam_layer = str(selected["cam_layer"])
+        saliency_candidate_percent = float(selected["saliency_candidate_percent"])
+        min_foreground_fraction = float(selected["min_foreground_fraction"])
+    else:
+        epoch_budget = stage1_final_epoch_budget
+        cam_layer = str(best_config.get("cam_layer", "auto"))
+        saliency_candidate_percent = float(best_config.get("saliency_candidate_percent", 10.0))
+        min_foreground_fraction = float(best_config.get("min_foreground_fraction", 0.75))
     if epoch_budget <= 0:
-        raise ValueError("Stage 1 did not provide a positive final epoch budget.")
+        raise ValueError("The final DaT model requires a positive epoch budget.")
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     config = deepcopy(best_config)
@@ -90,10 +120,33 @@ def train_final_dat_model(
         "condition": condition, "cutout_mode": condition,
         "cutout_m": m_value if condition != "none" else 0,
         "cutout_fraction": fraction, "epochs": epoch_budget,
-        "final_training_epochs": epoch_budget, "num_workers": int(num_workers),
+        "final_training_epochs": epoch_budget,
+        "stage1_final_training_epochs": stage1_final_epoch_budget,
+        "num_workers": 0 if condition.startswith("cam_") else int(num_workers),
         "max_train_batches": int(max_train_batches or 0), "max_val_batches": 0,
         "debug": bool(max_train_batches),
+        "cam_layer": cam_layer,
+        "saliency_candidate_percent": saliency_candidate_percent,
+        "min_foreground_fraction": min_foreground_fraction,
     })
+    if condition.startswith("cam_") and int(num_workers) > 0:
+        print("[Stage 2] Final CAM training uses num_workers=0 because saliency and window caches are not proven complete.")
+    if selected_provided:
+        config.update({
+            "student_max_cv_epochs": int(selected["student_max_cv_epochs"]),
+            "student_seed_policy": selected["student_seed_policy"],
+            "student_model": selected["student_model"],
+            "selected_candidate_fold_best_epochs": [int(value) for value in selected["selected_candidate_fold_best_epochs"]],
+            "final_stage2_training_epoch_rule": selected.get(
+                "final_stage2_training_epoch_rule",
+                "median_selected_stage2_fold_best_epoch_round_half_up",
+            ),
+            "selected_stage1_config_fingerprint": selected["selected_stage1_config_fingerprint"],
+            "fold_assignment_fingerprint": selected["fold_assignment_fingerprint"],
+            "selected_candidate_fold_metrics": selected.get("candidate_fold_metrics", []),
+            "calibration_provenance": selected["calibration_provenance"],
+            "selected_candidate_calibration": calibration_payload,
+        })
     cache_dir = REPO_ROOT / "artifacts" / "dat_parkinsons" / "cache" / "preprocessed"
     base_train_dataset = DatDataset(
         records, preprocessing, train=True,
@@ -116,17 +169,17 @@ def train_final_dat_model(
             base_dataset=base_train_dataset, cutout_mode=condition,
             cutout_m=m_value, cutout_size=None, cutout_area=fraction,
             mean=(0.0,), std=(1.0,), seed=seed,
-            saliency_candidate_percent=float(config.get("saliency_candidate_percent", 10.0)),
-            teacher_model=teacher, cam_layer=str(config.get("cam_layer", "auto")),
+            saliency_candidate_percent=saliency_candidate_percent,
+            teacher_model=teacher, cam_layer=cam_layer,
             cam_cache_dir=str(REPO_ROOT / "artifacts" / "dat_parkinsons" / "cam_cache" / "final_stage2"),
             cam_cache_settings={
                 "dataset": "dat_parkinsons", "student_model": "resnet18_3d",
                 "teacher_checkpoint_sha256": teacher_hash,
-                "cam_layer": str(config.get("cam_layer", "auto")), "spatial_dims": 3,
+                "cam_layer": cam_layer, "spatial_dims": 3,
                 "preprocessing": preprocessing,
-                "min_foreground_fraction": float(config.get("min_foreground_fraction", 0.75)),
+                "min_foreground_fraction": min_foreground_fraction,
             },
-            min_foreground_fraction=float(config.get("min_foreground_fraction", 0.75)),
+            min_foreground_fraction=min_foreground_fraction,
         )
     elif condition == "none":
         train_dataset = base_train_dataset
@@ -135,7 +188,7 @@ def train_final_dat_model(
             base_dataset=base_train_dataset, cutout_mode=condition,
             cutout_m=m_value, cutout_size=None, cutout_area=fraction,
             mean=(0.0,), std=(1.0,), seed=seed,
-            min_foreground_fraction=float(config.get("min_foreground_fraction", 0.75)),
+            min_foreground_fraction=min_foreground_fraction,
         )
     result = fit_dat_model_fixed_epochs(
         train_dataset, config, seed=seed, run_dir=output,
@@ -148,7 +201,21 @@ def train_final_dat_model(
         "dropout": float(config.get("dropout", 0.0)),
         "training_condition": condition, "training_cutout_m": m_value,
         "training_cutout_fraction": fraction,
+        "cam_layer": cam_layer,
+        "saliency_candidate_percent": saliency_candidate_percent,
+        "min_foreground_fraction": min_foreground_fraction,
+        "final_training_epochs": epoch_budget,
     }
+    if selected_provided:
+        model_config.update({
+            "student_max_cv_epochs": int(selected["student_max_cv_epochs"]),
+            "final_stage2_training_epochs": epoch_budget,
+            "selected_candidate_fold_best_epochs": [int(value) for value in selected["selected_candidate_fold_best_epochs"]],
+            "calibration_provenance": selected["calibration_provenance"],
+            "calibration_method": str((calibration_payload or {}).get("method", "raw")),
+            "calibration_temperature": float((calibration_payload or {}).get("temperature", 1.0)),
+            "selected_candidate_calibration": calibration_payload,
+        })
     (output / "model_config.json").write_text(json.dumps(model_config, indent=2, sort_keys=True), encoding="utf-8")
     (output / "preprocessing.json").write_text(json.dumps(preprocessing, indent=2, sort_keys=True), encoding="utf-8")
     if calibration_payload is None:
@@ -160,24 +227,56 @@ def train_final_dat_model(
         "pipeline": "stage1_unmasked" if condition == "none" else "stage2_masked",
         "stage": int(config["stage"]), "selected_condition": condition,
         "M": m_value, "fraction": fraction,
-        "selected_stage1_config_fingerprint": best_config.get("config_fingerprint", fingerprint(best_config)),
+        "condition": condition,
+        "cam_layer": cam_layer,
+        "saliency_candidate_percent": saliency_candidate_percent,
+        "min_foreground_fraction": min_foreground_fraction,
+        "selected_stage1_config_fingerprint": selected.get(
+            "selected_stage1_config_fingerprint",
+            best_config.get("config_fingerprint", fingerprint(best_config)),
+        ),
         "preprocessing_fingerprint": best_config.get("preprocessing_fingerprint", fingerprint(preprocessing)),
-        "final_epoch_budget": epoch_budget, "seed": int(seed),
+        "final_epoch_budget": epoch_budget,
+        "final_stage2_training_epochs": epoch_budget if selected_provided else None,
+        "stage1_final_training_epochs": stage1_final_epoch_budget,
+        "selected_stage2_fold_best_epochs": selected.get("selected_candidate_fold_best_epochs") if selected_provided else None,
+        "final_stage2_training_epoch_rule": selected.get("final_stage2_training_epoch_rule") if selected_provided else None,
+        "seed": int(seed),
         "checkpoint_selection": "final_scheduled_epoch",
         "research_valid": not bool(max_train_batches), "git_commit": current_git_commit(),
         "final_checkpoint_sha256": sha256_file(output / "final_model.pt"),
         "calibration_provenance": selected.get("calibration_provenance", "stage1_oof_logits_only" if condition == "none" else "selected_stage2_candidate_oof_logits_only"),
         "calibration_candidate": {"condition": condition, "M": m_value, "fraction": fraction},
     }
+    if selected_provided:
+        provenance.update({
+            "selected_stage2_recipe": {
+                "condition": condition, "M": m_value, "fraction": fraction,
+                "cam_layer": cam_layer,
+                "saliency_candidate_percent": saliency_candidate_percent,
+                "min_foreground_fraction": min_foreground_fraction,
+            },
+            "selected_candidate_fold_best_epochs": [int(value) for value in selected["selected_candidate_fold_best_epochs"]],
+            "selected_candidate_fold_metrics": selected.get("candidate_fold_metrics", []),
+            "student_max_cv_epochs": int(selected["student_max_cv_epochs"]),
+            "student_seed_policy": selected["student_seed_policy"],
+            "student_model": selected["student_model"],
+            "fold_assignment_fingerprint": selected["fold_assignment_fingerprint"],
+            "final_stage2_training_epoch_rule": selected.get(
+                "final_stage2_training_epoch_rule",
+                "median_selected_stage2_fold_best_epoch_round_half_up",
+            ),
+        })
     if teacher_checkpoint is not None:
         provenance.update({
+            "teacher_lineage": "stage1_final_unmasked_checkpoint",
             "stage1_teacher_checkpoint": _portable_or_key(teacher_checkpoint),
             "stage1_teacher_checkpoint_sha256": teacher_hash,
             "teacher_checkpoint_path": _portable_or_key(teacher_checkpoint),
             "teacher_checkpoint_sha256": teacher_hash,
         })
     (output / "provenance.json").write_text(json.dumps(provenance, indent=2, sort_keys=True), encoding="utf-8")
-    return {"output_dir": output, "model_config": model_config, "provenance": provenance, "result": result}
+    return {"output_dir": output, "model_config": model_config, "config": config, "provenance": provenance, "result": result}
 
 
 def main() -> None:

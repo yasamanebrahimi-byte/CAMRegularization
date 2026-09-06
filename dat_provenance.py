@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 REPO_ROOT = Path(__file__).resolve().parent
 
@@ -57,3 +59,10 @@ def resolve_portable_path(value: str | Path, root: str | Path = REPO_ROOT) -> Pa
 
 def research_valid(*, max_train_batches: int | None, max_val_batches: int | None, debug: bool = False) -> bool:
     return not bool(debug) and (max_train_batches in (None, 0)) and (max_val_batches in (None, 0))
+
+
+def median_round_half_up(values: list[int] | tuple[int, ...] | np.ndarray) -> int:
+    """Return the deterministic positive median rule used by both DaT stages."""
+    if len(values) == 0:
+        raise ValueError("Cannot derive a median epoch budget from no epochs.")
+    return max(1, int(np.floor(np.median(np.asarray(values, dtype=np.float64)) + 0.5)))

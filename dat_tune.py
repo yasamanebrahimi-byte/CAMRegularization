@@ -18,7 +18,7 @@ import numpy as np
 from dat_calibration import cross_fitted_calibration, fit_calibration, save_calibration, calibrated_probabilities
 from dat_cv import make_protocol_group_folds, make_stratified_folds, save_fold_assignments
 from dat_metrics import compute_binary_metrics
-from dat_provenance import current_git_commit, fingerprint, portable_path, research_valid
+from dat_provenance import current_git_commit, fingerprint, median_round_half_up, portable_path, research_valid
 from dat_preprocessing import (
     DEFAULT_TARGET_SHAPE,
     DatDataset,
@@ -241,10 +241,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             fold_rows.append({
                 "fold": int(fold_index),
                 "best_epoch": int(result["best_epoch"]),
-                "best_validation_log_loss": float(result["best_metrics"]["log_loss"]),
-                "best_validation_accuracy": float(result["best_metrics"]["accuracy"]),
-                "best_validation_auroc": float(result["best_metrics"]["auroc"]),
-                "best_validation_brier_score": float(result["best_metrics"]["brier_score"]),
+                "minimum_validation_log_loss": float(result["best_metrics"]["log_loss"]),
+                "epoch_at_minimum_validation_log_loss": int(result["best_epoch"]),
+                "accuracy_at_minimum_validation_log_loss": float(result["best_metrics"]["accuracy"]),
+                "auroc_at_minimum_validation_log_loss": float(result["best_metrics"]["auroc"]),
+                "brier_at_minimum_validation_log_loss": float(result["best_metrics"]["brier_score"]),
+                "ece_at_minimum_validation_log_loss": float(result["best_metrics"]["ece"]),
                 "epochs_completed": int(result["epochs_completed"]),
                 "research_valid": bool(result["research_valid"] and not getattr(args, "max_val_batches", 0)),
             })
@@ -283,8 +285,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if len(fold_frame) != len(folds):
         raise RuntimeError("The selected Stage 1 trial has incomplete fold metrics.")
     best_epochs = [int(value) for value in fold_frame["best_epoch"].tolist()]
-    final_epochs = int(np.floor(np.median(np.asarray(best_epochs, dtype=np.float64)) + 0.5))
-    final_epochs = max(1, final_epochs)
+    final_epochs = median_round_half_up(best_epochs)
     best_config.update({
         "selected_by": "mean_cross_validated_oof_log_loss",
         "cv_folds": int(args.cv_folds),

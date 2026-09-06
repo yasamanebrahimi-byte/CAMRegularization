@@ -12,7 +12,64 @@ import pandas as pd
 
 from dat_calibration import fit_candidate_calibration
 from dat_masking_experiments import CONDITIONS, DEFAULT_FRACTIONS, DEFAULT_M, _run_is_valid, cell_key, expected_grid
-from dat_provenance import REPO_ROOT, fingerprint, portable_path
+from dat_provenance import REPO_ROOT, fingerprint, median_round_half_up, portable_path
+
+
+# These fields define the treatment recipe and the frozen Stage 1 training
+# recipe.  They are intentionally explicit so a partial/defaulted candidate
+# cannot be combined across folds or silently changed at final training time.
+CANDIDATE_RECIPE_FIELDS = (
+    "condition", "cutout_m", "cutout_fraction", "cam_layer",
+    "saliency_candidate_percent", "min_foreground_fraction",
+    "student_seed_policy", "student_model",
+    "selected_stage1_config_fingerprint", "preprocessing_fingerprint",
+    "fold_assignment_fingerprint", "student_max_cv_epochs", "epochs",
+    "early_stopping_patience", "patience",
+)
+
+FROZEN_STAGE1_FIELDS = (
+    "model", "n_input_channels", "num_classes", "base_channels", "dropout",
+    "spatial_augmentation", "optimizer", "learning_rate", "weight_decay",
+    "scheduler", "min_lr", "momentum", "nesterov", "adamw_betas",
+    "label_smoothing", "batch_size", "amp", "epochs", "patience",
+    "preprocessing_fingerprint", "selected_stage1_config_fingerprint",
+    "fold_assignment_fingerprint", "final_training_epochs",
+)
+
+CAM_RECIPE_FIELDS = ("cam_layer", "saliency_candidate_percent", "min_foreground_fraction")
+
+
+def _config_value(config: dict[str, Any], field: str) -> Any:
+    if field == "selected_stage1_config_fingerprint":
+        return config.get("selected_stage1_config_fingerprint", config.get("config_fingerprint"))
+    if field == "learning_rate":
+        return config.get("learning_rate", config.get("lr"))
+    if field == "final_training_epochs":
+        return config.get("stage1_final_training_epochs", config.get(field))
+    return config.get(field)
+
+
+def _same_value(left: Any, right: Any) -> bool:
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return bool(np.isclose(float(left), float(right), rtol=0.0, atol=1e-12))
+    return left == right
+
+
+def _consistency_issues(entries: list[tuple[dict[str, Any], Path]], fields: tuple[str, ...], *, require_present: bool = True) -> list[dict[str, Any]]:
+    issues = []
+    if not entries:
+        return issues
+    for field in fields:
+        values = [_config_value(config, field) for config, _ in entries]
+        if (require_present and values[0] is None) or any(
+            (require_present and value is None) or not _same_value(value, values[0]) for value in values[1:]
+        ):
+            issues.append({
+                "field": field,
+                "values": [value for value in values],
+                "run_dirs": [str(path) for _, path in entries],
+            })
+    return issues
 
 
 def _resolve(value: str | Path) -> Path:
@@ -52,6 +109,8 @@ def integrity_check(
     debug_runs: list[str] = []
     teacher_issues: list[dict[str, Any]] = []
     oof_issues: list[dict[str, Any]] = []
+    candidate_configs: dict[tuple[str, int, float], list[tuple[dict[str, Any], Path]]] = {}
+    frozen_control_issues: list[dict[str, Any]] = []
     for config_path in (sorted(root.rglob("config.json")) if root.is_dir() else []):
         try:
             config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -62,12 +121,21 @@ def integrity_check(
             continue
         key = cell_key(int(config.get("fold", -1)), str(config.get("condition")), int(config.get("cutout_m", 0)), float(config.get("cutout_fraction", 0.0) or 0.0))
         discovered.setdefault(key, []).append(config_path.parent)
+        candidate_key = (
+            str(config.get("condition")), int(config.get("cutout_m", 0)),
+            float(config.get("cutout_fraction", 0.0) or 0.0),
+        )
+        candidate_configs.setdefault(candidate_key, []).append((config, config_path.parent))
         if frozen_config:
             expected_lineage = {
                 "selected_stage1_config_fingerprint": frozen_config.get("config_fingerprint"),
                 "preprocessing_fingerprint": frozen_config.get("preprocessing_fingerprint"),
                 "fold_assignment_fingerprint": frozen_config.get("fold_assignment_fingerprint"),
                 "final_training_epochs": frozen_config.get("final_training_epochs"),
+                "epochs": frozen_config.get("epochs"),
+                "student_max_cv_epochs": frozen_config.get("epochs"),
+                "patience": frozen_config.get("patience"),
+                "early_stopping_patience": frozen_config.get("patience"),
             }
             for field, value in expected_lineage.items():
                 if value is not None and config.get(field) != value:
@@ -101,6 +169,48 @@ def integrity_check(
                     oof_issues.append({"run_dir": str(config_path.parent), "cell_key": key, "issue": "fold_assignment_mismatch"})
             except Exception:
                 oof_issues.append({"run_dir": str(config_path.parent), "cell_key": key, "issue": "invalid_oof_artifact"})
+    candidate_recipe_issues: list[dict[str, Any]] = []
+    for candidate_key, entries in candidate_configs.items():
+        for issue in _consistency_issues(entries, CANDIDATE_RECIPE_FIELDS):
+            item = {"candidate": candidate_key, **issue}
+            candidate_recipe_issues.append(item)
+            invalid.append({
+                "run_dir": issue["run_dirs"][0],
+                "cell_key": cell_key(int(entries[0][0].get("fold", -1)), candidate_key[0], candidate_key[1], candidate_key[2]),
+                "issues": [f"candidate_recipe_mismatch:{issue['field']}"] ,
+            })
+
+    # All candidates share the scientific Stage 1 recipe. Operational worker
+    # counts are deliberately excluded because CAM candidates may be forced to
+    # zero workers while none/random retain the requested count.
+    all_entries = [entry for entries in candidate_configs.values() for entry in entries]
+    for issue in _consistency_issues(all_entries, FROZEN_STAGE1_FIELDS, require_present=False):
+        frozen_control_issues.append({"scope": "all_stage2_candidates", **issue})
+    if frozen_config:
+        for field in FROZEN_STAGE1_FIELDS:
+            expected_value = _config_value(frozen_config, field)
+            if expected_value is None:
+                continue
+            actual_values = [_config_value(config, field) for config, _ in all_entries]
+            if any(value is None or not _same_value(value, expected_value) for value in actual_values):
+                frozen_control_issues.append({
+                    "scope": "frozen_stage1_config", "field": field,
+                    "expected": expected_value, "values": actual_values,
+                    "run_dirs": [str(path) for _, path in all_entries],
+                })
+
+    # CAM placement controls are common across CAM conditions in one research
+    # grid. A differing fold or condition is a hard integrity error.
+    cam_entries = [entry for candidate, entries in candidate_configs.items() if candidate[0].startswith("cam_") for entry in entries]
+    cam_control_issues = _consistency_issues(cam_entries, CAM_RECIPE_FIELDS)
+    for issue in cam_control_issues:
+        frozen_control_issues.append({"scope": "all_cam_candidates", **issue})
+
+    for issue in candidate_recipe_issues + frozen_control_issues:
+        invalid.append({
+            "run_dir": issue["run_dirs"][0] if issue.get("run_dirs") else str(root),
+            "issues": [f"stage2_control_mismatch:{issue['field']}"] ,
+        })
     duplicate_cells = [{"cell_key": key, "run_dirs": [str(p) for p in paths]} for key, paths in discovered.items() if len(paths) > 1]
     missing_cells = [cell for key, cell in expected_by_key.items() if key not in discovered]
     unexpected_cells = [key for key in discovered if key not in expected_by_key]
@@ -115,6 +225,8 @@ def integrity_check(
         "unexpected_cells": unexpected_cells, "invalid_cells": invalid,
         "debug_truncated_runs": debug_runs, "config_mismatches": [item for item in invalid if any("config_mismatch" in issue for issue in item["issues"])],
         "teacher_fingerprint_issues": teacher_issues, "oof_artifact_issues": oof_issues,
+        "candidate_recipe_issues": candidate_recipe_issues,
+        "frozen_control_issues": frozen_control_issues,
         "passed": not (missing_cells or duplicate_cells or unexpected_cells or invalid or teacher_issues or oof_issues),
     }
     return report
@@ -144,6 +256,49 @@ def _candidate_runs(runs_dir: Path, report: dict[str, Any]) -> dict[tuple[str, i
     return result
 
 
+def _selected_fold_metrics(config: dict[str, Any], run_dir: Path) -> dict[str, Any]:
+    """Extract only fold-level, minimum-validation-log-loss metrics."""
+    metrics_path = run_dir / "metrics.csv"
+    if not metrics_path.is_file():
+        raise ValueError(f"Missing Stage 2 metrics for {run_dir}.")
+    frame = pd.read_csv(metrics_path)
+    if frame.empty or "val_log_loss" not in frame:
+        raise ValueError(f"Stage 2 metrics have no validation trajectory: {run_dir}.")
+    row = frame.loc[frame["val_log_loss"].astype(float).idxmin()]
+    best_epoch = int(config.get("best_epoch", row["epoch"]))
+    return {
+        "fold": int(config["fold"]),
+        "best_epoch": best_epoch,
+        "minimum_validation_log_loss": float(row["val_log_loss"]),
+        "epoch_at_minimum_validation_log_loss": int(row["epoch"]),
+        "accuracy_at_minimum_validation_log_loss": float(row["val_accuracy"]),
+        "auroc_at_minimum_validation_log_loss": float(row["val_auroc"]),
+        "brier_at_minimum_validation_log_loss": float(row["val_brier_score"]),
+        "ece_at_minimum_validation_log_loss": float(row["val_ece"]),
+        "teacher_checkpoint_sha256": config.get("teacher_checkpoint_sha256"),
+        "run_dir": _portable_or_key(run_dir),
+    }
+
+
+def _candidate_recipe(entries: list[tuple[dict[str, Any], Path]]) -> dict[str, Any]:
+    config = entries[0][0]
+    return {
+        "condition": str(config["condition"]),
+        "M": int(config.get("cutout_m", 0)),
+        "fraction": float(config.get("cutout_fraction", 0.0) or 0.0),
+        "cam_layer": config.get("cam_layer"),
+        "saliency_candidate_percent": float(config["saliency_candidate_percent"]),
+        "min_foreground_fraction": float(config["min_foreground_fraction"]),
+        "student_seed_policy": config.get("student_seed_policy"),
+        "student_model": config.get("student_model", config.get("model")),
+        "selected_stage1_config_fingerprint": config.get("selected_stage1_config_fingerprint"),
+        "preprocessing_fingerprint": config.get("preprocessing_fingerprint"),
+        "fold_assignment_fingerprint": config.get("fold_assignment_fingerprint"),
+        "student_max_cv_epochs": int(config.get("student_max_cv_epochs", config.get("epochs"))),
+        "early_stopping_patience": int(config.get("early_stopping_patience", config.get("patience", 15))),
+    }
+
+
 def select_candidates(
     runs_dir: str | Path,
     *,
@@ -164,8 +319,19 @@ def select_candidates(
         raise ValueError("Stage 2 integrity check failed; see summary/integrity_report.json.")
     grouped = _candidate_runs(Path(runs_dir), report)
     candidates = []
+    candidate_fold_rows: list[dict[str, Any]] = []
     for (condition, m_value, fraction), entries in sorted(grouped.items()):
         entries = sorted(entries, key=lambda item: int(item[0].get("fold", -1)))
+        recipe = _candidate_recipe(entries)
+        fold_metrics = [_selected_fold_metrics(config, run_dir) for config, run_dir in entries]
+        fold_metrics = sorted(fold_metrics, key=lambda row: row["fold"])
+        selected_fold_best_epochs = [int(row["best_epoch"]) for row in fold_metrics]
+        final_stage2_training_epochs = median_round_half_up(selected_fold_best_epochs)
+        for row in fold_metrics:
+            candidate_fold_rows.append({
+                "condition": condition, "M": int(m_value), "fraction": float(fraction),
+                **{key: value for key, value in row.items() if key != "run_dir"},
+            })
         logits_parts, target_parts, fold_parts = [], [], []
         for config, _run_dir in entries:
             payload = np.load(_resolve(config["oof_artifact"]))
@@ -187,9 +353,15 @@ def select_candidates(
         calibration_path.parent.mkdir(parents=True, exist_ok=True)
         calibration_path.write_text(json.dumps(calibration, indent=2, sort_keys=True), encoding="utf-8")
         candidate = {
-            "condition": condition, "M": m_value, "fraction": fraction,
+            **recipe,
             "selected_stage1_config_fingerprint": entries[0][0].get("selected_stage1_config_fingerprint"),
             "preprocessing_fingerprint": entries[0][0].get("preprocessing_fingerprint"),
+            "candidate_fold_metrics": fold_metrics,
+            "selected_candidate_fold_best_epochs": selected_fold_best_epochs,
+            "final_stage2_training_epoch_rule": "median_selected_stage2_fold_best_epoch_round_half_up",
+            "final_stage2_training_epochs": final_stage2_training_epochs,
+            "stage1_final_training_epochs": int(entries[0][0].get("stage1_final_training_epochs", entries[0][0].get("final_training_epochs"))),
+            "fold_assignment_fingerprint": entries[0][0].get("fold_assignment_fingerprint"),
             "raw_oof_log_loss": float(result["raw_metrics"]["log_loss"]),
             "cross_fitted_calibrated_oof_log_loss": float(result["cross_fitted_metrics"]["log_loss"]),
             "raw_cv_log_loss": float(result["raw_metrics"]["log_loss"]),
@@ -214,6 +386,9 @@ def select_candidates(
     payload = {
         "selection_basis": "cross_fitted_calibrated_oof_log_loss",
         "best_overall": best_overall, "best_masked": best_masked,
+        "selected_stage2_fold_best_epochs": best_masked["selected_candidate_fold_best_epochs"],
+        "final_stage2_training_epoch_rule": best_masked["final_stage2_training_epoch_rule"],
+        "final_stage2_training_epochs": best_masked["final_stage2_training_epochs"],
         # Compatibility for older callers: selected is always the masked
         # competition candidate, never the no-cutout baseline.
         "selected": best_masked, "candidates": candidates,
@@ -221,12 +396,20 @@ def select_candidates(
     }
     pd.DataFrame([{
         "condition": row["condition"], "M": row["M"], "fraction": row["fraction"],
+        "cam_layer": row["cam_layer"],
+        "saliency_candidate_percent": row["saliency_candidate_percent"],
+        "min_foreground_fraction": row["min_foreground_fraction"],
+        "student_model": row["student_model"],
+        "student_max_cv_epochs": row["student_max_cv_epochs"],
+        "early_stopping_patience": row["early_stopping_patience"],
+        "final_stage2_training_epochs": row["final_stage2_training_epochs"],
         "raw_oof_log_loss": row["raw_oof_log_loss"],
         "cross_fitted_calibrated_oof_log_loss": row["cross_fitted_calibrated_oof_log_loss"],
         "final_fitted_calibration_method": row["final_fitted_calibration_method"],
         "final_fitted_temperature": row["final_fitted_temperature"],
         "n_oof_samples": row["n_oof_samples"], "n_cv_folds": row["n_cv_folds"],
     } for row in candidates]).to_csv(summary_dir / "candidate_oof_metrics.csv", index=False)
+    pd.DataFrame(candidate_fold_rows).to_csv(summary_dir / "candidate_fold_metrics.csv", index=False)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
