@@ -8,14 +8,19 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 RUN_ROOT = ROOT / "runs" / "dat_parkinsons" / "resnet18_3d"
 SUMMARY_DIR = ROOT / "runs" / "dat_parkinsons" / "summary"
 
@@ -227,6 +232,11 @@ def _plots(per_run: pd.DataFrame, aggregate: pd.DataFrame, paired: pd.DataFrame)
 
 
 def main() -> None:
+    # Keep the historical entry point, but route all new DaT summaries through
+    # the strict exact-grid generator.  The legacy function bodies above are
+    # retained for readers of older experiments and are not used by the new
+    # workflow.
+    from dat_stage2_summary import generate_summary
     global RUN_ROOT
     parser = argparse.ArgumentParser(description="Summarize DaT Stage 2 runs.")
     parser.add_argument("--run_root", default=str(RUN_ROOT))
@@ -236,6 +246,9 @@ def main() -> None:
     parser.add_argument("--expected_epochs", type=int, default=100)
     args = parser.parse_args()
     RUN_ROOT = Path(args.run_root)
+    frozen = json.loads(Path(args.best_config).read_text(encoding="utf-8")) if args.best_config and Path(args.best_config).is_file() else None
+    generate_summary(args.run_root, SUMMARY_DIR, expected_folds=args.expected_folds, frozen_config=frozen)
+    return
     SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
     calibration_path = Path(args.calibration)
     calibration = json.loads(calibration_path.read_text(encoding="utf-8")) if calibration_path.is_file() else {"method": "raw", "temperature": 1.0}

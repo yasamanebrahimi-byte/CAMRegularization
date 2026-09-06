@@ -10,12 +10,15 @@ import random
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
 from dat_calibration import cross_fitted_calibration, fit_calibration, save_calibration, calibrated_probabilities
 from dat_cv import make_protocol_group_folds, make_stratified_folds, save_fold_assignments
 from dat_metrics import compute_binary_metrics
+from dat_provenance import current_git_commit, fingerprint, portable_path, research_valid
 from dat_preprocessing import (
     DEFAULT_TARGET_SHAPE,
     DatDataset,
@@ -50,6 +53,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--search_space_json", default="", help="Optional JSON object of parameter -> list values.")
     parser.add_argument("--max_train_batches", type=int, default=0)
     parser.add_argument("--max_val_batches", type=int, default=0)
+    parser.add_argument("--debug", action="store_true", help="Mark the run as smoke/debug; it cannot be used for research selection.")
     parser.add_argument("--base_channels", type=int, default=32)
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--augmentation", choices=["none", "mild"], default="none")
@@ -95,19 +99,35 @@ def _trial_config(args, preprocessing: dict[str, Any], values: dict[str, Any]) -
         "cutout_mode": "none",
         "cutout_m": 0,
         "preprocessing": preprocessing,
+        "max_train_batches": int(getattr(args, "max_train_batches", 0) or 0),
+        "max_val_batches": int(getattr(args, "max_val_batches", 0) or 0),
+        "debug": bool(getattr(args, "debug", False)),
     }
     config.update(values)
     config["preprocessing"] = dict(preprocessing)
+    config["research_valid"] = research_valid(
+        max_train_batches=config["max_train_batches"],
+        max_val_batches=config["max_val_batches"],
+        debug=config["debug"],
+    )
     if "target_shape" in values:
         config["preprocessing"]["target_shape"] = list(parse_target_shape(values["target_shape"]))
     if "target_spacing" in values:
         config["preprocessing"]["target_spacing"] = list(parse_target_spacing(values["target_spacing"]))
+    config["preprocessing_fingerprint"] = fingerprint(config["preprocessing"])
     return config
 
 
 def _config_hash(config: dict[str, Any]) -> str:
     encoded = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()[:12]
+
+
+def _portable_or_key(path: str | Path) -> str:
+    try:
+        return portable_path(path)
+    except ValueError:
+        return f"external/{Path(path).name}"
 
 
 def _write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -155,7 +175,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     search_space = _load_search_space(args.search_space_json)
     rng = random.Random(args.seed)
     rows: list[dict[str, Any]] = []
-    best: tuple[float, dict[str, Any], np.ndarray, np.ndarray] | None = None
+    best: tuple[float, dict[str, Any], np.ndarray, np.ndarray, int] | None = None
     trial_values = {
         trial_id: {key: rng.choice(options) for key, options in search_space.items()}
         for trial_id in range(int(args.trials))
@@ -187,7 +207,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 completed_trials.add(trial_id)
                 score = float(row["mean_oof_log_loss"])
                 if best is None or score < best[0]:
-                    best = (score, config, logits, payload["targets"])
+                    best = (score, config, logits, payload["targets"], trial_id)
 
     for trial_id in range(int(args.trials)):
         if trial_id in completed_trials:
@@ -199,6 +219,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         (trial_dir / "trial_config.json").write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
         oof_logits = np.full((len(records), 2), np.nan, dtype=np.float32)
         oof_targets = np.asarray([record.label for record in records], dtype=np.int64)
+        fold_rows: list[dict[str, Any]] = []
         for fold_index, (train_indices, validation_indices) in enumerate(folds):
             train_records = [records[index] for index in train_indices]
             validation_records = [records[index] for index in validation_indices]
@@ -217,6 +238,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 max_val_batches=None,
             )
             oof_logits[validation_indices] = result["best_logits"]
+            fold_rows.append({
+                "fold": int(fold_index),
+                "best_epoch": int(result["best_epoch"]),
+                "best_validation_log_loss": float(result["best_metrics"]["log_loss"]),
+                "best_validation_accuracy": float(result["best_metrics"]["accuracy"]),
+                "best_validation_auroc": float(result["best_metrics"]["auroc"]),
+                "best_validation_brier_score": float(result["best_metrics"]["brier_score"]),
+                "epochs_completed": int(result["epochs_completed"]),
+                "research_valid": bool(result["research_valid"] and not getattr(args, "max_val_batches", 0)),
+            })
 
         if not np.isfinite(oof_logits).all():
             raise RuntimeError("Stage 1 produced incomplete OOF logits.")
@@ -231,25 +262,49 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
         rows.append(row)
         np.savez_compressed(trial_dir / "oof_logits.npz", logits=oof_logits, targets=oof_targets)
+        _write_rows(trial_dir / "fold_metrics.csv", fold_rows)
         if best is None or row["mean_oof_log_loss"] < best[0]:
-            best = (row["mean_oof_log_loss"], config, oof_logits, oof_targets)
+            best = (row["mean_oof_log_loss"], config, oof_logits, oof_targets, trial_id)
         _write_rows(output / "cv_trials.csv", rows)
         _plot_trials(rows, output / "optimization_summary.png")
 
     if best is None:
         raise RuntimeError("No Stage 1 trials were completed.")
-    _, best_config, best_logits, best_targets = best
+    _, best_config, best_logits, best_targets, best_trial_id = best
     best_config = dict(best_config)
+    best_trial_dirs = sorted((output / "trials").glob(f"trial_{best_trial_id:03d}_*/"))
+    if not best_trial_dirs:
+        raise RuntimeError("The selected Stage 1 trial has no persisted directory.")
+    best_trial_dir = best_trial_dirs[0]
+    best_fold_metrics_path = best_trial_dir / "fold_metrics.csv"
+    if not best_fold_metrics_path.is_file():
+        raise RuntimeError("The selected Stage 1 trial has no fold metrics.")
+    fold_frame = __import__("pandas").read_csv(best_fold_metrics_path)
+    if len(fold_frame) != len(folds):
+        raise RuntimeError("The selected Stage 1 trial has incomplete fold metrics.")
+    best_epochs = [int(value) for value in fold_frame["best_epoch"].tolist()]
+    final_epochs = int(np.floor(np.median(np.asarray(best_epochs, dtype=np.float64)) + 0.5))
+    final_epochs = max(1, final_epochs)
     best_config.update({
         "selected_by": "mean_cross_validated_oof_log_loss",
         "cv_folds": int(args.cv_folds),
         "fold_scheme": fold_scheme,
-        "fold_assignments": str(fold_path),
-        "optimization_output_dir": str(output),
+        "fold_assignments": _portable_or_key(fold_path),
+        "optimization_output_dir": _portable_or_key(output),
         "stage": 1,
+        "selected_trial_id": int(best_trial_id),
+        "config_fingerprint": fingerprint(best_config),
+        "fold_assignment_fingerprint": fingerprint([[list(a), list(b)] for a, b in folds]),
+        "final_training_epoch_rule": "median_stage1_best_epoch_round_half_up",
+        "final_training_epochs": final_epochs,
+        "fold_best_epochs": best_epochs,
+        "research_valid": bool(best_config.get("research_valid", True) and not getattr(args, "max_train_batches", 0) and not getattr(args, "max_val_batches", 0)),
+        "git_commit": current_git_commit(),
     })
     (output / "best_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
     np.savez_compressed(output / "oof_predictions.npz", logits=best_logits, targets=best_targets)
+    best_config["oof_artifact"] = _portable_or_key(output / "oof_predictions.npz")
+    (output / "best_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
 
     validation_folds = [validation for _, validation in folds]
     raw_metrics = compute_binary_metrics(best_targets, logits=best_logits)
@@ -269,7 +324,37 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         json.dumps({"raw": raw_metrics, "calibrated_cross_fitted": calibrated_metrics}, indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    return {"best_config": best_config, "raw_metrics": raw_metrics, "calibrated_metrics": calibrated_metrics}
+    # Commit-safe, UID-free research outputs are kept under runs/ as well as
+    # the historical local optimization directory under artifacts/.
+    research_dir = Path(getattr(args, "research_output_dir", "runs/dat_parkinsons/optimization"))
+    research_dir.mkdir(parents=True, exist_ok=True)
+    if research_dir.resolve() != output.resolve():
+        for name in ("cv_trials.csv", "calibration_report.json"):
+            source = output / name
+            if source.is_file():
+                (research_dir / name).write_bytes(source.read_bytes())
+    _write_rows(research_dir / "selected_fold_metrics.csv", fold_frame.to_dict("records"))
+    (research_dir / "selected_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
+    (research_dir / "calibration_report.json").write_text(
+        json.dumps({"raw": raw_metrics, "calibrated_cross_fitted": calibrated_metrics,
+                    "calibration_provenance": "labeled_training_oof_predictions_only",
+                    "research_valid": bool(best_config["research_valid"])}, indent=2, sort_keys=True), encoding="utf-8")
+    summary = {
+        "stage": 1, "research_valid": bool(best_config["research_valid"]),
+        "selection_basis": "mean_cross_validated_oof_log_loss",
+        "selected_trial_id": int(best_trial_id), "selected_config_fingerprint": best_config["config_fingerprint"],
+        "fold_count": len(folds), "fold_best_epochs": best_epochs,
+        "final_training_epoch_rule": best_config["final_training_epoch_rule"],
+        "final_training_epochs": final_epochs, "raw_oof_metrics": raw_metrics,
+        "cross_fitted_calibrated_oof_metrics": calibrated_metrics,
+        "privacy": "Aggregate metrics only; no UIDs, patient predictions, arrays, or machine paths.",
+    }
+    (research_dir / "stage1_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    _plot_trials(rows, research_dir / "optimization_summary.png")
+    _plot_trials(rows, research_dir / "optimization_summary.pdf")
+    return {"best_config": best_config, "raw_metrics": raw_metrics, "calibrated_metrics": calibrated_metrics,
+            "fold_metrics": fold_frame.to_dict("records"), "final_training_epochs": final_epochs,
+            "research_output_dir": str(research_dir)}
 
 
 def main() -> None:

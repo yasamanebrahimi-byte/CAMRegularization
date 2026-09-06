@@ -121,9 +121,9 @@ The repository also contains a separate research workflow for the DrivenData [Da
 
 `dat_preprocessing.py` discovers an extracted dataset or an outer `.zip`/`.tar.gz`, converts scans to a canonical orientation, resamples using spacing estimated from labeled training scans only, performs a foreground-aware crop and fixed crop/pad, then applies per-scan positive-voxel percentile scaling. The model input is always `[1,D,H,W]`. The registered identifiers are `dat_parkinsons` and `resnet18_3d`; the existing 2D identifiers and completed run outputs are unchanged.
 
-Stage 1 (`dat_tune.py`) uses no cutout. It builds fixed stratified folds before any augmentation, searches a small configurable set of training parameters, selects by cross-validated validation/OOF log loss, saves `best_config.json`, OOF logits, `cv_trials.csv`, and fits raw/temperature calibration from labeled OOF predictions only. `dat_calibrate.py` can repeat the calibration step from an OOF `.npz` file. For a robustness diagnostic, `--fold_scheme protocol_group` uses rounded original scan shape/spacing signatures; these groups are not hospital-center labels.
+Stage 1 (`run_dat_stage1.py`) uses no cutout. It builds fixed stratified folds before any augmentation, searches a small configurable set of training parameters, records the winning fold epochs, derives a frozen median epoch budget, calibrates from labeled OOF predictions only, trains the final unmasked model without validation-based checkpoint selection, and packages Submission #1. `dat_tune.py` remains available as the reusable optimization/calibration layer. For a robustness diagnostic, `--fold_scheme protocol_group` uses rounded original scan shape/spacing signatures; these groups are not hospital-center labels.
 
-Stage 2 (`dat_masking_experiments.py`) reads the frozen Stage 1 configuration and varies only `none`, `random`, `cam_low`, or `cam_high`, M4/M8, and fractions 0.05/0.10/0.20/0.30. 3D fractions describe a cube whose volume is approximately the requested fraction. Random, low-saliency, and high-saliency use the same foreground-valid candidate cubes; CAM teachers are trained separately within each fold using only that fold's training partition. Validation scans are never masked. 3D HiResCAM and CPU saliency/window caches are implemented in the existing dimension-aware `cam_masking.py` and `cutout.py` modules.
+Stage 2 (`run_dat_stage2.py`) reads the frozen Stage 1 configuration and varies only `none`, `random`, `cam_low`, or `cam_high`, M4/M8, and fractions 0.05/0.10/0.20/0.30. There is exactly one no-cutout baseline per fold and 24 masked cells per fold. The grid is resumable and integrity-checked. 3D fractions describe a cube whose volume is approximately the requested fraction. Random, low-saliency, and high-saliency use the same foreground-valid candidate cubes; CAM teachers are trained separately within each fold using only that fold's training partition and the frozen Stage 1 epoch budget. Validation scans are never masked. Every candidate receives its own cross-fitted OOF temperature calibration. Stage 2 selection reports `best_overall` for research and uses `best_masked` for Submission #2. For a CAM final condition, saliency comes from the exact full-data Stage 1 final checkpoint; no new final teacher is trained. 3D HiResCAM and CPU saliency/window caches are implemented in the existing dimension-aware `cam_masking.py` and `cutout.py` modules.
 
 Research outputs and competition assets are separate:
 
@@ -131,7 +131,27 @@ Research outputs and competition assets are separate:
 - Checkpoints, fold assignments containing UIDs, OOF predictions, preprocessed volumes, CAM caches, and local competition data belong under ignored `artifacts/`, `cache/`, or another local-only directory. Never commit them.
 - `dat_final_model.py` trains the selected model using labeled training data only. `build_dat_submission.py` creates a ZIP with `main.py` at its root, fixed preprocessing, model weights, and fixed calibration. The packaged `main.py` reads `/code_execution/data/submission_format.csv` and `/code_execution/data/niftis/<uid>.nii.gz`, processes cases independently, and writes exactly `submission.csv` with `uid,is_pathologic` probabilities in the input row order. It does not train or fit anything at inference time.
 
-Typical local commands are:
+Recommended complete local workflow:
+
+```bash
+python run_dat_stage1.py \
+  --data_dir /path/to/dat_training \
+  --cv_folds 5 \
+  --trials 4 \
+  --epochs 100
+```
+
+This leaves `artifacts/dat_parkinsons/final_stage1_unmasked/`, `runs/dat_parkinsons/optimization/`, and `submission/dat_stage1_unmasked.zip`.
+
+```bash
+python run_dat_stage2.py \
+  --data_dir /path/to/dat_training \
+  --best_config artifacts/dat_parkinsons/optimization/best_config.json
+```
+
+This leaves `runs/dat_parkinsons/resnet18_3d/`, `runs/dat_parkinsons/summary/`, `artifacts/dat_parkinsons/selected_model.json`, `artifacts/dat_parkinsons/final_stage2_masked/`, and `submission/dat_stage2_masked.zip`. The two submission ZIPs and final model directories are independent and remain on disk together.
+
+Lower-level commands remain available for debugging and research development:
 
 ```bash
 # Check local labels, NIfTI discovery, spacing, and fixed output tensors.
@@ -150,11 +170,8 @@ python dat_masking_experiments.py --data_dir /path/to/dat_training --best_config
 python runs/dat_parkinsons/summary/generate_summary.py --best_config artifacts/dat_parkinsons/optimization/best_config.json
 python dat_select_model.py
 
-# Train final model assets and package the submission ZIP.
-python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json
-# Or train the selected Stage 2 candidate identified by dat_select_model.py.
-python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json --selected_model artifacts/dat_parkinsons/selected_model.json
-python build_dat_submission.py --model_dir artifacts/dat_parkinsons/final_model --output submission/submission.zip
+# Train/package lower-level assets only when developing a custom workflow.
+python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json --output_dir artifacts/dat_parkinsons/final_stage1_unmasked
 ```
 
 For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission`. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission.
@@ -290,5 +307,7 @@ python train.py --dataset drive_zip --model resnet18 --data_dir ./data --out_dir
 
 - Python 3.10+
 - PyTorch and torchvision
-- pandas
+- nibabel, scipy, numpy, pandas, matplotlib, scikit-learn
+
+Install the reproducible research/test dependencies with `pip install -r requirements.txt`. The competition runtime remains inference-only: hidden competition scans are never used for training, calibration, preprocessing fitting, or model selection.
 - matplotlib

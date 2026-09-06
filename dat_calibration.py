@@ -69,16 +69,71 @@ def cross_fitted_calibration(
 ) -> tuple[np.ndarray, list[dict[str, Any]]]:
     logits = np.asarray(logits)
     targets = np.asarray(targets)
+    if logits.ndim != 2 or logits.shape[0] != len(targets) or len(targets) == 0:
+        raise ValueError("OOF logits and targets must be non-empty and aligned.")
     calibrated = np.empty(len(targets), dtype=np.float64)
     all_indices = np.arange(len(targets))
     fold_calibrations = []
+    seen = []
     for validation in validation_folds:
         validation = np.asarray(list(validation), dtype=np.int64)
+        if validation.size == 0 or np.any(validation < 0) or np.any(validation >= len(targets)):
+            raise ValueError("Calibration validation folds contain invalid indices.")
         training = np.setdiff1d(all_indices, validation, assume_unique=False)
+        if training.size == 0:
+            raise ValueError("Cross-fitted calibration requires training samples outside each validation fold.")
         calibration = fit_calibration(logits[training], targets[training], method=method)
         calibrated[validation] = calibrated_probabilities(logits[validation], calibration)
         fold_calibrations.append(calibration)
+        seen.extend(validation.tolist())
+    if sorted(seen) != list(range(len(targets))):
+        raise ValueError("Calibration folds must partition every OOF sample exactly once.")
     return calibrated, fold_calibrations
+
+
+def fit_candidate_calibration(
+    logits: np.ndarray,
+    targets: np.ndarray,
+    fold_ids: np.ndarray,
+    method: str = "temperature",
+) -> dict[str, Any]:
+    """Fit and score one candidate using only that candidate's fold OOF logits.
+
+    ``fold_ids`` preserves the outer validation assignment while allowing the
+    candidate's per-fold arrays to be concatenated in any stable order.
+    """
+    logits = np.asarray(logits)
+    targets = np.asarray(targets)
+    fold_ids = np.asarray(fold_ids)
+    if logits.ndim != 2 or logits.shape[1] != 2 or len(targets) != len(logits) or len(fold_ids) != len(targets):
+        raise ValueError("Candidate OOF logits, targets, and fold_ids must be aligned [N,2], [N], [N].")
+    if len(targets) == 0 or not np.isfinite(logits).all():
+        raise ValueError("Candidate OOF logits must be finite and non-empty.")
+    unique_folds = sorted(set(int(value) for value in fold_ids.tolist()))
+    validation_folds = [np.flatnonzero(fold_ids == fold).tolist() for fold in unique_folds]
+    cross_fitted_probs, fold_calibrations = cross_fitted_calibration(
+        logits, targets, validation_folds, method=method
+    )
+    raw_metrics = compute_binary_metrics(targets, logits=logits)
+    cross_fitted_metrics = compute_binary_metrics(targets, probabilities=cross_fitted_probs)
+    final = fit_calibration(logits, targets, method=method)
+    final_metrics = compute_binary_metrics(targets, probabilities=calibrated_probabilities(logits, final))
+    final.update({
+        "provenance": "candidate_oof_logits_only",
+        "n_oof_samples": int(len(targets)),
+        "n_cv_folds": int(len(unique_folds)),
+        "fold_calibrations": fold_calibrations,
+        "raw_oof_log_loss": float(raw_metrics["log_loss"]),
+        "cross_fitted_calibrated_oof_log_loss": float(cross_fitted_metrics["log_loss"]),
+        "final_all_oof_calibrated_log_loss": float(final_metrics["log_loss"]),
+    })
+    return {
+        "raw_metrics": raw_metrics,
+        "cross_fitted_metrics": cross_fitted_metrics,
+        "final_calibration": final,
+        "fold_calibrations": fold_calibrations,
+        "fold_ids": unique_folds,
+    }
 
 
 def evaluate_calibration(logits: np.ndarray, targets: np.ndarray, calibration: dict[str, Any]) -> dict[str, float]:
@@ -97,4 +152,3 @@ def load_calibration(path: str | Path) -> dict[str, Any]:
     if not isinstance(calibration, dict):
         raise ValueError("Calibration file must contain a JSON object.")
     return calibration
-

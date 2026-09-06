@@ -149,7 +149,7 @@ def _write_metrics(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def fit_dat_model(
     train_dataset: Dataset,
-    validation_dataset: Dataset,
+    validation_dataset: Dataset | None,
     config: dict[str, Any],
     *,
     seed: int,
@@ -157,7 +157,17 @@ def fit_dat_model(
     max_train_batches: int | None = None,
     max_val_batches: int | None = None,
 ) -> dict[str, Any]:
-    """Fit one fold and select the checkpoint by validation log loss."""
+    """Fit one CV fold and select its checkpoint by validation log loss.
+
+    Passing ``validation_dataset=None`` is supported for callers that need a
+    fixed-budget full-data fit; it delegates to :func:`fit_dat_model_fixed_epochs`
+    and never evaluates or selects a checkpoint on the training population.
+    """
+    if validation_dataset is None:
+        return fit_dat_model_fixed_epochs(
+            train_dataset, config, seed=seed, run_dir=run_dir,
+            max_train_batches=max_train_batches,
+        )
     set_seed(int(seed))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_dat_model(config).to(device)
@@ -176,6 +186,7 @@ def fit_dat_model(
     best_metrics = None
     best_logits = None
     best_targets = None
+    best_epoch = None
     stale = 0
     rows = []
     for epoch in range(epochs):
@@ -207,6 +218,7 @@ def fit_dat_model(
             best_metrics = dict(val_metrics)
             best_logits = val_logits.copy()
             best_targets = val_targets.copy()
+            best_epoch = epoch + 1
             stale = 0
         else:
             stale += 1
@@ -232,7 +244,92 @@ def fit_dat_model(
         "best_metrics": best_metrics,
         "best_logits": best_logits,
         "best_targets": best_targets,
+        "best_epoch": int(best_epoch),
+        "checkpoint_selection": "minimum_validation_log_loss",
+        "training_truncated": bool(max_train_batches),
+        "validation_truncated": bool(max_val_batches),
+        "research_valid": not bool(max_train_batches or max_val_batches or config.get("debug", False)),
         "epochs_completed": len(rows),
         "metrics_rows": rows,
     }
 
+
+def fit_dat_model_fixed_epochs(
+    train_dataset: Dataset,
+    config: dict[str, Any],
+    *,
+    seed: int,
+    run_dir: str | os.PathLike | None = None,
+    epochs: int | None = None,
+    max_train_batches: int | None = None,
+) -> dict[str, Any]:
+    """Train on a dataset for exactly ``epochs`` and return its final state.
+
+    This is intentionally validation-free.  It is used for the full-data
+    competition models and for leakage-safe Stage 2 fold teachers, where the
+    epoch budget has already been determined by Stage 1 CV.
+    """
+    set_seed(int(seed))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_dat_model(config).to(device)
+    criterion = nn.CrossEntropyLoss(label_smoothing=float(config.get("label_smoothing", 0.0)))
+    optimizer = _build_optimizer(model, config)
+    epochs = int(config.get("epochs", 100) if epochs is None else epochs)
+    if epochs <= 0:
+        raise ValueError("The fixed epoch budget must be positive.")
+    scheduler = _build_scheduler(optimizer, config, epochs)
+    use_amp = bool(config.get("amp", False)) and device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=True) if use_amp else None
+    train_loader = _make_loader(train_dataset, config, train=True)
+    rows = []
+    for epoch in range(epochs):
+        _set_dataset_epoch(train_dataset, epoch)
+        train_loss, train_accuracy = _run_training_epoch(
+            model, train_loader, criterion, optimizer, device, scaler,
+            max_batches=max_train_batches,
+        )
+        rows.append({
+            "epoch": epoch + 1,
+            "lr": optimizer.param_groups[0]["lr"],
+            "train_loss": train_loss,
+            "train_accuracy": train_accuracy,
+            # Kept as explicit NaNs so the file cannot be mistaken for a
+            # validation trajectory or used for checkpoint selection.
+            "val_loss": float("nan"), "val_accuracy": float("nan"),
+            "val_log_loss": float("nan"), "val_auroc": float("nan"),
+            "val_brier_score": float("nan"), "val_ece": float("nan"),
+            "val_sensitivity": float("nan"), "val_specificity": float("nan"),
+        })
+        scheduler.step()
+    final_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+    model.load_state_dict(final_state)
+    if run_dir is not None:
+        output = Path(run_dir)
+        output.mkdir(parents=True, exist_ok=True)
+        _write_metrics(output / "metrics.csv", rows)
+        payload = {"model_state_dict": final_state, "config": config, "checkpoint_selection": "final_scheduled_epoch", "final_epoch": epochs}
+        torch.save(payload, output / "final_model.pt")
+        # Backward-compatible filename.  It is an alias by meaning only: it
+        # contains the scheduled final epoch, never a training-set-selected
+        # best checkpoint.
+        torch.save(payload, output / "best_model.pt")
+        with (output / "config.json").open("w", encoding="utf-8") as handle:
+            json.dump({**config, "checkpoint_selection": "final_scheduled_epoch", "final_epoch": epochs,
+                       "training_truncated": bool(max_train_batches),
+                       "validation_truncated": False,
+                       "research_valid": not bool(max_train_batches or config.get("debug", False)),
+                       "completed": True}, handle, indent=2, sort_keys=True)
+        from dat_metrics import plot_dat_metrics
+        plot_dat_metrics(output / "metrics.csv", output / "metrics_plot.png")
+    return {
+        "model": model,
+        "final_state_dict": final_state,
+        "best_state_dict": final_state,
+        "final_epoch": epochs,
+        "epochs_completed": epochs,
+        "metrics_rows": rows,
+        "checkpoint_selection": "final_scheduled_epoch",
+        "training_truncated": bool(max_train_batches),
+        "validation_truncated": False,
+        "research_valid": not bool(max_train_batches or config.get("debug", False)),
+    }
