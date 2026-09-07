@@ -8,13 +8,88 @@ import os
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
 
-from dat_metrics import compute_binary_metrics
-from dat_model import build_resnet18_3d
+from graphics import plot_dat_metrics
+from model_registry import build_resnet18_3d
 from utils import set_seed
+
+
+def probabilities_from_logits(logits: np.ndarray) -> np.ndarray:
+    logits = np.asarray(logits, dtype=np.float64)
+    if logits.ndim != 2 or logits.shape[1] != 2:
+        raise ValueError(f"Expected logits with shape [N,2], got {logits.shape}.")
+    shifted = logits - np.max(logits, axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    return (exp / np.sum(exp, axis=1, keepdims=True))[:, 1]
+
+
+def safe_log_loss(targets, probabilities) -> float:
+    y = np.asarray(list(targets), dtype=np.int64)
+    p = np.asarray(list(probabilities), dtype=np.float64)
+    if y.size == 0 or p.size != y.size:
+        raise ValueError("Targets and probabilities must be non-empty and have equal length.")
+    p = np.clip(p, 1e-7, 1.0 - 1e-7)
+    return float(log_loss(y, np.column_stack([1.0 - p, p]), labels=[0, 1]))
+
+
+def expected_calibration_error(targets: np.ndarray, probabilities: np.ndarray, bins: int = 10) -> float:
+    targets = np.asarray(targets, dtype=np.int64)
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    edges = np.linspace(0.0, 1.0, int(bins) + 1)
+    result = 0.0
+    for left, right in zip(edges[:-1], edges[1:]):
+        mask = (probabilities >= left) & ((probabilities < right) if right < 1 else (probabilities <= right))
+        if np.any(mask):
+            result += float(mask.mean()) * abs(float(probabilities[mask].mean()) - float(targets[mask].mean()))
+    return float(result)
+
+
+def compute_binary_metrics(targets, *, logits: np.ndarray | None = None, probabilities=None) -> dict[str, float]:
+    y = np.asarray(list(targets), dtype=np.int64)
+    if logits is not None:
+        p = probabilities_from_logits(np.asarray(logits))
+    elif probabilities is not None:
+        p = np.asarray(list(probabilities), dtype=np.float64)
+    else:
+        raise ValueError("Provide logits or probabilities.")
+    if y.size == 0 or p.size != y.size:
+        raise ValueError("Targets and predictions must be non-empty and have equal length.")
+    p = np.clip(p.astype(np.float64), 1e-7, 1.0 - 1e-7)
+    hard = (p >= 0.5).astype(np.int64)
+    result = {
+        "log_loss": safe_log_loss(y, p), "brier_score": float(brier_score_loss(y, p)),
+        "accuracy": float(accuracy_score(y, hard)), "ece": expected_calibration_error(y, p),
+        "sensitivity": float(np.sum((hard == 1) & (y == 1)) / max(1, np.sum(y == 1))),
+        "specificity": float(np.sum((hard == 0) & (y == 0)) / max(1, np.sum(y == 0))),
+    }
+    try:
+        result["auroc"] = float(roc_auc_score(y, p))
+    except ValueError:
+        result["auroc"] = float("nan")
+    return result
+
+
+def aggregate_fold_metrics(frames: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    if not frames:
+        return {}
+    result = {}
+    keys = sorted({key for frame in frames for key, value in frame.items() if isinstance(value, (float, int))})
+    for key in keys:
+        values = np.asarray([float(frame[key]) for frame in frames if np.isfinite(float(frame[key]))], dtype=float)
+        std = float(np.std(values, ddof=1)) if values.size > 1 else 0.0
+        sem = std / np.sqrt(values.size) if values.size else float("nan")
+        result[key] = {
+            "mean": float(np.mean(values)) if values.size else float("nan"), "std": std,
+            "sem": float(sem),
+            "ci95_low": float(np.mean(values) - 1.96 * sem) if values.size else float("nan"),
+            "ci95_high": float(np.mean(values) + 1.96 * sem) if values.size else float("nan"),
+        }
+    return result
 
 
 def build_dat_model(config: dict[str, Any]) -> nn.Module:
@@ -235,7 +310,6 @@ def fit_dat_model(
         torch.save({"model_state_dict": best_state, "config": config}, output / "best_model.pt")
         with (output / "config.json").open("w", encoding="utf-8") as handle:
             json.dump(config, handle, indent=2, sort_keys=True)
-        from dat_metrics import plot_dat_metrics
         plot_dat_metrics(output / "metrics.csv", output / "metrics_plot.png")
     return {
         "model": model,
@@ -318,7 +392,6 @@ def fit_dat_model_fixed_epochs(
                        "validation_truncated": False,
                        "research_valid": not bool(max_train_batches or config.get("debug", False)),
                        "completed": True}, handle, indent=2, sort_keys=True)
-        from dat_metrics import plot_dat_metrics
         plot_dat_metrics(output / "metrics.csv", output / "metrics_plot.png")
     return {
         "model": model,

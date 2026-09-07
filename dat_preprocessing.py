@@ -474,3 +474,33 @@ def get_dat_dataloaders(
     val_loader = DataLoader(val_ds, batch_size=min(256, max(1, len(val_ds))), shuffle=False, num_workers=num_workers, **worker_args) if val_ds is not None else None
     test_loader = DataLoader(test_ds, batch_size=min(256, max(1, len(test_ds))), shuffle=False, num_workers=num_workers, **worker_args)
     return train_loader, val_loader, test_loader
+
+
+def check_dat_dataset(
+    data_dir: str | os.PathLike,
+    *,
+    target_spacing: Sequence[float] | None = None,
+    target_shape: Sequence[int] = DEFAULT_TARGET_SHAPE,
+    limit: int = 0,
+) -> dict[str, Any]:
+    """Validate labels, NIfTI discovery, preprocessing, and fixed tensor shape."""
+    records = load_dat_records(data_dir)
+    config = default_preprocessing_config(
+        records,
+        target_spacing=target_spacing or estimate_target_spacing(records),
+        target_shape=target_shape,
+    )
+    checked = 0
+    for record in records[: int(limit) or len(records)]:
+        tensor = preprocess_nifti(record.path, config)
+        if tuple(tensor.shape) != (1, *config["target_shape"]):
+            raise RuntimeError(f"Unexpected preprocessed shape for {record.uid}: {tuple(tensor.shape)}")
+        if not torch.isfinite(tensor).all():
+            raise RuntimeError(f"Preprocessing produced non-finite values for {record.uid}.")
+        checked += 1
+    labels = [record.label for record in records]
+    return {
+        "status": "ok", "records": len(records), "checked": checked,
+        "class_counts": {str(label): int(labels.count(label)) for label in sorted(set(labels))},
+        "target_spacing": config["target_spacing"], "target_shape": config["target_shape"],
+    }

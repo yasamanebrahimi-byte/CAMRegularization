@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from build_dat_submission import validate_submission_csv, validate_submission_zip
+from dat_submission import validate_submission_csv, validate_submission_zip
 
 
 def main() -> None:
