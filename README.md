@@ -135,6 +135,20 @@ Research outputs and competition assets are separate:
 
 Recommended complete local workflow:
 
+Stage 2 is the normal one-command entry point. It first checks the persisted
+Stage 1 selected configuration. If it exists and is valid, Stage 1 is skipped.
+If it does not exist, the complete Stage 1 pipeline runs automatically before
+Stage 2. An explicit `--best_config` path remains available for reproducible
+or custom workflows. The default persisted handoff is
+`artifacts/dat_parkinsons/optimization/best_config.json`.
+
+```bash
+python run_dat_stage2.py \
+  --data_dir /path/to/dat_training
+```
+
+Stage 1 can still be run independently when desired:
+
 ```bash
 python run_dat_stage1.py \
   --data_dir /path/to/dat_training \
@@ -143,7 +157,7 @@ python run_dat_stage1.py \
   --epochs 100
 ```
 
-This leaves `artifacts/dat_parkinsons/final_stage1_unmasked/`, `runs/dat_parkinsons/optimization/`, and `submission/dat_stage1_unmasked.zip`.
+This leaves `artifacts/dat_parkinsons/final_stage1_unmasked/`, `artifacts/dat_parkinsons/optimization/best_config.json`, and `submission/dat_stage1_unmasked.zip`.
 
 ```bash
 python run_dat_stage2.py \

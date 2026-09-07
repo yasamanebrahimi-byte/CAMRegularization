@@ -35,7 +35,7 @@ DEFAULT_M = (4, 8)
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the frozen DaT Stage 2 cutout comparison.")
     parser.add_argument("--data_dir", required=True)
-    parser.add_argument("--best_config", required=True)
+    parser.add_argument("--best_config", default="artifacts/dat_parkinsons/optimization/best_config.json")
     parser.add_argument("--output_dir", default="runs/dat_parkinsons/resnet18_3d")
     parser.add_argument("--fold_assignments", default="")
     parser.add_argument("--fold", type=int, default=-1)
