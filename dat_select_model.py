@@ -299,6 +299,18 @@ def _candidate_recipe(entries: list[tuple[dict[str, Any], Path]]) -> dict[str, A
     }
 
 
+def select_best_overall_and_masked(candidates: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Keep the research winner and masked competition winner distinct."""
+    if not candidates:
+        raise ValueError("No valid Stage 2 candidates were found.")
+    best_overall = min(candidates, key=lambda row: (row["selection_score"], row["condition"], row["M"], row["fraction"]))
+    masked = [row for row in candidates if row["condition"] in {"random", "cam_low", "cam_high"}]
+    if not masked:
+        raise ValueError("Stage 2 requires at least one masked candidate for Submission #2.")
+    best_masked = min(masked, key=lambda row: (row["selection_score"], row["condition"], row["M"], row["fraction"]))
+    return best_overall, best_masked
+
+
 def select_candidates(
     runs_dir: str | Path,
     *,
@@ -363,7 +375,14 @@ def select_candidates(
             "stage1_final_training_epochs": int(entries[0][0].get("stage1_final_training_epochs", entries[0][0].get("final_training_epochs"))),
             "fold_assignment_fingerprint": entries[0][0].get("fold_assignment_fingerprint"),
             "raw_oof_log_loss": float(result["raw_metrics"]["log_loss"]),
+            "raw_oof_auroc": float(result["raw_metrics"]["auroc"]),
+            "raw_oof_brier_score": float(result["raw_metrics"]["brier_score"]),
+            "raw_oof_accuracy": float(result["raw_metrics"]["accuracy"]),
             "cross_fitted_calibrated_oof_log_loss": float(result["cross_fitted_metrics"]["log_loss"]),
+            "cross_fitted_calibrated_oof_auroc": float(result["cross_fitted_metrics"]["auroc"]),
+            "cross_fitted_calibrated_oof_brier_score": float(result["cross_fitted_metrics"]["brier_score"]),
+            "cross_fitted_calibrated_oof_accuracy": float(result["cross_fitted_metrics"]["accuracy"]),
+            "cross_fitted_calibrated_oof_ece": float(result["cross_fitted_metrics"]["ece"]),
             "raw_cv_log_loss": float(result["raw_metrics"]["log_loss"]),
             "calibrated_cv_log_loss": float(result["cross_fitted_metrics"]["log_loss"]),
             "final_fitted_calibration_method": calibration.get("method", "raw"),
@@ -376,13 +395,7 @@ def select_candidates(
             "selection_score": float(result["cross_fitted_metrics"]["log_loss"]),
         }
         candidates.append(candidate)
-    if not candidates:
-        raise ValueError("No valid Stage 2 candidates were found.")
-    best_overall = min(candidates, key=lambda row: (row["selection_score"], row["condition"], row["M"], row["fraction"]))
-    masked = [row for row in candidates if row["condition"] in {"random", "cam_low", "cam_high"}]
-    if not masked:
-        raise ValueError("Stage 2 requires at least one masked candidate for Submission #2.")
-    best_masked = min(masked, key=lambda row: (row["selection_score"], row["condition"], row["M"], row["fraction"]))
+    best_overall, best_masked = select_best_overall_and_masked(candidates)
     payload = {
         "selection_basis": "cross_fitted_calibrated_oof_log_loss",
         "best_overall": best_overall, "best_masked": best_masked,
@@ -404,7 +417,14 @@ def select_candidates(
         "early_stopping_patience": row["early_stopping_patience"],
         "final_stage2_training_epochs": row["final_stage2_training_epochs"],
         "raw_oof_log_loss": row["raw_oof_log_loss"],
+        "raw_oof_auroc": row["raw_oof_auroc"],
+        "raw_oof_brier_score": row["raw_oof_brier_score"],
+        "raw_oof_accuracy": row["raw_oof_accuracy"],
         "cross_fitted_calibrated_oof_log_loss": row["cross_fitted_calibrated_oof_log_loss"],
+        "cross_fitted_calibrated_oof_auroc": row["cross_fitted_calibrated_oof_auroc"],
+        "cross_fitted_calibrated_oof_brier_score": row["cross_fitted_calibrated_oof_brier_score"],
+        "cross_fitted_calibrated_oof_accuracy": row["cross_fitted_calibrated_oof_accuracy"],
+        "cross_fitted_calibrated_oof_ece": row["cross_fitted_calibrated_oof_ece"],
         "final_fitted_calibration_method": row["final_fitted_calibration_method"],
         "final_fitted_temperature": row["final_fitted_temperature"],
         "n_oof_samples": row["n_oof_samples"], "n_cv_folds": row["n_cv_folds"],

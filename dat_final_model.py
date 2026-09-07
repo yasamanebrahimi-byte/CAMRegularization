@@ -235,6 +235,10 @@ def train_final_dat_model(
             "selected_stage1_config_fingerprint",
             best_config.get("config_fingerprint", fingerprint(best_config)),
         ),
+        "stage1_selection_objective": best_config.get("selection_objective", "cross_fitted_calibrated_oof_log_loss"),
+        "stage1_raw_oof_metrics": best_config.get("raw_oof_metrics"),
+        "stage1_cross_fitted_calibrated_oof_metrics": best_config.get("cross_fitted_calibrated_oof_metrics"),
+        "stage1_calibration_method": best_config.get("calibration_method"),
         "preprocessing_fingerprint": best_config.get("preprocessing_fingerprint", fingerprint(preprocessing)),
         "final_epoch_budget": epoch_budget,
         "final_stage2_training_epochs": epoch_budget if selected_provided else None,
@@ -248,6 +252,24 @@ def train_final_dat_model(
         "calibration_provenance": selected.get("calibration_provenance", "stage1_oof_logits_only" if condition == "none" else "selected_stage2_candidate_oof_logits_only"),
         "calibration_candidate": {"condition": condition, "M": m_value, "fraction": fraction},
     }
+    if selected_provided:
+        provenance.update({
+            "stage2_selection_objective": "cross_fitted_calibrated_oof_log_loss",
+            "stage2_selection_score": selected.get("selection_score"),
+            "stage2_raw_oof_metrics": {
+                "log_loss": selected.get("raw_oof_log_loss"),
+                "auroc": selected.get("raw_oof_auroc"),
+                "brier_score": selected.get("raw_oof_brier_score"),
+                "accuracy": selected.get("raw_oof_accuracy"),
+            },
+            "stage2_cross_fitted_calibrated_oof_metrics": {
+                "log_loss": selected.get("cross_fitted_calibrated_oof_log_loss"),
+                "auroc": selected.get("cross_fitted_calibrated_oof_auroc"),
+                "brier_score": selected.get("cross_fitted_calibrated_oof_brier_score"),
+                "accuracy": selected.get("cross_fitted_calibrated_oof_accuracy"),
+                "ece": selected.get("cross_fitted_calibrated_oof_ece"),
+            },
+        })
     if selected_provided:
         provenance.update({
             "selected_stage2_recipe": {

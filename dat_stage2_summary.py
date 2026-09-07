@@ -217,12 +217,16 @@ def generate_summary(
     _save(fig, plots / "stability_by_fraction.png")
     summary = {
         "run_count": int(len(per_run)), "expected_run_count": int(report["expected_cell_count"]),
+        "selection_basis": "cross_fitted_calibrated_oof_log_loss",
+        "selection_lower_is_better": True,
+        "best_overall": selection.get("best_overall", {}),
+        "best_masked": selection.get("best_masked", {}),
         "validation_trajectory_metrics": {
             "source": "each outer fold metrics.csv",
             "fields": ["minimum_validation_log_loss", "epoch_at_minimum_validation_log_loss", "accuracy_at_minimum_validation_log_loss", "auroc_at_minimum_validation_log_loss", "brier_at_minimum_validation_log_loss", "ece_at_minimum_validation_log_loss"],
         },
         "oof_raw_metrics": {"source": "concatenated fold-best-checkpoint OOF logits", "fields": ["oof_raw_log_loss"]},
-        "oof_cross_fitted_calibrated_metrics": {"source": "candidate_oof_metrics.csv; candidate-specific fold-aware calibration", "fields": ["cross_fitted_calibrated_oof_log_loss"]},
+        "oof_cross_fitted_calibrated_metrics": {"source": "candidate_oof_metrics.csv; candidate-specific fold-aware calibration", "fields": ["cross_fitted_calibrated_oof_log_loss", "cross_fitted_calibrated_oof_brier_score", "cross_fitted_calibrated_oof_ece"]},
         "final_fitted_calibration": {"source": "all candidate OOF logits for the selected candidate; packaged with final model", "field": "calibration"},
         "stage1_lineage": selection.get("best_masked", {}).get("selected_stage1_config_fingerprint"),
         "selected_stage2_fold_best_epochs": selection.get("best_masked", {}).get("selected_candidate_fold_best_epochs"),

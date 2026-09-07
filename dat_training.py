@@ -172,6 +172,9 @@ def fit_dat_model(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_dat_model(config).to(device)
     criterion = nn.CrossEntropyLoss(label_smoothing=float(config.get("label_smoothing", 0.0)))
+    # Validation loss is the ordinary probability log loss used by the
+    # competition. Training-only label smoothing must not change it.
+    evaluation_criterion = nn.CrossEntropyLoss()
     optimizer = _build_optimizer(model, config)
     epochs = int(config.get("epochs", 100))
     scheduler = _build_scheduler(optimizer, config, epochs)
@@ -195,7 +198,7 @@ def fit_dat_model(
             model, train_loader, criterion, optimizer, device, scaler, max_batches=max_train_batches
         )
         val_metrics, val_logits, val_targets = evaluate_dat_model(
-            model, validation_loader, criterion, device, max_batches=max_val_batches
+            model, validation_loader, evaluation_criterion, device, max_batches=max_val_batches
         )
         row = {
             "epoch": epoch + 1,

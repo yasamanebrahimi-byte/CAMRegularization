@@ -7,12 +7,53 @@ import json
 import zipfile
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 
 SOURCE_FILES = ("main.py", "dat_model.py", "dat_preprocessing.py", "dat_calibration_runtime.py")
 REQUIRED_BUNDLE_FILES = {
     "main.py", "dat_model.py", "dat_preprocessing.py", "dat_calibration_runtime.py",
     "model/weights.pt", "model_config.json", "preprocessing.json", "calibration.json",
 }
+
+
+def validate_submission_csv(path: str | Path, template_path: str | Path | None = None) -> dict[str, object]:
+    """Validate the exact DrivenData two-column probability artifact."""
+    path = Path(path)
+    frame = pd.read_csv(path)
+    if list(frame.columns) != ["uid", "is_pathologic"]:
+        raise ValueError("submission.csv must have exactly uid,is_pathologic columns in that order.")
+    if frame["uid"].isna().any() or frame["uid"].astype(str).duplicated().any():
+        raise ValueError("submission.csv contains missing or duplicate UIDs.")
+    probabilities = pd.to_numeric(frame["is_pathologic"], errors="coerce").to_numpy(dtype=float)
+    if len(probabilities) != len(frame) or not np.isfinite(probabilities).all():
+        raise ValueError("submission.csv probabilities must be finite numeric values.")
+    if np.any((probabilities < 0.0) | (probabilities > 1.0)):
+        raise ValueError("submission.csv probabilities must lie in [0, 1].")
+    if template_path is not None:
+        template = pd.read_csv(template_path)
+        if list(template.columns) != ["uid", "is_pathologic"]:
+            raise ValueError("submission_format.csv must have exactly uid,is_pathologic columns.")
+        template_uids = template["uid"].astype(str).tolist()
+        output_uids = frame["uid"].astype(str).tolist()
+        if output_uids != template_uids:
+            raise ValueError("submission.csv UIDs do not exactly match submission_format.csv order.")
+    return {"rows": int(len(frame)), "columns": list(frame.columns), "uids": frame["uid"].astype(str).tolist()}
+
+
+def validate_submission_zip(path: str | Path) -> dict[str, object]:
+    """Validate root layout and required offline assets in a submission ZIP."""
+    path = Path(path)
+    with zipfile.ZipFile(path) as archive:
+        if archive.testzip() is not None:
+            raise RuntimeError("Generated submission ZIP contains corrupt data.")
+        names = set(archive.namelist())
+    missing = REQUIRED_BUNDLE_FILES.difference(names)
+    if missing:
+        raise RuntimeError(f"Generated ZIP is missing required files: {sorted(missing)}")
+    if "main.py" not in names:
+        raise RuntimeError("Generated submission ZIP must place main.py at its root.")
+    return {"file_count": int(len(names)), "required_files": sorted(REQUIRED_BUNDLE_FILES)}
 
 
 def _read_json_bytes(source: Path, fallback: dict | None = None) -> bytes:
@@ -59,13 +100,7 @@ def build(model_dir: str | Path, output_zip: str | Path, source_root: str | Path
         provenance = model_dir / "provenance.json"
         if provenance.is_file():
             archive.writestr("provenance.json", provenance.read_bytes())
-    with zipfile.ZipFile(output_zip) as archive:
-        if archive.testzip() is not None:
-            raise RuntimeError("Generated submission ZIP contains corrupt data.")
-        names = set(archive.namelist())
-    missing_bundle = REQUIRED_BUNDLE_FILES.difference(names)
-    if missing_bundle:
-        raise RuntimeError(f"Generated ZIP is missing required files: {sorted(missing_bundle)}")
+    validate_submission_zip(output_zip)
     return output_zip
 
 

@@ -121,11 +121,11 @@ The repository also contains a separate research workflow for the DrivenData [Da
 
 `dat_preprocessing.py` discovers an extracted dataset or an outer `.zip`/`.tar.gz`, converts scans to a canonical orientation, resamples using spacing estimated from labeled training scans only, performs a foreground-aware crop and fixed crop/pad, then applies per-scan positive-voxel percentile scaling. The model input is always `[1,D,H,W]`. The registered identifiers are `dat_parkinsons` and `resnet18_3d`; the existing 2D identifiers and completed run outputs are unchanged.
 
-Stage 1 (`run_dat_stage1.py`) uses no cutout. It builds fixed stratified folds before any augmentation, searches a small configurable set of training parameters, records the winning fold epochs, derives a frozen median epoch budget, calibrates from labeled OOF predictions only, trains the final unmasked model without validation-based checkpoint selection, and packages Submission #1. `dat_tune.py` remains available as the reusable optimization/calibration layer. For a robustness diagnostic, `--fold_scheme protocol_group` uses rounded original scan shape/spacing signatures; these groups are not hospital-center labels.
+Stage 1 (`run_dat_stage1.py`) uses no cutout. It builds fixed stratified folds before any augmentation, searches unique training configurations (default `--trials 10`), generates complete OOF logits and fold assignments, computes raw metrics, cross-fits the configured calibrator using other folds only, and selects the trial by lower-is-better `cross_fitted_calibrated_oof_log_loss` because that matches the DrivenData objective. Only after selection does it fit the final deployment calibrator on all winning-trial OOF logits/targets, derive the frozen median epoch budget, train the final unmasked model without validation-based checkpoint selection, and package Submission #1. Trial CSVs and metadata retain both raw and cross-fitted calibrated metrics; resumed trials are re-scored with the same criterion and incompatible artifacts fail clearly. `dat_tune.py` remains available as the reusable optimization/calibration layer. For a robustness diagnostic, `--fold_scheme protocol_group` uses rounded original scan shape/spacing signatures; these are acquisition/protocol-signature groups, not hospital or site labels.
 
-Stage 2 (`run_dat_stage2.py`) reads the frozen Stage 1 configuration and varies only `none`, `random`, `cam_low`, or `cam_high`, M4/M8, and fractions 0.05/0.10/0.20/0.30. There is exactly one no-cutout baseline per fold and 24 masked cells per fold. The grid is resumable and integrity-checked. 3D fractions describe a cube whose volume is approximately the requested fraction. Random, low-saliency, and high-saliency use the same foreground-valid candidate cubes; CAM teachers are trained separately within each fold using only that fold's training partition and the frozen Stage 1 epoch budget. Validation scans are never masked. Every candidate receives its own cross-fitted OOF temperature calibration. Stage 2 selection reports `best_overall` for research and uses `best_masked` for Submission #2. For a CAM final condition, saliency comes from the exact full-data Stage 1 final checkpoint; no new final teacher is trained. 3D HiResCAM and CPU saliency/window caches are implemented in the existing dimension-aware `cam_masking.py` and `cutout.py` modules.
+Stage 2 (`run_dat_stage2.py`) freezes the selected Stage 1 architecture, hyperparameters, preprocessing, folds, and foreground rule, then varies only `none`, `random`, `cam_low`, or `cam_high`, M4/M8, and fractions 0.05/0.10/0.20/0.30. There is exactly one no-cutout baseline per fold and 24 masked cells per fold. The grid is resumable and integrity-checked. 3D fractions describe a cube whose volume is approximately the requested fraction. Random, low-saliency, and high-saliency use the same cube dimensions and foreground-valid candidate domain; their controlled difference is cube-location selection. Fold-specific CAM teachers are trained only on each outer fold's training partition, never on that fold's validation scans. Validation scans are never masked. Every candidate receives its own cross-fitted OOF temperature calibration and candidates are selected by `cross_fitted_calibrated_oof_log_loss`. Stage 2 reports `best_overall` (including `none`) separately from `best_masked` (masked methods only), and Submission #2 uses `best_masked`. For a final CAM condition, saliency comes from the exact full-data Stage 1 final checkpoint, with its SHA-256 recorded in provenance; no new final teacher is trained. Ground-truth-class CAM is reserved for future ablation work and is not in the main grid. 3D HiResCAM and CPU saliency/window caches are implemented in the existing dimension-aware `cam_masking.py` and `cutout.py` modules.
 
-The epoch budgets have distinct meanings. `best_config["epochs"]` is the maximum research/CV budget and is retained for every Stage 2 student, because masking can change convergence speed and students are not capped at the Stage 1 median. `best_config["final_training_epochs"]` is the Stage 1-derived fixed duration used by the full-data unmasked Stage 1 model and by each fold-specific Stage 2 CAM teacher. After `best_masked` is selected, `best_masked["final_stage2_training_epochs"]` is derived by applying the same round-half-up median rule to that candidate's own fold-best student epochs; Submission #2 trains on all labeled data for exactly that new fixed duration, without validation checkpoint selection.
+The epoch budgets have distinct meanings. `best_config["epochs"]` is the full Stage 2 student CV maximum (currently 100 by default) and is retained for every Stage 2 student, because masking can change convergence speed and students are not capped at the Stage 1 median. `best_config["final_training_epochs"]` is the Stage 1-derived fixed duration used by the full-data unmasked Stage 1 model and by each fold-specific Stage 2 CAM teacher. After `best_masked` is selected, `best_masked["final_stage2_training_epochs"]` is derived by applying the same round-half-up median rule to that candidate's own fold-best student epochs; Submission #2 trains on all labeled data for exactly that new fixed duration, without validation checkpoint selection.
 
 Research outputs and competition assets are separate:
 
@@ -139,7 +139,7 @@ Recommended complete local workflow:
 python run_dat_stage1.py \
   --data_dir /path/to/dat_training \
   --cv_folds 5 \
-  --trials 4 \
+  --trials 10 \
   --epochs 100
 ```
 
@@ -153,6 +153,16 @@ python run_dat_stage2.py \
 
 This leaves `runs/dat_parkinsons/resnet18_3d/`, `runs/dat_parkinsons/summary/`, `artifacts/dat_parkinsons/selected_model.json`, `artifacts/dat_parkinsons/final_stage2_masked/`, and `submission/dat_stage2_masked.zip`. The two submission ZIPs and final model directories are independent and remain on disk together.
 
+Build or validate either package independently when needed:
+
+```bash
+python build_dat_submission.py --model_dir artifacts/dat_parkinsons/final_stage1_unmasked --output submission/dat_stage1_unmasked.zip
+python build_dat_submission.py --model_dir artifacts/dat_parkinsons/final_stage2_masked --output submission/dat_stage2_masked.zip
+python validate_dat_submission.py --zip submission/dat_stage1_unmasked.zip
+python validate_dat_submission.py --zip submission/dat_stage2_masked.zip
+python validate_dat_submission.py --submission /path/to/submission.csv --data_dir /path/to/data-demo
+```
+
 Lower-level commands remain available for debugging and research development:
 
 ```bash
@@ -160,7 +170,7 @@ Lower-level commands remain available for debugging and research development:
 python dat_check_dataset.py --data_dir /path/to/dat_training
 
 # Stage 1; use --target_shape and --trials overrides for a short smoke run.
-python dat_tune.py --data_dir /path/to/dat_training --output_dir artifacts/dat_parkinsons/optimization --cv_folds 5 --trials 4 --epochs 100
+python dat_tune.py --data_dir /path/to/dat_training --output_dir artifacts/dat_parkinsons/optimization --cv_folds 5 --trials 10 --epochs 100
 
 # Optional standalone calibration from the Stage 1 OOF logits.
 python dat_calibrate.py --oof_predictions artifacts/dat_parkinsons/optimization/oof_predictions.npz --method temperature --output artifacts/dat_parkinsons/optimization/calibration.json
@@ -176,7 +186,7 @@ python dat_select_model.py
 python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json --output_dir artifacts/dat_parkinsons/final_stage1_unmasked
 ```
 
-For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission`. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission.
+For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission` for each ZIP. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission. The local validator also checks exact UID order, two-column schema, finite probabilities in `[0,1]`, and ZIP layout. Any credential used by optional dataset downloaders must be supplied through environment variables (for example `KAGGLE_API_TOKEN`); no credential is stored in executable source. If an earlier public commit contained a real credential, revoke/rotate it separately because removing it from the current tree does not remove it from Git history.
 
 ## Current Cutout Flags
 

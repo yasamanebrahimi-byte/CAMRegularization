@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import itertools
 import json
 import random
 from pathlib import Path
@@ -37,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output_dir", default="artifacts/dat_parkinsons/optimization")
     parser.add_argument("--cv_folds", type=int, default=5)
     parser.add_argument("--fold_scheme", choices=["stratified", "protocol_group"], default="stratified", help="Primary CV scheme; protocol_group is a shape/spacing robustness diagnostic, not a hospital-center split.")
-    parser.add_argument("--trials", type=int, default=4)
+    parser.add_argument("--trials", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=15)
@@ -123,6 +124,244 @@ def _config_hash(config: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()[:12]
 
 
+def _canonical_json(value: Any) -> str:
+    """Return a stable representation for duplicate-search detection."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _search_config_key(values: dict[str, Any], keys: tuple[str, ...]) -> str:
+    return _canonical_json({key: values.get(key) for key in keys})
+
+
+def generate_unique_trial_values(
+    search_space: dict[str, list[Any]],
+    requested_trials: int,
+    seed: int,
+    *,
+    reserved_values: list[dict[str, Any]] | None = None,
+) -> tuple[dict[int, dict[str, Any]], int]:
+    """Generate deterministic, non-repeating finite-search configurations.
+
+    ``reserved_values`` contains configurations already completed in a resumed
+    run. They are excluded from newly generated trials so a requested count
+    always refers to unique configurations, including resumed work.
+    """
+    requested_trials = int(requested_trials)
+    if requested_trials < 0:
+        raise ValueError("--trials must be non-negative.")
+    keys = tuple(search_space)
+    if not keys or any(not values for values in search_space.values()):
+        raise ValueError("The Stage 1 search space must contain non-empty value lists.")
+    unique_options = []
+    for key in keys:
+        seen = set()
+        options = []
+        for value in search_space[key]:
+            marker = _canonical_json(value)
+            if marker not in seen:
+                seen.add(marker)
+                options.append(value)
+        unique_options.append(options)
+    combinations = [dict(zip(keys, values)) for values in itertools.product(*unique_options)]
+    rng = random.Random(int(seed))
+    rng.shuffle(combinations)
+    reserved = {
+        _search_config_key(values, keys)
+        for values in (reserved_values or [])
+        if all(key in values for key in keys)
+    }
+    available = [values for values in combinations if _search_config_key(values, keys) not in reserved]
+    total_unique = len(combinations)
+    if requested_trials > total_unique:
+        print(
+            f"[Stage 1] requested {requested_trials} trials but the finite search space has "
+            f"only {total_unique} unique configurations; capping at {total_unique}."
+        )
+        requested_trials = total_unique
+    if requested_trials > len(available):
+        print(
+            f"[Stage 1] only {len(available)} unique configurations remain after resumed trials; "
+            f"capping new trials at {len(available)}."
+        )
+        requested_trials = len(available)
+    result: dict[int, dict[str, Any]] = {}
+    available_index = 0
+    used_keys: set[str] = set()
+    for trial_id in range(requested_trials):
+        while available_index < len(available) and _search_config_key(available[available_index], keys) in used_keys:
+            available_index += 1
+        if available_index >= len(available):
+            raise RuntimeError(
+                "The requested Stage 1 trial count cannot be satisfied with unique configurations "
+                "after accounting for resumed trials; reduce --trials or rerun Stage 1."
+            )
+        result[trial_id] = dict(available[available_index])
+        used_keys.add(_search_config_key(result[trial_id], keys))
+        available_index += 1
+    return result, requested_trials
+
+
+def _fold_ids_from_folds(folds: list[tuple[list[int], list[int]]], n_samples: int) -> np.ndarray:
+    fold_ids = np.full(int(n_samples), -1, dtype=np.int64)
+    for fold, (_train, validation) in enumerate(folds):
+        validation = np.asarray(validation, dtype=np.int64)
+        if validation.size == 0 or np.any(validation < 0) or np.any(validation >= n_samples):
+            raise ValueError("Stage 1 validation folds contain invalid indices.")
+        if np.any(fold_ids[validation] != -1):
+            raise ValueError("Stage 1 validation folds overlap.")
+        fold_ids[validation] = int(fold)
+    if np.any(fold_ids < 0):
+        raise ValueError("Stage 1 validation folds do not cover every OOF observation.")
+    return fold_ids
+
+
+def evaluate_stage1_oof(
+    logits: np.ndarray,
+    targets: np.ndarray,
+    fold_ids: np.ndarray,
+    *,
+    calibration_method: str = "temperature",
+) -> dict[str, Any]:
+    """Score a Stage 1 trial with raw and leakage-safe calibrated OOF metrics."""
+    logits = np.asarray(logits)
+    targets = np.asarray(targets, dtype=np.int64)
+    fold_ids = np.asarray(fold_ids, dtype=np.int64)
+    if logits.ndim != 2 or logits.shape[1] != 2 or len(logits) != len(targets) or len(targets) != len(fold_ids):
+        raise ValueError("Stage 1 OOF logits, targets, and fold_ids must be aligned as [N,2], [N], [N].")
+    if len(targets) == 0 or not np.isfinite(logits).all() or np.any(fold_ids < 0):
+        raise ValueError("Stage 1 OOF artifacts must be finite, non-empty, and completely assigned to folds.")
+    unique_folds = sorted(set(int(value) for value in fold_ids.tolist()))
+    validation_folds = [np.flatnonzero(fold_ids == fold).tolist() for fold in unique_folds]
+    raw_metrics = compute_binary_metrics(targets, logits=logits)
+    cross_fitted_probs, fold_calibrations = cross_fitted_calibration(
+        logits, targets, validation_folds, method=calibration_method
+    )
+    cross_fitted_metrics = compute_binary_metrics(targets, probabilities=cross_fitted_probs)
+    final_calibration = fit_calibration(logits, targets, method=calibration_method)
+    # Keep the all-OOF deployment fit separate from the cross-fitted estimate.
+    final_probabilities = calibrated_probabilities(logits, final_calibration)
+    final_all_oof_metrics = compute_binary_metrics(targets, probabilities=final_probabilities)
+    return {
+        "raw_metrics": raw_metrics,
+        "cross_fitted_metrics": cross_fitted_metrics,
+        "final_all_oof_metrics": final_all_oof_metrics,
+        "fold_calibrations": fold_calibrations,
+        "final_calibration": final_calibration,
+        "selection_score": float(cross_fitted_metrics["log_loss"]),
+    }
+
+
+def select_best_stage1_trial(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Select only by the leakage-safe calibrated OOF log-loss criterion."""
+    if not rows:
+        raise ValueError("No completed Stage 1 trials are available.")
+    missing = [row.get("trial_id") for row in rows if row.get("cross_fitted_calibrated_oof_log_loss") in (None, "")]
+    if missing:
+        raise RuntimeError(
+            "Completed Stage 1 trials are missing cross_fitted_calibrated_oof_log_loss "
+            f"for trial(s) {missing}; rerun Stage 1 rather than comparing incompatible metrics."
+        )
+    return min(rows, key=lambda row: (float(row["cross_fitted_calibrated_oof_log_loss"]), int(row["trial_id"])))
+
+
+def _stage1_trial_row(
+    trial_id: int,
+    config: dict[str, Any],
+    values: dict[str, Any],
+    evaluation: dict[str, Any],
+    calibration_method: str,
+) -> dict[str, Any]:
+    raw = evaluation["raw_metrics"]
+    cross_fitted = evaluation["cross_fitted_metrics"]
+    row: dict[str, Any] = {
+        "trial_id": int(trial_id),
+        "config_hash": _config_hash(config),
+        "calibration_method": str(calibration_method),
+        "raw_oof_log_loss": float(raw["log_loss"]),
+        "raw_oof_auroc": float(raw["auroc"]),
+        "raw_oof_brier_score": float(raw["brier_score"]),
+        "raw_oof_accuracy": float(raw["accuracy"]),
+        "cross_fitted_calibrated_oof_log_loss": float(cross_fitted["log_loss"]),
+        "cross_fitted_calibrated_oof_auroc": float(cross_fitted["auroc"]),
+        "cross_fitted_calibrated_oof_brier_score": float(cross_fitted["brier_score"]),
+        "cross_fitted_calibrated_oof_accuracy": float(cross_fitted["accuracy"]),
+        "cross_fitted_calibrated_oof_ece": float(cross_fitted["ece"]),
+        "final_all_oof_calibrated_log_loss": float(evaluation["final_all_oof_metrics"]["log_loss"]),
+        "selection_score": float(evaluation["selection_score"]),
+        # Compatibility aliases. They are explicitly raw/uncalibrated.
+        "mean_oof_log_loss": float(raw["log_loss"]),
+        "mean_oof_auroc": float(raw["auroc"]),
+        "mean_oof_brier_score": float(raw["brier_score"]),
+        "mean_oof_accuracy": float(raw["accuracy"]),
+    }
+    for key, value in values.items():
+        row[key] = _canonical_json(value) if isinstance(value, (dict, list, tuple)) else value
+    for key in ("fold_assignment_fingerprint", "preprocessing_fingerprint"):
+        if key in config:
+            row[key] = config[key]
+    return row
+
+
+def _load_resumable_stage1_trial(
+    trial_dir: Path,
+    config: dict[str, Any],
+    expected_targets: np.ndarray,
+    current_fold_ids: np.ndarray,
+    *,
+    calibration_method: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
+    """Load and re-score a completed trial using the current selection rule."""
+    oof_path = trial_dir / "oof_logits.npz"
+    if not oof_path.is_file():
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: missing persisted OOF logits; rerun Stage 1."
+        )
+    try:
+        with np.load(oof_path) as payload:
+            logits = np.asarray(payload["logits"])
+            targets = np.asarray(payload["targets"], dtype=np.int64)
+            if "fold_ids" in payload:
+                fold_ids = np.asarray(payload["fold_ids"], dtype=np.int64)
+            elif "fold" in payload:
+                fold_ids = np.asarray(payload["fold"], dtype=np.int64)
+            else:
+                # Historical Stage 1 artifacts did not persist fold IDs. It is
+                # safe to reconstruct them only when the current OOF order and
+                # labels match exactly; otherwise comparison is invalid.
+                fold_ids = current_fold_ids.copy()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: invalid OOF artifact ({exc}); rerun Stage 1."
+        ) from exc
+    if logits.shape != (len(expected_targets), 2) or targets.shape != expected_targets.shape:
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: OOF shape is incompatible with the current "
+            "dataset/folds; rerun Stage 1."
+        )
+    if not np.array_equal(targets, expected_targets):
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: persisted OOF targets do not match the current "
+            "training order; rerun Stage 1."
+        )
+    if fold_ids.shape != current_fold_ids.shape or not np.array_equal(fold_ids, current_fold_ids):
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: persisted fold membership differs from the "
+            "current fold assignment; rerun Stage 1."
+        )
+    persisted_method = str(config.get("calibration", calibration_method)).lower()
+    if persisted_method != str(calibration_method).lower():
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: calibration method changed from "
+            f"'{persisted_method}' to '{calibration_method}'; rerun Stage 1."
+        )
+    if not np.isfinite(logits).all():
+        raise RuntimeError(
+            f"Cannot safely resume Stage 1 trial in {trial_dir}: OOF logits are non-finite; rerun Stage 1."
+        )
+    evaluation = evaluate_stage1_oof(logits, targets, fold_ids, calibration_method=calibration_method)
+    return logits, targets, fold_ids, evaluation
+
+
 def _portable_or_key(path: str | Path) -> str:
     try:
         return portable_path(path)
@@ -140,11 +379,25 @@ def _write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def _plot_trials(rows: list[dict[str, Any]], path: Path) -> None:
     fig, axis = plt.subplots(figsize=(7, 4.5))
-    axis.plot([row["trial_id"] for row in rows], [row["mean_oof_log_loss"] for row in rows], "o-")
+    trial_ids = [row["trial_id"] for row in rows]
+    axis.plot(trial_ids, [row["raw_oof_log_loss"] for row in rows], "o-", label="Raw OOF log loss")
+    axis.plot(
+        trial_ids,
+        [row["cross_fitted_calibrated_oof_log_loss"] for row in rows],
+        "s-",
+        label="Cross-fitted calibrated OOF log loss (selection)",
+    )
+    if rows:
+        selected = select_best_stage1_trial(rows)
+        axis.scatter(
+            [selected["trial_id"]], [selected["cross_fitted_calibrated_oof_log_loss"]],
+            marker="*", s=140, zorder=4, label="Selected trial",
+        )
     axis.set_xlabel("Trial")
-    axis.set_ylabel("Mean OOF log loss")
-    axis.set_title("DaT Stage 1 optimization")
+    axis.set_ylabel("OOF log loss (lower is better)")
+    axis.set_title("DaT Stage 1 optimization: calibrated OOF loss selects the trial")
     axis.grid(alpha=0.25)
+    axis.legend()
     fig.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -172,18 +425,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     fold_path = output / "fold_assignments.json"
     save_fold_assignments(fold_path, records, folds, seed=args.seed, grouped=grouped)
+    fold_ids = _fold_ids_from_folds(folds, len(records))
+    fold_assignment_fingerprint = fingerprint([[list(a), list(b)] for a, b in folds])
     search_space = _load_search_space(args.search_space_json)
-    rng = random.Random(args.seed)
     rows: list[dict[str, Any]] = []
-    best: tuple[float, dict[str, Any], np.ndarray, np.ndarray, int] | None = None
-    trial_values = {
-        trial_id: {key: rng.choice(options) for key, options in search_space.items()}
-        for trial_id in range(int(args.trials))
-    }
-
-    # A completed trial is resumable because its config and OOF arrays are
-    # written atomically before the trial table is updated.
-    completed_trials: set[int] = set()
+    expected_targets = np.asarray([record.label for record in records], dtype=np.int64)
+    completed_trials: dict[int, dict[str, Any]] = {}
     trial_table = output / "cv_trials.csv"
     if trial_table.exists():
         with trial_table.open("r", newline="", encoding="utf-8") as handle:
@@ -193,32 +440,57 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 if not matches:
                     continue
                 trial_dir = matches[0].parent
-                oof_path = trial_dir / "oof_logits.npz"
-                if not oof_path.exists():
-                    continue
-                payload = np.load(oof_path)
-                logits = payload["logits"]
-                if not np.isfinite(logits).all():
-                    continue
                 config = json.loads(matches[0].read_text(encoding="utf-8"))
-                normalized = {key: (float(value) if key.startswith("mean_") else value) for key, value in row.items()}
-                normalized["trial_id"] = trial_id
-                rows.append(normalized)
-                completed_trials.add(trial_id)
-                score = float(row["mean_oof_log_loss"])
-                if best is None or score < best[0]:
-                    best = (score, config, logits, payload["targets"], trial_id)
+                if trial_id in completed_trials:
+                    raise RuntimeError(f"Duplicate completed Stage 1 trial ID {trial_id} in {trial_table}; repair or rerun Stage 1.")
+                logits, targets, persisted_fold_ids, evaluation = _load_resumable_stage1_trial(
+                    trial_dir, config, expected_targets, fold_ids, calibration_method=args.calibration
+                )
+                values = {key: config[key] for key in search_space if key in config}
+                if len(values) != len(search_space):
+                    raise RuntimeError(
+                        f"Cannot safely resume Stage 1 trial {trial_id}: persisted hyperparameters are incomplete; rerun Stage 1."
+                    )
+                normalized = _stage1_trial_row(trial_id, config, values, evaluation, args.calibration)
+                completed_trials[trial_id] = {
+                    "row": normalized, "config": config, "logits": logits,
+                    "targets": targets, "fold_ids": persisted_fold_ids,
+                    "evaluation": evaluation, "values": values,
+                }
 
-    for trial_id in range(int(args.trials)):
-        if trial_id in completed_trials:
-            continue
+    completed_values = [item["values"] for item in completed_trials.values()]
+    completed_keys = [_search_config_key(values, tuple(search_space)) for values in completed_values]
+    if len(completed_keys) != len(set(completed_keys)):
+        raise RuntimeError(
+            "Resumed Stage 1 artifacts contain duplicate hyperparameter configurations. "
+            "Rerun Stage 1 so requested trials are unique."
+        )
+    requested_trials = int(args.trials)
+    new_trial_ids = [trial_id for trial_id in range(max(0, requested_trials)) if trial_id not in completed_trials]
+    new_values, effective_new_count = generate_unique_trial_values(
+        search_space, len(new_trial_ids), args.seed, reserved_values=completed_values
+    )
+    if requested_trials > 0 and len(new_trial_ids) != effective_new_count:
+        new_trial_ids = new_trial_ids[:effective_new_count]
+    trial_values = {trial_id: new_values[index] for index, trial_id in enumerate(new_trial_ids)}
+    for trial_id in sorted(completed_trials):
+        rows.append(completed_trials[trial_id]["row"])
+
+    trial_records = dict(completed_trials)
+    for trial_id in new_trial_ids:
         values = trial_values[trial_id]
         config = _trial_config(args, base_preprocessing, values)
+        config.update({
+            "cv_folds": int(args.cv_folds), "fold_scheme": fold_scheme,
+            "fold_assignment_fingerprint": fold_assignment_fingerprint,
+            "selection_objective": "cross_fitted_calibrated_oof_log_loss",
+            "selection_lower_is_better": True,
+        })
         trial_dir = output / "trials" / f"trial_{trial_id:03d}_{_config_hash(config)}"
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "trial_config.json").write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
         oof_logits = np.full((len(records), 2), np.nan, dtype=np.float32)
-        oof_targets = np.asarray([record.label for record in records], dtype=np.int64)
+        oof_targets = expected_targets.copy()
         fold_rows: list[dict[str, Any]] = []
         for fold_index, (train_indices, validation_indices) in enumerate(folds):
             train_records = [records[index] for index in train_indices]
@@ -253,27 +525,33 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
         if not np.isfinite(oof_logits).all():
             raise RuntimeError("Stage 1 produced incomplete OOF logits.")
-        oof_metrics = compute_binary_metrics(oof_targets, logits=oof_logits)
-        row = {
-            "trial_id": trial_id,
-            "config_hash": _config_hash(config),
-            "mean_oof_log_loss": float(oof_metrics["log_loss"]),
-            "mean_oof_auroc": float(oof_metrics["auroc"]),
-            "mean_oof_brier_score": float(oof_metrics["brier_score"]),
-            "mean_oof_accuracy": float(oof_metrics["accuracy"]),
-        }
+        evaluation = evaluate_stage1_oof(
+            oof_logits, oof_targets, fold_ids, calibration_method=args.calibration
+        )
+        row = _stage1_trial_row(trial_id, config, values, evaluation, args.calibration)
         rows.append(row)
-        np.savez_compressed(trial_dir / "oof_logits.npz", logits=oof_logits, targets=oof_targets)
+        np.savez_compressed(trial_dir / "oof_logits.npz", logits=oof_logits, targets=oof_targets, fold_ids=fold_ids)
         _write_rows(trial_dir / "fold_metrics.csv", fold_rows)
-        if best is None or row["mean_oof_log_loss"] < best[0]:
-            best = (row["mean_oof_log_loss"], config, oof_logits, oof_targets, trial_id)
+        trial_records[trial_id] = {
+            "row": row, "config": config, "logits": oof_logits,
+            "targets": oof_targets, "fold_ids": fold_ids,
+            "evaluation": evaluation, "values": values,
+        }
         _write_rows(output / "cv_trials.csv", rows)
         _plot_trials(rows, output / "optimization_summary.png")
 
-    if best is None:
+    if not trial_records:
         raise RuntimeError("No Stage 1 trials were completed.")
-    _, best_config, best_logits, best_targets, best_trial_id = best
-    best_config = dict(best_config)
+    rows = [trial_records[trial_id]["row"] for trial_id in sorted(trial_records)]
+    _write_rows(output / "cv_trials.csv", rows)
+    selected_row = select_best_stage1_trial(rows)
+    best_trial_id = int(selected_row["trial_id"])
+    selected_record = trial_records[best_trial_id]
+    best_config = dict(selected_record["config"])
+    best_logits = selected_record["logits"]
+    best_targets = selected_record["targets"]
+    selected_evaluation = selected_record["evaluation"]
+
     best_trial_dirs = sorted((output / "trials").glob(f"trial_{best_trial_id:03d}_*/"))
     if not best_trial_dirs:
         raise RuntimeError("The selected Stage 1 trial has no persisted directory.")
@@ -287,13 +565,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     best_epochs = [int(value) for value in fold_frame["best_epoch"].tolist()]
     final_epochs = median_round_half_up(best_epochs)
     best_config.update({
-        "selected_by": "mean_cross_validated_oof_log_loss",
+        "selected_by": "cross_fitted_calibrated_oof_log_loss",
+        "selection_objective": "cross_fitted_calibrated_oof_log_loss",
+        "selection_lower_is_better": True,
         "cv_folds": int(args.cv_folds),
         "fold_scheme": fold_scheme,
         "fold_assignments": _portable_or_key(fold_path),
         "optimization_output_dir": _portable_or_key(output),
         "stage": 1,
         "selected_trial_id": int(best_trial_id),
+        "selected_trial_score": float(selected_row["cross_fitted_calibrated_oof_log_loss"]),
         "config_fingerprint": fingerprint(best_config),
         "fold_assignment_fingerprint": fingerprint([[list(a), list(b)] for a, b in folds]),
         "final_training_epoch_rule": "median_stage1_best_epoch_round_half_up",
@@ -301,28 +582,44 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "fold_best_epochs": best_epochs,
         "research_valid": bool(best_config.get("research_valid", True) and not getattr(args, "max_train_batches", 0) and not getattr(args, "max_val_batches", 0)),
         "git_commit": current_git_commit(),
+        "raw_oof_metrics": selected_evaluation["raw_metrics"],
+        "cross_fitted_calibrated_oof_metrics": selected_evaluation["cross_fitted_metrics"],
+        "final_all_oof_calibrated_metrics": selected_evaluation["final_all_oof_metrics"],
+        "calibration_method": args.calibration,
+        "calibration_provenance": "cross_fitted_for_selection_all_winning_oof_for_deployment",
     })
     (output / "best_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
-    np.savez_compressed(output / "oof_predictions.npz", logits=best_logits, targets=best_targets)
+    np.savez_compressed(output / "oof_predictions.npz", logits=best_logits, targets=best_targets, fold_ids=fold_ids)
     best_config["oof_artifact"] = _portable_or_key(output / "oof_predictions.npz")
     (output / "best_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
 
-    validation_folds = [validation for _, validation in folds]
-    raw_metrics = compute_binary_metrics(best_targets, logits=best_logits)
-    calibrated_probs, fold_calibrations = cross_fitted_calibration(
-        best_logits, best_targets, validation_folds, method=args.calibration
-    )
-    calibrated_metrics = compute_binary_metrics(best_targets, probabilities=calibrated_probs)
-    final_calibration = fit_calibration(best_logits, best_targets, method=args.calibration)
+    raw_metrics = selected_evaluation["raw_metrics"]
+    calibrated_metrics = selected_evaluation["cross_fitted_metrics"]
+    fold_calibrations = selected_evaluation["fold_calibrations"]
+    final_all_oof_metrics = selected_evaluation["final_all_oof_metrics"]
+    final_calibration = dict(selected_evaluation["final_calibration"])
     final_calibration.update({
+        "selection_objective": "cross_fitted_calibrated_oof_log_loss",
+        "raw_oof_metrics": raw_metrics,
+        "cross_fitted_calibrated_oof_metrics": calibrated_metrics,
+        "final_all_oof_calibrated_metrics": final_all_oof_metrics,
         "raw_oof_log_loss": raw_metrics["log_loss"],
-        "calibrated_oof_log_loss": calibrated_metrics["log_loss"],
+        "cross_fitted_calibrated_oof_log_loss": calibrated_metrics["log_loss"],
+        "final_all_oof_calibrated_log_loss": final_all_oof_metrics["log_loss"],
         "cross_fitted_fold_calibrations": fold_calibrations,
-        "calibration_fit_data": "labeled_training_oof_predictions_only",
+        "calibration_fit_data": "all_winning_trial_labeled_oof_predictions_only_for_deployment",
+        "calibration_selection_data": "other_folds_only_for_each_cross_fitted_validation_fold",
     })
     save_calibration(output / "calibration.json", final_calibration)
     (output / "calibration_report.json").write_text(
-        json.dumps({"raw": raw_metrics, "calibrated_cross_fitted": calibrated_metrics}, indent=2, sort_keys=True),
+        json.dumps({
+            "selection_objective": "cross_fitted_calibrated_oof_log_loss",
+            "raw": raw_metrics,
+            "cross_fitted_calibrated": calibrated_metrics,
+            "final_all_oof_calibrated": final_all_oof_metrics,
+            "calibration_method": args.calibration,
+            "deployment_fit": "all_winning_trial_oof_logits_and_targets",
+        }, indent=2, sort_keys=True),
         encoding="utf-8",
     )
     # Commit-safe, UID-free research outputs are kept under runs/ as well as
@@ -337,17 +634,25 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     _write_rows(research_dir / "selected_fold_metrics.csv", fold_frame.to_dict("records"))
     (research_dir / "selected_config.json").write_text(json.dumps(best_config, indent=2, sort_keys=True), encoding="utf-8")
     (research_dir / "calibration_report.json").write_text(
-        json.dumps({"raw": raw_metrics, "calibrated_cross_fitted": calibrated_metrics,
-                    "calibration_provenance": "labeled_training_oof_predictions_only",
+        json.dumps({"selection_objective": "cross_fitted_calibrated_oof_log_loss",
+                    "raw": raw_metrics, "calibrated_cross_fitted": calibrated_metrics,
+                    "final_all_oof_calibrated": final_all_oof_metrics,
+                    "calibration_method": args.calibration,
+                    "calibration_provenance": "cross_fitted_other_folds_for_selection_all_winning_oof_for_deployment",
                     "research_valid": bool(best_config["research_valid"])}, indent=2, sort_keys=True), encoding="utf-8")
     summary = {
         "stage": 1, "research_valid": bool(best_config["research_valid"]),
-        "selection_basis": "mean_cross_validated_oof_log_loss",
+        "selection_basis": "cross_fitted_calibrated_oof_log_loss",
+        "selection_lower_is_better": True,
+        "calibration_method": args.calibration,
         "selected_trial_id": int(best_trial_id), "selected_config_fingerprint": best_config["config_fingerprint"],
+        "selected_trial_score": float(selected_row["cross_fitted_calibrated_oof_log_loss"]),
         "fold_count": len(folds), "fold_best_epochs": best_epochs,
         "final_training_epoch_rule": best_config["final_training_epoch_rule"],
         "final_training_epochs": final_epochs, "raw_oof_metrics": raw_metrics,
         "cross_fitted_calibrated_oof_metrics": calibrated_metrics,
+        "final_all_oof_calibrated_metrics": final_all_oof_metrics,
+        "calibration_provenance": "cross_fitted_other_folds_for_selection_all_winning_oof_for_deployment",
         "privacy": "Aggregate metrics only; no UIDs, patient predictions, arrays, or machine paths.",
     }
     (research_dir / "stage1_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
@@ -361,7 +666,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 def main() -> None:
     args = _parser().parse_args()
     result = run(args)
-    print(json.dumps({"raw_oof_log_loss": result["raw_metrics"]["log_loss"], "calibrated_oof_log_loss": result["calibrated_metrics"]["log_loss"]}, indent=2))
+    print(json.dumps({
+        "raw_oof_log_loss": result["raw_metrics"]["log_loss"],
+        "cross_fitted_calibrated_oof_log_loss": result["calibrated_metrics"]["log_loss"],
+    }, indent=2))
 
 
 if __name__ == "__main__":

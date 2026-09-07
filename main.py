@@ -34,6 +34,9 @@ def run_inference(
     frame = pd.read_csv(submission_format_path)
     if list(frame.columns) != ["uid", "is_pathologic"]:
         raise ValueError("submission_format.csv must have exactly uid,is_pathologic columns.")
+    if frame["uid"].isna().any() or frame["uid"].astype(str).duplicated().any():
+        raise ValueError("submission_format.csv contains missing or duplicate UIDs.")
+    template_uids = frame["uid"].astype(str).tolist()
 
     model_config = json.loads((bundle_root / "model_config.json").read_text(encoding="utf-8"))
     preprocessing = json.loads((bundle_root / "preprocessing.json").read_text(encoding="utf-8"))
@@ -44,7 +47,7 @@ def run_inference(
     model = load_model_from_bundle(weights_path, model_config, device=device)
     print("Running inference")
     probabilities = []
-    for uid in frame["uid"].tolist():
+    for uid in template_uids:
         nifti_path = nifti_dir / f"{uid}.nii.gz"
         if not nifti_path.is_file():
             raise FileNotFoundError("A required NIfTI scan is missing from the runtime data directory.")
@@ -57,6 +60,13 @@ def run_inference(
         probabilities.append(float(np.clip(probability, 1e-6, 1.0 - 1e-6)))
     output = frame[["uid", "is_pathologic"]].copy()
     output["is_pathologic"] = probabilities
+    probability_array = pd.to_numeric(output["is_pathologic"], errors="coerce").to_numpy(dtype=float)
+    if len(output) != len(frame) or output["uid"].astype(str).tolist() != template_uids:
+        raise RuntimeError("Inference changed submission row count or UID order.")
+    if not np.isfinite(probability_array).all() or np.any((probability_array < 0.0) | (probability_array > 1.0)):
+        raise RuntimeError("Inference produced invalid submission probabilities.")
+    if output.isna().any().any() or output["uid"].astype(str).duplicated().any():
+        raise RuntimeError("Inference produced missing or duplicate submission values.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output.to_csv(output_path, index=False)
     print("Writing submission.csv")

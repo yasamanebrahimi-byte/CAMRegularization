@@ -12,7 +12,11 @@ submission/
 __pycache__/
 .pytest_cache/
 .pytest_tmp/
+.pytest_temp*/
 *.log
+.env
+.env.*
+!.env.example
 
 # Keep lightweight DaT run summaries/metrics trackable, but never checkpoints.
 runs/dat_parkinsons/**/best_model.pt
@@ -21,3 +25,4 @@ runs/dat_parkinsons/**/cache/
 runs/dat_parkinsons/**/fold_assignments.json
 runs/dat_parkinsons/**/oof*.npz
 runs/dat_parkinsons/**/trials/
+runs/dat_parkinsons/optimization/
