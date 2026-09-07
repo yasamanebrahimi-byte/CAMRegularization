@@ -1,0 +1,36 @@
+{
+  "cross_fitted_calibrated_oof_metrics": {
+    "accuracy": 0.7437591776798825,
+    "auroc": 0.8225356711398439,
+    "brier_score": 0.17185996387751878,
+    "ece": 0.03307978743393096,
+    "log_loss": 0.5175455138516029,
+    "sensitivity": 0.7911646586345381,
+    "specificity": 0.6861788617886179
+  },
+  "final_training_epoch_rule": "median_stage1_best_epoch_round_half_up",
+  "final_training_epochs": 20,
+  "fold_best_epochs": [
+    18,
+    27,
+    23,
+    12,
+    20
+  ],
+  "fold_count": 5,
+  "privacy": "Aggregate metrics only; no UIDs, patient predictions, arrays, or machine paths.",
+  "raw_oof_metrics": {
+    "accuracy": 0.7437591776798825,
+    "auroc": 0.8231081507602226,
+    "brier_score": 0.17166260894961288,
+    "ece": 0.027915422852009954,
+    "log_loss": 0.5164076639302116,
+    "sensitivity": 0.7911646586345381,
+    "specificity": 0.6861788617886179
+  },
+  "research_valid": true,
+  "selected_config_fingerprint": "7c59726bbed778db",
+  "selected_trial_id": 1,
+  "selection_basis": "mean_cross_validated_oof_log_loss",
+  "stage": 1
+}

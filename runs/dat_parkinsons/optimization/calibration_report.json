@@ -1,0 +1,22 @@
+{
+  "calibrated_cross_fitted": {
+    "accuracy": 0.7437591776798825,
+    "auroc": 0.8225356711398439,
+    "brier_score": 0.17185996387751878,
+    "ece": 0.03307978743393096,
+    "log_loss": 0.5175455138516029,
+    "sensitivity": 0.7911646586345381,
+    "specificity": 0.6861788617886179
+  },
+  "calibration_provenance": "labeled_training_oof_predictions_only",
+  "raw": {
+    "accuracy": 0.7437591776798825,
+    "auroc": 0.8231081507602226,
+    "brier_score": 0.17166260894961288,
+    "ece": 0.027915422852009954,
+    "log_loss": 0.5164076639302116,
+    "sensitivity": 0.7911646586345381,
+    "specificity": 0.6861788617886179
+  },
+  "research_valid": true
+}
