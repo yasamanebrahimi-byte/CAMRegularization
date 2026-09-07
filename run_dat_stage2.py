@@ -40,7 +40,7 @@ def run(args: argparse.Namespace) -> dict:
                      conditions=args.conditions, m_values=args.m_values, fractions=args.fractions,
                      frozen_config=best_config)
     selected = selection["best_masked"]
-    final = train_final_dat_model(
+    train_final_dat_model(
         args.data_dir, args.best_config, args.final_model_dir,
         selected=selected, stage1_model_dir=args.stage1_model_dir,
         calibration_payload=selected["calibration"], seed=args.seed,

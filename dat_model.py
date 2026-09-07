@@ -7,8 +7,6 @@ even when the research environment does not have MONAI installed.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
-
 import torch
 from torch import nn
 
@@ -128,4 +126,3 @@ def load_model_from_bundle(
     model.to(device)
     model.eval()
     return model
-

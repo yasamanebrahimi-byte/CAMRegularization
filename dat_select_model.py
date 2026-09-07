@@ -12,7 +12,7 @@ import pandas as pd
 
 from dat_calibration import fit_candidate_calibration
 from dat_masking_experiments import CONDITIONS, DEFAULT_FRACTIONS, DEFAULT_M, _run_is_valid, cell_key, expected_grid
-from dat_provenance import REPO_ROOT, fingerprint, median_round_half_up, portable_path
+from dat_provenance import REPO_ROOT, median_round_half_up, portable_path
 
 
 # These fields define the treatment recipe and the frozen Stage 1 training

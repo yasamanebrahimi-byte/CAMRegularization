@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -20,7 +19,6 @@ from dat_provenance import (
     REPO_ROOT,
     current_git_commit,
     fingerprint,
-    median_round_half_up,
     portable_path,
     research_valid,
     sha256_file,

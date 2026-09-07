@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import copy
 import csv
 import json
-import math
 import os
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from dat_metrics import compute_binary_metrics
 from dat_model import build_resnet18_3d
-from dat_preprocessing import DatDataset
 from utils import set_seed
 
 

@@ -26,7 +26,7 @@ def run(args: argparse.Namespace) -> dict:
         raise ValueError("Stage 1 smoke/debug or truncated runs cannot produce research or competition models. Remove batch limits and debug flags.")
     best_config_path = Path(args.output_dir) / "best_config.json"
     calibration_path = Path(args.output_dir) / "calibration.json"
-    final = train_final_dat_model(
+    train_final_dat_model(
         args.data_dir, best_config_path, args.final_model_dir, calibration_path,
         seed=args.seed, num_workers=args.num_workers,
         max_train_batches=getattr(args, "max_train_batches", 0) or 0,

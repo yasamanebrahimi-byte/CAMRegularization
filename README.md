@@ -2,7 +2,7 @@
 
 Image classification training experiments with optional cutout augmentation. The active workflow is standard training through `train.py`, with dataset and model selection handled by the registries.
 
-This repository separates general code capabilities from completed experiment results. The current committed experiment set covers CIFAR-100 and RawMal-TF only. RawMal-TF is loaded through the internal `drive_zip` dataset identifier because the code reads the dataset from a ZIP archive, but research-facing text, tables, plots, and reports should refer to it as RawMal-TF.
+The current research scope covers CIFAR-100, RawMal-TF, and DaT Parkinson's. RawMal-TF is loaded through the internal `drive_zip` dataset identifier because the code reads the dataset from a ZIP archive, but research-facing text, tables, plots, and reports should refer to it as RawMal-TF. The image experiments use 2D ResNet18; the DaT workflow uses 3D ResNet18.
 
 Supported cutout modes:
 
@@ -186,7 +186,7 @@ python dat_select_model.py
 python dat_final_model.py --data_dir /path/to/dat_training --best_config artifacts/dat_parkinsons/optimization/best_config.json --output_dir artifacts/dat_parkinsons/final_stage1_unmasked
 ```
 
-For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission` for each ZIP. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission. The local validator also checks exact UID order, two-column schema, finite probabilities in `[0,1]`, and ZIP layout. Any credential used by optional dataset downloaders must be supplied through environment variables (for example `KAGGLE_API_TOKEN`); no credential is stored in executable source. If an earlier public commit contained a real credential, revoke/rotate it separately because removing it from the current tree does not remove it from Git history.
+For the current official runtime, clone [competition-sfmn-parkinsons-runtime](https://github.com/drivendataorg/competition-sfmn-parkinsons-runtime), put smoke-test data in `data-demo/submission_format.csv` and `data-demo/niftis/`, set `SUBMISSION_IMAGE` as described by that repository, then run `just pull`, `just pack-submission`, `just check-submission`, and `DATA_DIR=/path/to/data-demo just test-submission` for each ZIP. The runtime unpacks the ZIP into `/code_execution/`, runs `python main.py`, and copies the root `submission.csv` back to the local submission directory. No network access or test-set fitting is needed by the submission. The local validator also checks exact UID order, two-column schema, finite probabilities in `[0,1]`, and ZIP layout. No credential is stored in executable source. If an earlier public commit contained a real credential, revoke/rotate it separately because removing it from the current tree does not remove it from Git history.
 
 ## Current Cutout Flags
 
@@ -233,11 +233,11 @@ Checkpoint and log files may be produced during local training, but they are not
 
 ## Completed Experiment Scope
 
-The completed experiments are separate from the broader dataset and model support in the code. The committed analysis scope is:
+The committed analysis scope is:
 
-- Datasets: CIFAR-100 and RawMal-TF.
-- Internal dataset identifiers: `cifar100` and `drive_zip`; write RawMal-TF in research-facing text.
-- Model: ResNet18.
+- Datasets: CIFAR-100, RawMal-TF, and DaT Parkinson's.
+- Internal dataset identifiers: `cifar100`, `drive_zip`, and `dat_parkinsons`.
+- Models: ResNet18 and ResNet18-3D (`resnet18_3d`).
 - Seeds: 42, 43, and 44.
 - Epochs: 100.
 - Cutout areas: 0.05, 0.10, 0.20, and 0.30.
@@ -250,46 +250,27 @@ The completed experiments are separate from the broader dataset and model suppor
 
 ## Available Datasets
 
-These are code capabilities registered in `dataset_registry.py`; they are not all completed experiment datasets.
+These are the datasets registered for the current research scope in `dataset_registry.py`.
 
 Registered datasets from `dataset_registry.py`:
 
 - `cifar100` (100 classes, default size 32)
-- `tiny_imagenet` (200 classes, default size 64)
-- `cub200` (200 classes, default size 224)
-- `malimg` (25 classes, default size 224)
-- `malware_classification` (9 classes, default size 224)
-- `big2015` (alias of `malware_classification`, 9 classes, default size 224)
-- `imagenette` (10 classes, default size 224)
-- `cifar100_c` (100 classes, default size 32; clean CIFAR-100 train, corrupted test)
 - `drive_zip` (generic image dataset loaded from a ZIP file, default size 224)
 - `dat_parkinsons` (labeled three-dimensional NIfTI scans, two classes, target shape configured in `dat_preprocessing.py`)
 
 Dataset notes:
 
-- `tiny_imagenet`, `cub200`, `imagenette`, and `cifar100_c` support local cache/download behavior through `--data_dir`.
-- `malimg` expects an explicit `train/val/test` split directory.
-- `malware_classification` and `big2015` expect Microsoft Malware Classification data with `trainLabels.csv` and a `train/` folder containing `.bytes` files.
 - `drive_zip` expects a ZIP archive under `--data_dir` or at `DRIVE_DATASET_ZIP`.
 - `drive_zip` supports `train/val/test`, `train/test`, or one class-folder root that can be split automatically.
+- `dat_parkinsons` expects labeled NIfTI scans and is loaded through the dedicated DaT preprocessing pipeline.
 
 ## Available Models
 
-These are code capabilities registered in `model_registry.py`; the completed experiments above use ResNet18.
+These are the models registered for the current research scope in `model_registry.py`.
 
 Registered models from `model_registry.py`:
 
 - `resnet18`
-- `resnet34`
-- `resnet50`
-- `vgg16_bn`
-- `densenet121`
-- `mobilenet_v3_small`
-- `mobilenet_v3_large`
-- `efficientnet_b0`
-- `vit_b_16`
-- `convnext_tiny`
-- `swin_t`
 - `resnet18_3d` (one-channel, two-logit 3D ResNet18-style model for DaT)
 
 ## Current Experiment Starters

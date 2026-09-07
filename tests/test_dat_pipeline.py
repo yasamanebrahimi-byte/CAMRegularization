@@ -16,7 +16,7 @@ from cam_masking import compute_saliency_map
 from cutout import CutoutAugmentedDataset
 from dat_calibration import apply_temperature, fit_temperature
 from dat_metrics import compute_binary_metrics
-from dat_model import build_resnet18_3d, load_model_from_bundle
+from dat_model import build_resnet18_3d
 from dat_preprocessing import DatDataset, default_preprocessing_config, load_dat_records, preprocess_nifti
 from main import run_inference
 
